@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "@nozbe/watermelondb": "^0.28.0",
+    "@nozbe/with-observables": "^1.6.0",
+    "axios": "^1.16.1",
+    "expo-secure-store": "^55.0.14",
+    "expo": "~55.0.24",
+    "react": "19.2.0",
+    "react-native": "0.83.6"
+  },
+  "name": "urolens-mobile",
+  "version": "1.0.0",
+  "scripts": {}
+}
