@@ -12,13 +12,11 @@ export default function MedTechLayout() {
   const { isAuthenticated, role } = useAuthStore();
   const wasConnected = useRef<boolean | null>(null);
 
-  // TASK-MOB-04-7: Sync on app foreground
-  // TASK-MOB-04-8: Sync on network reconnect
   useEffect(() => {
-    // Initial sync on mount
+    if (!isAuthenticated || role !== UserRole.MEDTECH) return;
+
     synchronize();
 
-    // Sync when app returns to foreground
     const appStateSub = AppState.addEventListener(
       'change',
       (nextState: AppStateStatus) => {
@@ -28,7 +26,6 @@ export default function MedTechLayout() {
       },
     );
 
-    // Sync only when connectivity is restored (not on every NetInfo event)
     const netInfoUnsub = NetInfo.addEventListener((state) => {
       const isConnected = state.isConnected ?? false;
       if (isConnected && wasConnected.current === false) {
@@ -41,7 +38,7 @@ export default function MedTechLayout() {
       appStateSub.remove();
       netInfoUnsub();
     };
-  }, []);
+  }, [isAuthenticated, role]);
 
   if (!isAuthenticated || role !== UserRole.MEDTECH) {
     return <Redirect href="/(auth)/login" />;
