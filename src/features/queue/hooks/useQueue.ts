@@ -1,9 +1,8 @@
-// src/features/queue/hooks/useQueue.ts
 import { useEffect, useState, useCallback } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
-import { syncManager } from '@db/sync/syncManager';
+import { synchronize } from '@db/sync/syncManager';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import type { QueueItem, FilterOption, PriorityLevel, SpecimenStatus } from '../types';
 
@@ -40,14 +39,14 @@ function buildQuery(filter: FilterOption): Q.Clause[] {
     case 'ASSIGNED':
       return [Q.where('status', 'ASSIGNED')];
     case 'PROCESSING':
-      return [Q.where('status', 'PROCESSING')];
+      return [Q.where('status', Q.oneOf(['PROCESSING', 'IN_PROGRESS']))];
     case 'ALL':
     default:
       return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];
   }
 }
 
-interface UseQueueResult {
+export interface UseQueueResult {
   items: QueueItem[];
   isLoading: boolean;
   filter: FilterOption;
@@ -63,7 +62,6 @@ export function useQueue(): UseQueueResult {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { isOnline } = useNetworkStatus();
 
-  // Reactive WatermelonDB subscription — re-runs when filter changes
   useEffect(() => {
     const clauses = buildQuery(filter);
     const subscription = database
@@ -78,12 +76,9 @@ export function useQueue(): UseQueueResult {
     return () => subscription.unsubscribe();
   }, [filter]);
 
-  // Trigger sync on mount if online
   useEffect(() => {
     if (isOnline) {
-      syncManager.synchronize().catch(() => {
-        // Sync errors are surfaced via the OfflineBanner — not thrown here
-      });
+      synchronize().catch(() => {});
     }
   }, [isOnline]);
 
@@ -91,7 +86,7 @@ export function useQueue(): UseQueueResult {
     if (!isOnline) return;
     setIsRefreshing(true);
     try {
-      await syncManager.synchronize();
+      await synchronize();
     } finally {
       setIsRefreshing(false);
     }
