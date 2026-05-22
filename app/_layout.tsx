@@ -6,6 +6,20 @@ import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
 
+// DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
+// SecureStore and return to the login screen without reinstalling.
+if (__DEV__) {
+  const { DevSettings } = require('react-native');
+  DevSettings.addMenuItem('Reset Auth → Login', async () => {
+    const { tokenStorage: ts } = require('@lib/auth/tokenStorage');
+    const { useAuthStore: store } = require('@lib/auth/authStore');
+    const { router } = require('expo-router');
+    await ts.clearAll();
+    store.getState().clearAuth();
+    router.replace('/(auth)/login');
+  });
+}
+
 export default function RootLayout() {
   const { isLoading, setAuthenticated, clearAuth } = useAuthStore();
 
