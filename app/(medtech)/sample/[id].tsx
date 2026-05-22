@@ -14,7 +14,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
-import type { QueueItem } from '../../../src/features/queue/types'//'@features/queue/types';
+import { MOCK_QUEUE_ITEMS } from '../../../src/mocks/queueMockData';
+import type { QueueItem } from '../../../src/features/queue/types';
+
+const USE_MOCK = true;
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-PH', {
@@ -44,6 +47,14 @@ export default function SampleDetailScreen() {
 
   useEffect(() => {
     if (!id) return;
+
+    if (USE_MOCK) {
+      const found = MOCK_QUEUE_ITEMS.find((item) => item.id === id);
+      if (found) setSpecimen(found);
+      else setNotFound(true);
+      setIsLoading(false);
+      return;
+    }
 
     // Observe WatermelonDB record reactively so any sync update reflects immediately
     const subscription = database
