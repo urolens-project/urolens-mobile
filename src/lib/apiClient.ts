@@ -31,7 +31,8 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !isLoginRequest) {
       await tokenStorage.clearAll();
       useAuthStore.getState().clearAuth();
       router.replace('/(auth)/login');
