@@ -10,8 +10,9 @@ export default class PendingSync extends Model {
   @field('payload_json')  payloadJson!: string;
   @field('status')        status!: string;
   @field('error_message') errorMessage!: string | null;
-  @field('created_at')    createdAt!: string;
-  @field('attempted_at')  attemptedAt!: string | null;
+  // WatermelonDB requires `created_at` to be a number (Unix ms timestamp)
+  @field('created_at')    createdAt!: number;
+  @field('attempted_at')  attemptedAt!: number | null;
 
   get payload(): Record<string, unknown> {
     try {

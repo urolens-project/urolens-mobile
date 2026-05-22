@@ -1,13 +1,33 @@
+# Supply-chain age policy disabled — all SDK 55 packages are too new to pass
+# the default cutoff. Re-enable by removing minimumReleaseAge when packages mature.
+minimumReleaseAge: "0 seconds"
 minimumReleaseAgeExclude:
   - '@expo/cli@55.0.31'
+  - '@expo/cli@55.0.32'
+  - '@expo/config-plugins@55.0.10'
+  - '@expo/json-file@10.0.15'
   - '@expo/metro-config@55.0.22'
+  - '@expo/metro-config@55.0.23'
+  - '@expo/plist@0.5.4'
   - '@expo/router-server@55.0.17'
+  - '@expo/router-server@55.0.18'
   - babel-preset-expo@55.0.22
-  - expo-file-system@55.0.21
-  - expo-font@55.0.8
-  - expo-modules-autolinking@55.0.23
-  - expo-server@55.0.10
   - expo@55.0.25
+  - expo@55.0.26
+  - expo-camera@55.0.19
+  - expo-file-system@55.0.21
+  - expo-file-system@55.0.22
+  - expo-font@55.0.8
+  - expo-image@55.0.11
+  - expo-image-loader@55.0.1
+  - expo-image-manipulator@55.0.17
+  - expo-modules-autolinking@55.0.23
+  - expo-modules-autolinking@55.0.24
   - expo-router@55.0.15
+  - expo-router@55.0.16
+  - expo-server@55.0.10
+  - expo-server@55.0.11
   - expo-symbols@55.0.9
   - jest-expo@55.0.18
+patchedDependencies:
+  react-native@0.83.6: patches/react-native@0.83.6.patch

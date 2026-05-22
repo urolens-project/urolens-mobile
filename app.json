@@ -20,7 +20,8 @@
       "bundleIdentifier": "edu.citu.urolens.mobile",
       "infoPlist": {
         "NSCameraUsageDescription": "UroLens requires camera access to photograph urine specimens for AI analysis.",
-        "NSPhotoLibraryUsageDescription": "UroLens requires photo library access to upload specimen images."
+        "NSPhotoLibraryUsageDescription": "UroLens requires photo library access to upload specimen images.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -34,7 +35,9 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -58,10 +61,17 @@
           "color": "#1E3A5F"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "993725d9-aeb9-4088-8fb2-f1ff4b5c9d29"
+      }
     }
   }
 }

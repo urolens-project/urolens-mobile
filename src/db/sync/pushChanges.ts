@@ -15,7 +15,7 @@ export async function pushChanges(): Promise<void> {
       await dispatchAction(item);
       await item.update((record) => {
         (record as unknown as PendingSync).status = PendingSyncStatus.SYNCED;
-        (record as unknown as PendingSync).attemptedAt = new Date().toISOString();
+        (record as unknown as PendingSync).attemptedAt = Date.now();
       });
     } catch (err) {
       console.error(`[pushChanges] Failed to sync action ${item.action} for ${item.entityId}:`, err);
@@ -23,7 +23,7 @@ export async function pushChanges(): Promise<void> {
         (record as unknown as PendingSync).status = PendingSyncStatus.FAILED;
         (record as unknown as PendingSync).errorMessage =
           err instanceof Error ? err.message : String(err);
-        (record as unknown as PendingSync).attemptedAt = new Date().toISOString();
+        (record as unknown as PendingSync).attemptedAt = Date.now();
       });
     }
   }
