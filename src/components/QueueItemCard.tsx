@@ -1,7 +1,7 @@
 // src/features/queue/components/QueueItemCard.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import type { QueueItem, PriorityLevel } from './types';
+import type { QueueItem, PriorityLevel } from '../features/queue/types';
 
 interface Props {
   item: QueueItem;

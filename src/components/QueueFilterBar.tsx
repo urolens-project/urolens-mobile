@@ -1,7 +1,7 @@
 // src/features/queue/components/QueueFilterBar.tsx
 import React from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
-import type { FilterOption } from './types';
+import type { FilterOption } from '../features/queue/types';
  
 interface FilterChip {
   key: FilterOption;
