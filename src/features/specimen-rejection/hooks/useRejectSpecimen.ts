@@ -40,6 +40,9 @@ export function useRejectSpecimen(specimenId: string) {
           }
           await specimen.update((s) => {
             s.status = 'REJECTED';
+            s.rejectionReason = reason;
+            s.rejectionNote = note?.trim() || null;
+            s.rejectedAt = new Date().toISOString();
           });
         });
       } finally {
