@@ -24,5 +24,3 @@ expo-env.d.ts
 ./urolens-mobile/expo/
 .expo/
 .expo
-
-.npmrc
