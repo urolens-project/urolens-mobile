@@ -56,7 +56,17 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
     try {
       const allLocalRecords = await collection.query().fetch() as unknown as Record<string, unknown>[];
       const localRecord = allLocalRecords.find((r) => r['serverId'] === serverRecord.id);
-      if (!localRecord) continue;
+
+      // Record not in local DB yet — delta sync sent it as an update but it's new here
+      if (!localRecord) {
+        await collection.create((model) => {
+          Object.assign(
+            model as unknown as Record<string, unknown>,
+            mapServerToLocal(tableName, serverRecord),
+          );
+        });
+        continue;
+      }
 
       await (localRecord as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> })
         .update((r) => {
