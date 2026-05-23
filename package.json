@@ -100,9 +100,6 @@
     }
   },
   "pnpm": {
-    "publicHoistPattern": [
-      "*react-native*"
-    ],
     "overrides": {
       "@react-navigation/native": "7.1.33"
     }
