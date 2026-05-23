@@ -10,7 +10,7 @@ config.watchFolders = [
 ];
 
 // Follow pnpm symlinks so Metro can resolve packages through the virtual store
-config.resolver.unstable_enableSymlinks = true;
+//config.resolver.unstable_enableSymlinks = true;
 
 config.resolver.alias = {
   '@': path.resolve(__dirname, 'src'),
