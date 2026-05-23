@@ -13,8 +13,7 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint src app --ext .ts,.tsx",
     "generate:types": "openapi-typescript http://localhost:8000/openapi.json -o src/types/api.ts",
-    "build:preview": "eas build --profile preview --platform all",
-    "eas-build-pre-install": "pnpm install --no-frozen-lockfile"
+    "build:preview": "eas build --profile preview --platform all"
   },
   "dependencies": {
     "@expo/metro-runtime": "^55.0.11",
