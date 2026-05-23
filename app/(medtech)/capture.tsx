@@ -1,16 +1,27 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-// Implemented in EPIC-MOB-05 (STORY-MOB-08)
-export default function CaptureScreen() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Capture — EPIC-MOB-05</Text>
-    </View>
-  );
+// app/(medtech)/capture.tsx
+/**
+ * T2.7 — Image Capture Route
+ *
+ * This is a thin Expo Router screen. All logic lives in ImageCaptureScreen.
+ *
+ * Expected query params (from expo-router useLocalSearchParams):
+ *   specimenId       — UUID of the specimen being analysed (required)
+ *   existingImageId  — UUID of a previously uploaded image (present on retake only)
+ *
+ * Navigation in:
+ *   sample/[id].tsx → "Begin Analysis" button → router.push('/(medtech)/capture', { specimenId })
+ *   sample/[id].tsx → "Retake" on result review → router.push with existingImageId
+ *
+ * Navigation out (from ImageCaptureScreen):
+ *   Success → router.replace('/(medtech)/sample/[id]', { id: specimenId, resultId })
+ *   Back    → router.back()
+ */
+ 
+import { ImageCaptureScreen } from '@features/image-retake/components/ImageCaptureScreen';
+ 
+export default function CaptureRoute() {
+  return <ImageCaptureScreen />;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  text: { fontSize: 16, color: '#6B7280' },
-});
