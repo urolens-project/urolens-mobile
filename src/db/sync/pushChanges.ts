@@ -13,17 +13,33 @@ export async function pushChanges(): Promise<void> {
   for (const item of pendingItems) {
     try {
       await dispatchAction(item);
-      await item.update((record) => {
-        (record as unknown as PendingSync).status = PendingSyncStatus.SYNCED;
-        (record as unknown as PendingSync).attemptedAt = Date.now();
+      await database.write(async () => {
+        await item.update((record) => {
+          (record as unknown as PendingSync).status = PendingSyncStatus.SYNCED;
+          (record as unknown as PendingSync).attemptedAt = Date.now();
+        });
       });
     } catch (err) {
+      // 409 CONFLICT means the server already has the desired state — treat as success
+      const apiErr = err as { code?: string };
+      if (apiErr?.code === 'CONFLICT') {
+        await database.write(async () => {
+          await item.update((record) => {
+            (record as unknown as PendingSync).status = PendingSyncStatus.SYNCED;
+            (record as unknown as PendingSync).attemptedAt = Date.now();
+          });
+        });
+        continue;
+      }
+
       console.error(`[pushChanges] Failed to sync action ${item.action} for ${item.entityId}:`, err);
-      await item.update((record) => {
-        (record as unknown as PendingSync).status = PendingSyncStatus.FAILED;
-        (record as unknown as PendingSync).errorMessage =
-          err instanceof Error ? err.message : String(err);
-        (record as unknown as PendingSync).attemptedAt = Date.now();
+      await database.write(async () => {
+        await item.update((record) => {
+          (record as unknown as PendingSync).status = PendingSyncStatus.FAILED;
+          (record as unknown as PendingSync).errorMessage =
+            err instanceof Error ? err.message : String(err);
+          (record as unknown as PendingSync).attemptedAt = Date.now();
+        });
       });
     }
   }
