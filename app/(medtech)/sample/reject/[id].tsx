@@ -3,13 +3,13 @@ import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  SafeAreaView,
   StyleSheet,
   StatusBar,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Q } from '@nozbe/watermelondb';
@@ -20,7 +20,7 @@ import { MOCK_QUEUE_ITEMS } from '../../../../src/mocks/queueMockData';
 import { useRejectSpecimen } from '../../../../src/features/specimen-rejection/hooks/useRejectSpecimen';
 import { RejectionReasonModal } from '../../../../src/features/specimen-rejection/components/RejectionReasonModal';
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 export default function RejectSpecimenScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -77,7 +77,7 @@ export default function RejectSpecimenScreen() {
 
     try {
       await reject(selectedReason, note);
-      router.replace('/(medtech)/queue');
+      router.replace(`/(medtech)/sample/${id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred.';
       Alert.alert('Rejection Failed', message);
