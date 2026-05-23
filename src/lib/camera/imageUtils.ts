@@ -1,0 +1,144 @@
+// src/lib/camera/imageUtils.ts
+/**
+ * Image utilities for T2.7 — Image Capture & Validation.
+ *
+ * Responsibilities:
+ *  - Strip EXIF metadata from images before upload (privacy requirement).
+ *  - Validate resolution meets the AI engine's 640×480 minimum.
+ *  - Build the multipart FormData for the upload API.
+ *
+ * Expo's ImageManipulator re-encodes the image without EXIF.
+ * We treat the manipulated result as the canonical upload payload.
+ */
+
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
+import { ImagePickerAsset } from 'expo-image-picker';
+import { CameraCapturedPicture } from 'expo-camera';
+
+export const MIN_WIDTH = 640;
+export const MIN_HEIGHT = 480;
+
+export type SupportedMimeType = 'image/jpeg' | 'image/png';
+
+export interface ProcessedImage {
+  /** Local file URI after EXIF strip (safe to upload) */
+  uri: string;
+  width: number;
+  height: number;
+  mimeType: SupportedMimeType;
+  /** Size in bytes — read after processing */
+  sizeBytes: number;
+  /** Original filename hint (optional) */
+  filename: string;
+}
+
+export class ImageResolutionError extends Error {
+  constructor(width: number, height: number) {
+    super(
+      `Image resolution ${width}×${height} is below the minimum ` +
+        `${MIN_WIDTH}×${MIN_HEIGHT} required for AI analysis. ` +
+        `Please retake the photo closer to the microscope eyepiece.`,
+    );
+    this.name = 'ImageResolutionError';
+  }
+}
+
+export class ImageFormatError extends Error {
+  constructor(mimeType: string) {
+    super(
+      `Unsupported image format "${mimeType}". ` +
+        `Please capture a JPEG or PNG image.`,
+    );
+    this.name = 'ImageFormatError';
+  }
+}
+
+/**
+ * Strip EXIF metadata and validate the image from expo-camera.
+ *
+ * expo-camera returns a CameraCapturedPicture with a local URI.
+ * ImageManipulator re-encodes → new URI with no EXIF.
+ */
+export async function processCapture(
+  picture: CameraCapturedPicture,
+): Promise<ProcessedImage> {
+  return _processUri(picture.uri, picture.width, picture.height, 'captured');
+}
+
+/**
+ * Strip EXIF metadata and validate the image from expo-image-picker.
+ */
+export async function processPickerAsset(
+  asset: ImagePickerAsset,
+): Promise<ProcessedImage> {
+  if (!asset.uri) throw new ImageFormatError('unknown');
+  return _processUri(
+    asset.uri,
+    asset.width ?? 0,
+    asset.height ?? 0,
+    asset.fileName ?? 'gallery-image',
+    asset.mimeType as SupportedMimeType | undefined,
+  );
+}
+
+/**
+ * Build a FormData object ready for the multipart POST /images/upload.
+ */
+export function buildUploadFormData(
+  image: ProcessedImage,
+  specimenId: string,
+): FormData {
+  const form = new FormData();
+  form.append('specimen_id', specimenId);
+  // React Native's FormData accepts an object literal for file parts
+  form.append('file', {
+    uri: image.uri,
+    name: image.filename,
+    type: image.mimeType,
+  } as unknown as Blob);
+  return form;
+}
+
+// ── Private helpers ───────────────────────────────────────────────────────────
+
+async function _processUri(
+  uri: string,
+  rawWidth: number,
+  rawHeight: number,
+  filenameStem: string,
+  mimeType?: SupportedMimeType,
+): Promise<ProcessedImage> {
+  // Default to JPEG — Expo Camera always produces JPEG
+  const outputMime: SupportedMimeType = mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
+  const format =
+    outputMime === 'image/png'
+      ? ImageManipulator.SaveFormat.PNG
+      : ImageManipulator.SaveFormat.JPEG;
+
+  // Re-encode to strip all EXIF. No resize — we keep full resolution.
+  const result = await ImageManipulator.manipulateAsync(uri, [], {
+    compress: 0.92, // slight compression, keeps diagnostic quality
+    format,
+  });
+
+  const { width, height } = result;
+
+  // Resolution validation (mirrors backend check)
+  if (width < MIN_WIDTH || height < MIN_HEIGHT) {
+    throw new ImageResolutionError(width, height);
+  }
+
+  // Read file size for logging/UI
+  const fileInfo = await FileSystem.getInfoAsync(result.uri, { size: true });
+  const sizeBytes = fileInfo.exists && 'size' in fileInfo ? fileInfo.size : 0;
+
+  return {
+    uri: result.uri,
+    width,
+    height,
+    mimeType: outputMime,
+    sizeBytes,
+    filename: `${filenameStem}-${Date.now()}.${format === ImageManipulator.SaveFormat.PNG ? 'png' : 'jpg'}`,
+  };
+}
