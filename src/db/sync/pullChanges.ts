@@ -56,7 +56,17 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
     try {
       const allLocalRecords = await collection.query().fetch() as unknown as Record<string, unknown>[];
       const localRecord = allLocalRecords.find((r) => r['serverId'] === serverRecord.id);
-      if (!localRecord) continue;
+
+      // Record not in local DB yet — delta sync sent it as an update but it's new here
+      if (!localRecord) {
+        await collection.create((model) => {
+          Object.assign(
+            model as unknown as Record<string, unknown>,
+            mapServerToLocal(tableName, serverRecord),
+          );
+        });
+        continue;
+      }
 
       await (localRecord as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> })
         .update((r) => {
@@ -93,15 +103,18 @@ function mapServerToLocal(table: string, record: ServerRecord): Record<string, u
     case 'specimens':
       return {
         ...base,
-        sampleUid:     record['sample_uid'],
-        patientName:   record['patient_name'],
-        patientUid:    record['patient_uid'],
-        testType:      record['test_type'],
-        status:        record['status'],
-        priorityLevel: record['priority_level'] ?? null,
-        receivedAt:    record['received_at'],
-        assignedAt:    record['assigned_at'] ?? null,
-        medtechId:     record['medtech_id'] ?? null,
+        sampleUid:       record['sample_uid'],
+        patientName:     record['patient_name'],
+        patientUid:      record['patient_uid'],
+        testType:        record['test_type'],
+        status:          record['status'],
+        priorityLevel:   record['priority_level'] ?? null,
+        receivedAt:      record['received_at'],
+        assignedAt:      record['assigned_at'] ?? null,
+        medtechId:       record['medtech_id'] ?? null,
+        rejectionReason: record['rejection_reason'] ?? null,
+        rejectionNote:   record['rejection_note'] ?? null,
+        rejectedAt:      record['rejected_at'] ?? null,
       };
 
     case 'queue_assignments':

@@ -11,14 +11,15 @@ interface Props {
   counts?: Partial<Record<FilterOption, number>>;
 }
 
-type ExpandedGroup = 'priority' | 'status' | null;
+type ExpandedGroup = 'date' | 'priority' | 'status' | null;
 
 export function QueueFilterBar({ selected, onChange, counts }: Props) {
-  const isPriorityFilter = selected === 'HIGH' || selected === 'NORMAL';
-  const isStatusFilter   = selected === 'ASSIGNED' || selected === 'PROCESSING';
+  const isDateFilter     = selected === 'LATEST' || selected === 'EARLIEST';
+  const isPriorityFilter = selected === 'HIGH' || selected === 'NORMAL' || selected === 'LOW' || selected === 'ROUTINE';
+  const isStatusFilter   = selected === 'ASSIGNED' || selected === 'IN_QUEUE' || selected === 'PROCESSING';
 
   const [expandedGroup, setExpandedGroup] = useState<ExpandedGroup>(
-    isPriorityFilter ? 'priority' : isStatusFilter ? 'status' : null,
+    isDateFilter ? 'date' : isPriorityFilter ? 'priority' : isStatusFilter ? 'status' : null,
   );
 
   function handleMainChip(group: 'date' | 'all' | 'priority' | 'status') {
@@ -29,7 +30,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
     }
     if (group === 'date') {
       onChange('DATE');
-      setExpandedGroup(null);
+      setExpandedGroup((prev) => (prev === 'date' ? null : 'date'));
       return;
     }
     if (group === 'priority') {
@@ -45,7 +46,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
   }
 
   const isAllActive      = selected === 'ALL';
-  const isDateActive     = selected === 'DATE';
+  const isDateActive     = selected === 'DATE' || isDateFilter || expandedGroup === 'date';
   const isPriorityActive = selected === 'PRIORITY' || isPriorityFilter || expandedGroup === 'priority';
   const isStatusActive   = selected === 'STATUS'   || isStatusFilter   || expandedGroup === 'status';
 
@@ -77,7 +78,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
             )}
           </TouchableOpacity>
 
-          {/* Date */}
+          {/* Date ▼ */}
           <TouchableOpacity
             style={[styles.chip, isDateActive && styles.chipActive]}
             onPress={() => handleMainChip('date')}
@@ -86,6 +87,11 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
           >
             <Ionicons name="calendar-outline" size={14} color={isDateActive ? '#FFFFFF' : '#6B7280'} />
             <Text style={[styles.chipText, isDateActive && styles.chipTextActive]}>Date</Text>
+            <Ionicons
+              name={expandedGroup === 'date' ? 'chevron-up' : 'chevron-down'}
+              size={13}
+              color={isDateActive ? '#FFFFFF' : '#6B7280'}
+            />
           </TouchableOpacity>
 
           {/* Priority ▼ */}
@@ -125,12 +131,56 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
 
       </View>
 
+      {/* ── Date sub-chips ────────────────────────────────────── */}
+      {expandedGroup === 'date' && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subRow}
+        >
+          {([
+            { key: 'LATEST'   as FilterOption, label: 'Latest',   icon: 'arrow-down-outline'  },
+            { key: 'EARLIEST' as FilterOption, label: 'Earliest', icon: 'arrow-up-outline'    },
+          ] as const).map((sub) => {
+            const isActive = selected === sub.key;
+            return (
+              <TouchableOpacity
+                key={sub.key}
+                style={[
+                  styles.subChip,
+                  { borderColor: TEAL },
+                  isActive && { backgroundColor: '#E0F2F1' },
+                ]}
+                onPress={() => onChange(sub.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
+              >
+                <Ionicons
+                  name={sub.icon as any}
+                  size={14}
+                  color={isActive ? TEAL : '#6B7280'}
+                />
+                <Text style={[styles.subChipText, { color: isActive ? TEAL : '#374151' }]}>
+                  {sub.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {/* ── Priority sub-chips ─────────────────────────────────── */}
       {expandedGroup === 'priority' && (
-        <View style={styles.subRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subRow}
+        >
           {([
-            { key: 'HIGH'   as FilterOption, label: 'High',   color: '#DC2626', bg: '#FEE2E2' },
-            { key: 'NORMAL' as FilterOption, label: 'Normal', color: '#2563EB', bg: '#DBEAFE' },
+            { key: 'HIGH'    as FilterOption, label: 'High',    color: '#DC2626', bg: '#FEE2E2' },
+            { key: 'NORMAL'  as FilterOption, label: 'Normal',  color: '#2563EB', bg: '#DBEAFE' },
+            { key: 'LOW'     as FilterOption, label: 'Low',     color: '#6B7280', bg: '#F3F4F6' },
+            { key: 'ROUTINE' as FilterOption, label: 'Routine', color: '#059669', bg: '#D1FAE5' },
           ] as const).map((sub) => {
             const isActive = selected === sub.key;
             return (
@@ -159,14 +209,19 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       )}
 
       {/* ── Status sub-chips ───────────────────────────────────── */}
       {expandedGroup === 'status' && (
-        <View style={styles.subRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subRow}
+        >
           {([
-            { key: 'ASSIGNED'   as FilterOption, label: 'Assigned',   color: TEAL,     bg: '#E0F2F1' },
+            { key: 'ASSIGNED'   as FilterOption, label: 'Assigned',   color: TEAL,      bg: '#E0F2F1' },
+            { key: 'IN_QUEUE'   as FilterOption, label: 'In Queue',   color: '#D97706', bg: '#FEF3C7' },
             { key: 'PROCESSING' as FilterOption, label: 'Processing', color: '#7C3AED', bg: '#EDE9FE' },
           ] as const).map((sub) => {
             const isActive = selected === sub.key;
@@ -196,7 +251,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -269,7 +324,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingBottom: 10,
-    flexWrap: 'wrap',
   },
   subChip: {
     flexDirection: 'row',
