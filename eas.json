@@ -7,17 +7,20 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "pnpm": "11.1.3"
+      "pnpm": "9.15.4",
+      "env": {
+        "EAS_BUILD_SKIP_LOCKFILE_CHECK": "1"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "pnpm": "11.1.3",
+      "pnpm": "9.15.4",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },
     "production": {
-      "pnpm": "11.1.3",
+      "pnpm": "9.15.4",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
       }
