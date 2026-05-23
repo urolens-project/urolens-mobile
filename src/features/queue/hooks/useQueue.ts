@@ -24,8 +24,29 @@ function specimenToQueueItem(s: Specimen): QueueItem {
   };
 }
 
+function todayRange(): { start: string; end: string } {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
 function buildQuery(filter: FilterOption): Q.Clause[] {
   switch (filter) {
+    case 'DATE': {
+      const { start, end } = todayRange();
+      return [
+        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+        Q.where('received_at', Q.gte(start)),
+        Q.where('received_at', Q.lte(end)),
+      ];
+    }
+    case 'PRIORITY':
+      return [
+        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+        Q.where('priority_level', Q.oneOf(['HIGH', 'NORMAL', 'LOW'])),
+      ];
     case 'HIGH':
       return [
         Q.where('status', Q.oneOf(QUEUE_STATUSES)),
@@ -36,6 +57,8 @@ function buildQuery(filter: FilterOption): Q.Clause[] {
         Q.where('status', Q.oneOf(QUEUE_STATUSES)),
         Q.where('priority_level', Q.oneOf(['NORMAL', 'LOW'])),
       ];
+    case 'STATUS':
+      return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];
     case 'ASSIGNED':
       return [Q.where('status', 'ASSIGNED')];
     case 'PROCESSING':

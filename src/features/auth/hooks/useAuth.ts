@@ -21,8 +21,8 @@ export function useAuth() {
     try {
       const data = await authApi.login(username, password);
       await tokenStorage.saveToken(data.access_token);
-      await tokenStorage.saveUserInfo(data.user_id, data.role);
-      setAuthenticated(data.user_id, data.role as UserRole);
+      await tokenStorage.saveUserInfo(data.user_id, data.role, username);
+      setAuthenticated(data.user_id, data.role as UserRole, username);
       router.replace('/(medtech)/queue');
     } catch (err) {
       const apiError = err as ApiError;
