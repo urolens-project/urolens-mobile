@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "submodules": true,
       "pnpm": "9.15.4",
       "env": {
         "EAS_BUILD_SKIP_LOCKFILE_CHECK": "1"
