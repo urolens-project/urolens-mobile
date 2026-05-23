@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1779358278413" clover="3.2.0">
+  <project timestamp="1779358278413" name="All files">
+    <metrics statements="21" coveredstatements="21" conditionals="8" coveredconditionals="8" methods="9" coveredmethods="9" elements="38" coveredelements="38" complexity="0" loc="21" ncloc="21" packages="2" files="2" classes="2"/>
+    <package name="db.sync">
+      <metrics statements="7" coveredstatements="7" conditionals="8" coveredconditionals="8" methods="2" coveredmethods="2"/>
+      <file name="conflictResolver.ts" path="/Users/shervindaletabernero/Documents/UROLENS/urolens-mobile/src/db/sync/conflictResolver.ts">
+        <metrics statements="7" coveredstatements="7" conditionals="8" coveredconditionals="8" methods="2" coveredmethods="2"/>
+        <line num="21" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="22" count="3" type="stmt"/>
+        <line num="26" count="6" type="cond" truecount="4" falsecount="0"/>
+        <line num="27" count="2" type="stmt"/>
+        <line num="31" count="4" type="stmt"/>
+        <line num="35" count="4" type="stmt"/>
+        <line num="43" count="6" type="cond" truecount="2" falsecount="0"/>
+      </file>
+    </package>
+    <package name="lib.auth">
+      <metrics statements="14" coveredstatements="14" conditionals="0" coveredconditionals="0" methods="7" coveredmethods="7"/>
+      <file name="tokenStorage.ts" path="/Users/shervindaletabernero/Documents/UROLENS/urolens-mobile/src/lib/auth/tokenStorage.ts">
+        <metrics statements="14" coveredstatements="14" conditionals="0" coveredconditionals="0" methods="7" coveredmethods="7"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="5" count="1" type="stmt"/>
+        <line num="7" count="1" type="stmt"/>
+        <line num="9" count="1" type="stmt"/>
+        <line num="13" count="2" type="stmt"/>
+        <line num="17" count="1" type="stmt"/>
+        <line num="21" count="1" type="stmt"/>
+        <line num="22" count="1" type="stmt"/>
+        <line num="26" count="2" type="stmt"/>
+        <line num="30" count="1" type="stmt"/>
+        <line num="34" count="1" type="stmt"/>
+        <line num="35" count="1" type="stmt"/>
+        <line num="36" count="1" type="stmt"/>
+      </file>
+    </package>
+  </project>
+</coverage>
