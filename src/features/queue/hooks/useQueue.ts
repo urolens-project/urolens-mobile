@@ -20,6 +20,9 @@ function specimenToQueueItem(s: Specimen): QueueItem {
     priorityLevel: s.priorityLevel as PriorityLevel | null,
     receivedAt: s.receivedAt,
     medtechId: s.medtechId,
+    rejectionReason: s.rejectionReason,
+    rejectionNote: s.rejectionNote,
+    rejectedAt: s.rejectedAt,
     syncedAt: s.syncedAt,
   };
 }
@@ -45,7 +48,7 @@ function buildQuery(filter: FilterOption): Q.Clause[] {
     case 'PRIORITY':
       return [
         Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', Q.oneOf(['HIGH', 'NORMAL', 'LOW'])),
+        Q.where('priority_level', Q.oneOf(['HIGH', 'NORMAL', 'LOW', 'ROUTINE'])),
       ];
     case 'HIGH':
       return [
@@ -55,14 +58,26 @@ function buildQuery(filter: FilterOption): Q.Clause[] {
     case 'NORMAL':
       return [
         Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', Q.oneOf(['NORMAL', 'LOW'])),
+        Q.where('priority_level', 'NORMAL'),
+      ];
+    case 'LOW':
+      return [
+        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+        Q.where('priority_level', 'LOW'),
+      ];
+    case 'ROUTINE':
+      return [
+        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+        Q.where('priority_level', 'ROUTINE'),
       ];
     case 'STATUS':
       return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];
     case 'ASSIGNED':
       return [Q.where('status', 'ASSIGNED')];
+    case 'IN_QUEUE':
+      return [Q.where('status', 'IN_QUEUE')];
     case 'PROCESSING':
-      return [Q.where('status', Q.oneOf(['PROCESSING', 'IN_PROGRESS']))];
+      return [Q.where('status', 'PROCESSING')];
     case 'ALL':
     default:
       return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];

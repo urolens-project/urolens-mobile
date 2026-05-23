@@ -13,6 +13,9 @@ export default class Specimen extends Model {
   @field('priority_level') priorityLevel!: string | null;
   @field('received_at')    receivedAt!: string;
   @field('assigned_at')    assignedAt!: string | null;
-  @field('medtech_id')     medtechId!: string | null;
-  @field('synced_at')      syncedAt!: string | null;
+  @field('medtech_id')       medtechId!: string | null;
+  @field('rejection_reason') rejectionReason!: string | null;
+  @field('rejection_note')   rejectionNote!: string | null;
+  @field('rejected_at')      rejectedAt!: string | null;
+  @field('synced_at')        syncedAt!: string | null;
 }

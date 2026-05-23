@@ -103,15 +103,18 @@ function mapServerToLocal(table: string, record: ServerRecord): Record<string, u
     case 'specimens':
       return {
         ...base,
-        sampleUid:     record['sample_uid'],
-        patientName:   record['patient_name'],
-        patientUid:    record['patient_uid'],
-        testType:      record['test_type'],
-        status:        record['status'],
-        priorityLevel: record['priority_level'] ?? null,
-        receivedAt:    record['received_at'],
-        assignedAt:    record['assigned_at'] ?? null,
-        medtechId:     record['medtech_id'] ?? null,
+        sampleUid:       record['sample_uid'],
+        patientName:     record['patient_name'],
+        patientUid:      record['patient_uid'],
+        testType:        record['test_type'],
+        status:          record['status'],
+        priorityLevel:   record['priority_level'] ?? null,
+        receivedAt:      record['received_at'],
+        assignedAt:      record['assigned_at'] ?? null,
+        medtechId:       record['medtech_id'] ?? null,
+        rejectionReason: record['rejection_reason'] ?? null,
+        rejectionNote:   record['rejection_note'] ?? null,
+        rejectedAt:      record['rejected_at'] ?? null,
       };
 
     case 'queue_assignments':

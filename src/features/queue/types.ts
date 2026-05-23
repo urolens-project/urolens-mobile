@@ -1,16 +1,15 @@
-export type PriorityLevel = 'HIGH' | 'NORMAL' | 'LOW';
+export type PriorityLevel = 'HIGH' | 'NORMAL' | 'LOW' | 'ROUTINE';
 
 export type SpecimenStatus =
   | 'IN_QUEUE'
   | 'ASSIGNED'
-  | 'IN_PROGRESS'
   | 'PROCESSING'
   | 'COMPLETED'
   | 'REJECTED';
 
 // Per SDD/SRS & Mobile Developer Guide (STORY-MOB-05):
 // Filter chips — All · High (priority) · Normal (priority) · Assigned (status) · Processing (status)
-export type FilterOption = 'ALL' | 'DATE' | 'PRIORITY' | 'HIGH' | 'NORMAL' | 'STATUS' | 'ASSIGNED' | 'PROCESSING';
+export type FilterOption = 'ALL' | 'DATE' | 'PRIORITY' | 'HIGH' | 'NORMAL' | 'LOW' | 'ROUTINE' | 'STATUS' | 'ASSIGNED' | 'IN_QUEUE' | 'PROCESSING';
 
 export interface QueueItem {
   id: string;
@@ -23,5 +22,8 @@ export interface QueueItem {
   priorityLevel: PriorityLevel | null;
   receivedAt: string;
   medtechId: string | null;
+  rejectionReason: string | null;
+  rejectionNote: string | null;
+  rejectedAt: string | null;
   syncedAt: string | null;
 }
