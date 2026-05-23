@@ -43,8 +43,19 @@ function buildQuery(filter: FilterOption): Q.Clause[] {
         Q.where('status', Q.oneOf(QUEUE_STATUSES)),
         Q.where('received_at', Q.gte(start)),
         Q.where('received_at', Q.lte(end)),
+        Q.sortBy('received_at', Q.desc),
       ];
     }
+    case 'LATEST':
+      return [
+        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+        Q.sortBy('received_at', Q.desc),
+      ];
+    case 'EARLIEST':
+      return [
+        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+        Q.sortBy('received_at', Q.asc),
+      ];
     case 'PRIORITY':
       return [
         Q.where('status', Q.oneOf(QUEUE_STATUSES)),
@@ -86,6 +97,7 @@ function buildQuery(filter: FilterOption): Q.Clause[] {
 
 export interface UseQueueResult {
   items: QueueItem[];
+  allItems: QueueItem[];
   isLoading: boolean;
   filter: FilterOption;
   setFilter: (f: FilterOption) => void;
@@ -95,11 +107,13 @@ export interface UseQueueResult {
 
 export function useQueue(): UseQueueResult {
   const [items, setItems] = useState<QueueItem[]>([]);
+  const [allItems, setAllItems] = useState<QueueItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterOption>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { isOnline } = useNetworkStatus();
 
+  // Filtered list — changes with the active filter
   useEffect(() => {
     const clauses = buildQuery(filter);
     const subscription = database
@@ -113,6 +127,19 @@ export function useQueue(): UseQueueResult {
 
     return () => subscription.unsubscribe();
   }, [filter]);
+
+  // Unfiltered totals — always the full active queue for stats card
+  useEffect(() => {
+    const subscription = database
+      .get<Specimen>('specimens')
+      .query(Q.where('status', Q.oneOf(QUEUE_STATUSES)))
+      .observe()
+      .subscribe((specimens) => {
+        setAllItems(specimens.map(specimenToQueueItem));
+      });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (isOnline) {
@@ -130,5 +157,5 @@ export function useQueue(): UseQueueResult {
     }
   }, [isOnline]);
 
-  return { items, isLoading, filter, setFilter, refresh, isRefreshing };
+  return { items, allItems, isLoading, filter, setFilter, refresh, isRefreshing };
 }

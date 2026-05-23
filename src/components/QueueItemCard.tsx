@@ -20,10 +20,16 @@ function getBadge(item: QueueItem): BadgeConfig {
   if (item.priorityLevel === 'HIGH') {
     return { label: 'STAT / HIGH PRIORITY', bg: '#FEE2E2', text: '#DC2626', barColor: '#DC2626' };
   }
-  if (item.status === 'PROCESSING' || item.status === 'IN_PROGRESS') {
+  if (item.priorityLevel === 'NORMAL') {
+    return { label: 'NORMAL', bg: '#DBEAFE', text: '#2563EB', barColor: '#2563EB' };
+  }
+  if (item.priorityLevel === 'LOW') {
+    return { label: 'LOW', bg: '#F3F4F6', text: '#6B7280', barColor: '#9CA3AF' };
+  }
+  if (item.status === 'PROCESSING') {
     return { label: 'IN PROGRESS', bg: '#EDE9FE', text: '#7C3AED', barColor: '#7C3AED' };
   }
-  return { label: 'ROUTINE', bg: '#F3F4F6', text: '#6B7280', barColor: '#9CA3AF' };
+  return { label: 'ROUTINE', bg: '#D1FAE5', text: '#059669', barColor: '#059669' };
 }
 
 function formatTime(iso: string): string {
