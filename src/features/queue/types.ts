@@ -23,5 +23,8 @@ export interface QueueItem {
   priorityLevel: PriorityLevel | null;
   receivedAt: string;
   medtechId: string | null;
+  rejectionReason: string | null;
+  rejectionNote: string | null;
+  rejectedAt: string | null;
   syncedAt: string | null;
 }

@@ -20,6 +20,9 @@ function specimenToQueueItem(s: Specimen): QueueItem {
     priorityLevel: s.priorityLevel as PriorityLevel | null,
     receivedAt: s.receivedAt,
     medtechId: s.medtechId,
+    rejectionReason: s.rejectionReason,
+    rejectionNote: s.rejectionNote,
+    rejectedAt: s.rejectedAt,
     syncedAt: s.syncedAt,
   };
 }

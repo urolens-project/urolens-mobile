@@ -1,22 +1,25 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 1,
+  version: 2,
   tables: [
     tableSchema({
       name: 'specimens',
       columns: [
-        { name: 'server_id',      type: 'string',  isOptional: true },
-        { name: 'sample_uid',     type: 'string' },
-        { name: 'patient_name',   type: 'string' },
-        { name: 'patient_uid',    type: 'string' },
-        { name: 'test_type',      type: 'string' },
-        { name: 'status',         type: 'string' },
-        { name: 'priority_level', type: 'string',  isOptional: true },
-        { name: 'received_at',    type: 'string' },
-        { name: 'assigned_at',    type: 'string',  isOptional: true },
-        { name: 'medtech_id',     type: 'string',  isOptional: true },
-        { name: 'synced_at',      type: 'string',  isOptional: true },
+        { name: 'server_id',        type: 'string',  isOptional: true },
+        { name: 'sample_uid',       type: 'string' },
+        { name: 'patient_name',     type: 'string' },
+        { name: 'patient_uid',      type: 'string' },
+        { name: 'test_type',        type: 'string' },
+        { name: 'status',           type: 'string' },
+        { name: 'priority_level',   type: 'string',  isOptional: true },
+        { name: 'received_at',      type: 'string' },
+        { name: 'assigned_at',      type: 'string',  isOptional: true },
+        { name: 'medtech_id',       type: 'string',  isOptional: true },
+        { name: 'rejection_reason', type: 'string',  isOptional: true },
+        { name: 'rejection_note',   type: 'string',  isOptional: true },
+        { name: 'rejected_at',      type: 'string',  isOptional: true },
+        { name: 'synced_at',        type: 'string',  isOptional: true },
       ],
     }),
     tableSchema({

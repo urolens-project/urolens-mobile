@@ -150,6 +150,9 @@ export default function SampleDetailScreen() {
             priorityLevel: s.priorityLevel as QueueItem['priorityLevel'],
             receivedAt: s.receivedAt,
             medtechId: s.medtechId,
+            rejectionReason: s.rejectionReason,
+            rejectionNote: s.rejectionNote,
+            rejectedAt: s.rejectedAt,
             syncedAt: s.syncedAt,
           });
         }
@@ -233,8 +236,9 @@ export default function SampleDetailScreen() {
   };
   const pColor = priorityColors[specimen.priorityLevel ?? 'NORMAL'];
 
-  const smartDiagnosis = analysisResult?.smartDiagnosis ?? null;
-  const aiFindings     = analysisResult?.aiFindings ?? {};
+  const isRejected       = specimen.status === 'REJECTED';
+  const smartDiagnosis   = analysisResult?.smartDiagnosis ?? null;
+  const aiFindings       = analysisResult?.aiFindings ?? {};
   const isPendingConfirm = analysisResult?.status === ResultStatus.PENDING_CONFIRM;
   const isConfirmed      = analysisResult?.status === ResultStatus.PENDING_SUPERVISOR_APPROVAL
                         || analysisResult?.status === ResultStatus.APPROVED
@@ -275,6 +279,31 @@ export default function SampleDetailScreen() {
           <View style={styles.divider} />
           <DetailRow label="Received"    value={formatDateTime(specimen.receivedAt)} />
         </View>
+
+        {/* Rejection details */}
+        {isRejected && (
+          <View style={styles.rejectionCard}>
+            <View style={styles.rejectionHeader}>
+              <Ionicons name="close-circle" size={16} color="#B91C1C" />
+              <Text style={styles.rejectionTitle}>Specimen Rejected</Text>
+            </View>
+            {specimen.rejectionReason && (
+              <DetailRow label="Reason" value={specimen.rejectionReason.replace(/_/g, ' ')} />
+            )}
+            {specimen.rejectionNote ? (
+              <>
+                <View style={styles.divider} />
+                <DetailRow label="Note" value={specimen.rejectionNote} />
+              </>
+            ) : null}
+            {specimen.rejectedAt && (
+              <>
+                <View style={styles.divider} />
+                <DetailRow label="Rejected At" value={formatDateTime(specimen.rejectedAt)} />
+              </>
+            )}
+          </View>
+        )}
 
         {/* Analysis results */}
         {analysisResult && (
@@ -540,6 +569,27 @@ const styles = StyleSheet.create({
   actionBtnDangerText:   { color: '#A32D2D', fontSize: 16, fontWeight: '500' },
   actionBtnSecondary:    { backgroundColor: '#FFFFFF', borderColor: 'rgba(0,0,0,0.15)' },
   actionBtnSecondaryText:{ color: '#5F5E5A', fontSize: 16, fontWeight: '500' },
+
+  // Rejection card
+  rejectionCard: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: '#FECACA',
+    padding: 16,
+    marginBottom: 12,
+  },
+  rejectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  rejectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#B91C1C',
+  },
 
   // Not found
   notFoundText: { fontSize: 17, color: '#5F5E5A', marginBottom: 16 },
