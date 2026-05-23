@@ -40,6 +40,9 @@ export function useRejectSpecimen(specimenId: string) {
           }
           await specimen.update((s) => {
             s.status = 'REJECTED';
+            s.rejectionReason = reason;
+            s.rejectionNote = note?.trim() || null;
+            s.rejectedAt = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).replace(' ', 'T') + '+08:00';
           });
         });
       } finally {

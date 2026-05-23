@@ -1,5 +1,19 @@
-import { schemaMigrations } from '@nozbe/watermelondb/Schema/migrations';
+import { schemaMigrations, addColumns } from '@nozbe/watermelondb/Schema/migrations';
 
-// v1 is the initial baseline schema — no upgrade migrations needed.
-// When schema version is bumped in future Epics, add a migration entry here.
-export default schemaMigrations({ migrations: [] });
+export default schemaMigrations({
+  migrations: [
+    {
+      toVersion: 2,
+      steps: [
+        addColumns({
+          table: 'specimens',
+          columns: [
+            { name: 'rejection_reason', type: 'string', isOptional: true },
+            { name: 'rejection_note',   type: 'string', isOptional: true },
+            { name: 'rejected_at',      type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
+  ],
+});
