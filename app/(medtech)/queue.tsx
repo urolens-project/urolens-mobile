@@ -70,31 +70,19 @@ function EmptyState({ isOnline, filter }: { isOnline: boolean; filter: FilterOpt
 export default function QueueScreen() {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
-  const { items: dbItems, isLoading, filter, setFilter, refresh, isRefreshing } = useQueue();
+  const { items: dbItems, allItems: dbAllItems, isLoading, filter, setFilter, refresh, isRefreshing } = useQueue();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const allItems: QueueItem[] = USE_MOCK ? MOCK_QUEUE_ITEMS : dbItems;
-
-  const items = useMemo<QueueItem[]>(() => {
-    if (!USE_MOCK) return allItems;
-    const today = new Date().toDateString();
-    switch (filter) {
-      case 'DATE':       return allItems.filter((i) => new Date(i.receivedAt).toDateString() === today);
-      case 'PRIORITY':   return allItems.filter((i) => i.priorityLevel === 'HIGH' || i.priorityLevel === 'NORMAL' || i.priorityLevel === 'LOW');
-      case 'HIGH':       return allItems.filter((i) => i.priorityLevel === 'HIGH');
-      case 'NORMAL':     return allItems.filter((i) => i.priorityLevel === 'NORMAL' || i.priorityLevel === 'LOW');
-      case 'STATUS':     return allItems;
-      case 'ASSIGNED':   return allItems.filter((i) => i.status === 'ASSIGNED');
-      case 'PROCESSING': return allItems.filter((i) => i.status === 'PROCESSING' || i.status === 'IN_PROGRESS');
-      default:           return allItems;
-    }
-  }, [allItems, filter]);
+  // allItems: always the full unfiltered queue — used for stats card
+  const allItems: QueueItem[] = USE_MOCK ? MOCK_QUEUE_ITEMS : dbAllItems;
+  // items: filtered list shown in the FlatList
+  const items: QueueItem[] = USE_MOCK ? MOCK_QUEUE_ITEMS : dbItems;
 
   const counts = useMemo(() => ({
     assigned:   allItems.filter((i) => i.status === 'ASSIGNED').length,
     priority:   allItems.filter((i) => i.priorityLevel === 'HIGH').length,
     pending:    allItems.filter((i) => i.status === 'IN_QUEUE').length,
-    inProgress: allItems.filter((i) => i.status === 'PROCESSING' || i.status === 'IN_PROGRESS').length,
+    inProgress: allItems.filter((i) => i.status === 'PROCESSING').length,
   }), [allItems]);
 
   const selectedItem = useMemo(
@@ -130,8 +118,17 @@ export default function QueueScreen() {
           </View>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Sync">
-            <Ionicons name="sync-outline" size={20} color="#374151" />
+          <TouchableOpacity
+            style={styles.iconBtn}
+            accessibilityLabel="Sync"
+            onPress={refresh}
+            disabled={!USE_MOCK && (!isOnline || isRefreshing)}
+          >
+            <Ionicons
+              name="sync-outline"
+              size={20}
+              color={!USE_MOCK && (!isOnline || isRefreshing) ? '#D1D5DB' : '#374151'}
+            />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Notifications">
             <View>

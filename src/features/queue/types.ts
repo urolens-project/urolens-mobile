@@ -9,7 +9,7 @@ export type SpecimenStatus =
 
 // Per SDD/SRS & Mobile Developer Guide (STORY-MOB-05):
 // Filter chips — All · High (priority) · Normal (priority) · Assigned (status) · Processing (status)
-export type FilterOption = 'ALL' | 'DATE' | 'PRIORITY' | 'HIGH' | 'NORMAL' | 'LOW' | 'ROUTINE' | 'STATUS' | 'ASSIGNED' | 'IN_QUEUE' | 'PROCESSING';
+export type FilterOption = 'ALL' | 'DATE' | 'LATEST' | 'EARLIEST' | 'PRIORITY' | 'HIGH' | 'NORMAL' | 'LOW' | 'ROUTINE' | 'STATUS' | 'ASSIGNED' | 'IN_QUEUE' | 'PROCESSING';
 
 export interface QueueItem {
   id: string;

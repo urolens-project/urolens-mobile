@@ -11,14 +11,15 @@ interface Props {
   counts?: Partial<Record<FilterOption, number>>;
 }
 
-type ExpandedGroup = 'priority' | 'status' | null;
+type ExpandedGroup = 'date' | 'priority' | 'status' | null;
 
 export function QueueFilterBar({ selected, onChange, counts }: Props) {
+  const isDateFilter     = selected === 'LATEST' || selected === 'EARLIEST';
   const isPriorityFilter = selected === 'HIGH' || selected === 'NORMAL' || selected === 'LOW' || selected === 'ROUTINE';
   const isStatusFilter   = selected === 'ASSIGNED' || selected === 'IN_QUEUE' || selected === 'PROCESSING';
 
   const [expandedGroup, setExpandedGroup] = useState<ExpandedGroup>(
-    isPriorityFilter ? 'priority' : isStatusFilter ? 'status' : null,
+    isDateFilter ? 'date' : isPriorityFilter ? 'priority' : isStatusFilter ? 'status' : null,
   );
 
   function handleMainChip(group: 'date' | 'all' | 'priority' | 'status') {
@@ -29,7 +30,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
     }
     if (group === 'date') {
       onChange('DATE');
-      setExpandedGroup(null);
+      setExpandedGroup((prev) => (prev === 'date' ? null : 'date'));
       return;
     }
     if (group === 'priority') {
@@ -45,7 +46,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
   }
 
   const isAllActive      = selected === 'ALL';
-  const isDateActive     = selected === 'DATE';
+  const isDateActive     = selected === 'DATE' || isDateFilter || expandedGroup === 'date';
   const isPriorityActive = selected === 'PRIORITY' || isPriorityFilter || expandedGroup === 'priority';
   const isStatusActive   = selected === 'STATUS'   || isStatusFilter   || expandedGroup === 'status';
 
@@ -77,7 +78,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
             )}
           </TouchableOpacity>
 
-          {/* Date */}
+          {/* Date ▼ */}
           <TouchableOpacity
             style={[styles.chip, isDateActive && styles.chipActive]}
             onPress={() => handleMainChip('date')}
@@ -86,6 +87,11 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
           >
             <Ionicons name="calendar-outline" size={14} color={isDateActive ? '#FFFFFF' : '#6B7280'} />
             <Text style={[styles.chipText, isDateActive && styles.chipTextActive]}>Date</Text>
+            <Ionicons
+              name={expandedGroup === 'date' ? 'chevron-up' : 'chevron-down'}
+              size={13}
+              color={isDateActive ? '#FFFFFF' : '#6B7280'}
+            />
           </TouchableOpacity>
 
           {/* Priority ▼ */}
@@ -124,6 +130,44 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
         </ScrollView>
 
       </View>
+
+      {/* ── Date sub-chips ────────────────────────────────────── */}
+      {expandedGroup === 'date' && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subRow}
+        >
+          {([
+            { key: 'LATEST'   as FilterOption, label: 'Latest',   icon: 'arrow-down-outline'  },
+            { key: 'EARLIEST' as FilterOption, label: 'Earliest', icon: 'arrow-up-outline'    },
+          ] as const).map((sub) => {
+            const isActive = selected === sub.key;
+            return (
+              <TouchableOpacity
+                key={sub.key}
+                style={[
+                  styles.subChip,
+                  { borderColor: TEAL },
+                  isActive && { backgroundColor: '#E0F2F1' },
+                ]}
+                onPress={() => onChange(sub.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
+              >
+                <Ionicons
+                  name={sub.icon as any}
+                  size={14}
+                  color={isActive ? TEAL : '#6B7280'}
+                />
+                <Text style={[styles.subChipText, { color: isActive ? TEAL : '#374151' }]}>
+                  {sub.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* ── Priority sub-chips ─────────────────────────────────── */}
       {expandedGroup === 'priority' && (
