@@ -7,17 +7,17 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": {
-        "PNPM_FLAGS": "--no-frozen-lockfile"
-      }
+      "pnpm": "11.1.3"
     },
     "preview": {
       "distribution": "internal",
+      "pnpm": "11.1.3",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },
     "production": {
+      "pnpm": "11.1.3",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
       }
