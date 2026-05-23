@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, View, Text } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,35 @@ import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutH
 import { synchronize } from '@db/sync/syncManager';
 
 const TEAL = '#2E7D7A';
+
+function getInitials(username: string | null): string {
+  if (!username) return '?';
+  const parts = username.split(/[\s._-]+/).filter(Boolean);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function TabProfileAvatar({ focused }: { focused: boolean }) {
+  const { username } = useAuthStore();
+  return (
+    <View style={{
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: focused ? TEAL : '#E5E7EB',
+      justifyContent: 'center',
+      alignItems: 'center',
+    }}>
+      <Text style={{
+        fontSize: 10,
+        fontWeight: '700',
+        color: focused ? '#FFFFFF' : '#6B7280',
+      }}>
+        {getInitials(username)}
+      </Text>
+    </View>
+  );
+}
 
 export default function MedTechLayout() {
   const { isAuthenticated, role } = useAuthStore();
@@ -92,8 +121,8 @@ export default function MedTechLayout() {
           name="profile"
           options={{
             title: 'Profile',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="person-outline" size={size} color={color} />
+            tabBarIcon: ({ focused }) => (
+              <TabProfileAvatar focused={focused} />
             ),
           }}
         />

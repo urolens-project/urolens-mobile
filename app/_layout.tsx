@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import { View, ActivityIndicator } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
@@ -26,13 +26,14 @@ export default function RootLayout() {
   useEffect(() => {
     const bootstrapAuth = async () => {
       try {
-        const [token, userId, role] = await Promise.all([
+        const [token, userId, role, username] = await Promise.all([
           tokenStorage.getToken(),
           tokenStorage.getUserId(),
           tokenStorage.getUserRole(),
+          tokenStorage.getUsername(),
         ]);
         if (token && userId && role) {
-          setAuthenticated(userId, role as UserRole);
+          setAuthenticated(userId, role as UserRole, username ?? '');
         } else {
           clearAuth();
         }
