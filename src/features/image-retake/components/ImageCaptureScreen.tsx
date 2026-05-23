@@ -209,6 +209,9 @@ export function ImageCaptureScreen() {
 
   // ── Preview phase ─────────────────────────────────────────────────────────
   if (phase === 'previewing' && processed) {
+    // 💡 Cast phase type back to ScreenPhase to bypass static block narrow restrictions
+    const isCurrentlyDiscarding = (phase as ScreenPhase) === 'discarding';
+
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.previewContainer}>
@@ -239,7 +242,7 @@ export function ImageCaptureScreen() {
 
         <DiscardConfirmationModal
           visible={showDiscardModal}
-          isLoading={phase === 'discarding'}
+          isLoading={isCurrentlyDiscarding}
           onConfirm={handleDiscardConfirm}
           onCancel={() => setShowDiscardModal(false)}
         />
