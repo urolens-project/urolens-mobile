@@ -13,7 +13,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
 import { Ionicons } from '@expo/vector-icons';
 import { database } from '@db/database';
-import { synchronize } from '@db/sync/syncManager';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
@@ -28,6 +27,7 @@ const TEAL = '#2E7D7A';
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
     month: 'short', day: 'numeric', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
@@ -121,24 +121,18 @@ export default function SampleDetailScreen() {
 
   const { confirm, isLoading: isConfirming } = useConfirmResult();
 
-  // Sync on mount so analysis results are always fresh
-  useEffect(() => {
-    synchronize().catch(() => {});
-  }, []);
-
-  // Observe specimen
+  // Observe specimen by WatermelonDB local ID using model.observe()
+  // so any field update (status, rejectionReason, etc.) triggers a re-render.
   useEffect(() => {
     if (!id) return;
 
-    const subscription = database
+    let sub: { unsubscribe: () => void } | null = null;
+
+    database
       .get<Specimen>('specimens')
-      .query(Q.where('id', id))
-      .observe()
-      .subscribe((results) => {
-        if (results.length === 0) {
-          setNotFound(true);
-        } else {
-          const s = results[0];
+      .find(id)
+      .then((model) => {
+        sub = model.observe().subscribe((s) => {
           setSpecimen({
             id: s.id,
             serverId: s.serverId,
@@ -155,11 +149,15 @@ export default function SampleDetailScreen() {
             rejectedAt: s.rejectedAt,
             syncedAt: s.syncedAt,
           });
-        }
+          setIsLoading(false);
+        });
+      })
+      .catch(() => {
+        setNotFound(true);
         setIsLoading(false);
       });
 
-    return () => subscription.unsubscribe();
+    return () => sub?.unsubscribe();
   }, [id]);
 
   // Observe analysis results once specimen is known
@@ -230,11 +228,12 @@ export default function SampleDetailScreen() {
   }
 
   const priorityColors: Record<string, { bg: string; text: string }> = {
-    HIGH:   { bg: '#FCEBEB', text: '#A32D2D' },
-    NORMAL: { bg: '#EAF3DE', text: '#3B6D11' },
-    LOW:    { bg: '#F1EFE8', text: '#5F5E5A' },
+    HIGH:    { bg: '#FCEBEB', text: '#A32D2D' },
+    NORMAL:  { bg: '#EAF3DE', text: '#3B6D11' },
+    LOW:     { bg: '#F1EFE8', text: '#5F5E5A' },
+    ROUTINE: { bg: '#E8F5E9', text: '#2E7D32' },
   };
-  const pColor = priorityColors[specimen.priorityLevel ?? 'NORMAL'];
+  const pColor = priorityColors[specimen.priorityLevel ?? 'NORMAL'] ?? priorityColors.NORMAL;
 
   const isRejected       = specimen.status === 'REJECTED';
   const smartDiagnosis   = analysisResult?.smartDiagnosis ?? null;
@@ -372,13 +371,15 @@ export default function SampleDetailScreen() {
               <Text style={styles.actionBtnPrimaryText}>Begin Analysis</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnDanger]}
-            onPress={handleRejectSpecimen}
-            accessibilityRole="button"
-          >
-            <Text style={styles.actionBtnDangerText}>Reject Specimen</Text>
-          </TouchableOpacity>
+          {!isRejected && (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnDanger]}
+              onPress={handleRejectSpecimen}
+              accessibilityRole="button"
+            >
+              <Text style={styles.actionBtnDangerText}>Reject Specimen</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnSecondary]}
             onPress={handleRequestReassignment}
@@ -563,12 +564,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  actionBtnPrimary:      { backgroundColor: '#185FA5', borderColor: '#185FA5' },
+  actionBtnPrimary:      { backgroundColor: TEAL, borderColor: TEAL },
   actionBtnPrimaryText:  { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  actionBtnDanger:       { backgroundColor: '#FCEBEB', borderColor: '#F7C1C1' },
-  actionBtnDangerText:   { color: '#A32D2D', fontSize: 16, fontWeight: '500' },
-  actionBtnSecondary:    { backgroundColor: '#FFFFFF', borderColor: 'rgba(0,0,0,0.15)' },
-  actionBtnSecondaryText:{ color: '#5F5E5A', fontSize: 16, fontWeight: '500' },
+  actionBtnDanger:       { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+  actionBtnDangerText:   { color: '#B91C1C', fontSize: 16, fontWeight: '600' },
+  actionBtnSecondary:    { backgroundColor: '#FFFFFF', borderColor: '#D1D5DB' },
+  actionBtnSecondaryText:{ color: '#374151', fontSize: 16, fontWeight: '500' },
 
   // Rejection card
   rejectionCard: {

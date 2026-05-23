@@ -77,7 +77,7 @@ export default function RejectSpecimenScreen() {
 
     try {
       await reject(selectedReason, note);
-      router.replace('/(medtech)/queue');
+      router.replace(`/(medtech)/sample/${id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred.';
       Alert.alert('Rejection Failed', message);
