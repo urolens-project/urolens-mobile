@@ -21,7 +21,7 @@ import type { FilterOption, QueueItem } from '../../src/features/queue/types';
 const TEAL = '#2E7D7A';
 
 // ── Toggle this to true to use mock data without a backend ──────────────────
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 // ─── Empty state ─────────────────────────────────────────────────────────────
 function EmptyState({ isOnline, filter }: { isOnline: boolean; filter: FilterOption }) {
