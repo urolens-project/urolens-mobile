@@ -14,8 +14,8 @@ interface Props {
 type ExpandedGroup = 'priority' | 'status' | null;
 
 export function QueueFilterBar({ selected, onChange, counts }: Props) {
-  const isPriorityFilter = selected === 'HIGH' || selected === 'NORMAL';
-  const isStatusFilter   = selected === 'ASSIGNED' || selected === 'PROCESSING';
+  const isPriorityFilter = selected === 'HIGH' || selected === 'NORMAL' || selected === 'LOW' || selected === 'ROUTINE';
+  const isStatusFilter   = selected === 'ASSIGNED' || selected === 'IN_QUEUE' || selected === 'PROCESSING';
 
   const [expandedGroup, setExpandedGroup] = useState<ExpandedGroup>(
     isPriorityFilter ? 'priority' : isStatusFilter ? 'status' : null,
@@ -127,10 +127,16 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
 
       {/* ── Priority sub-chips ─────────────────────────────────── */}
       {expandedGroup === 'priority' && (
-        <View style={styles.subRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subRow}
+        >
           {([
-            { key: 'HIGH'   as FilterOption, label: 'High',   color: '#DC2626', bg: '#FEE2E2' },
-            { key: 'NORMAL' as FilterOption, label: 'Normal', color: '#2563EB', bg: '#DBEAFE' },
+            { key: 'HIGH'    as FilterOption, label: 'High',    color: '#DC2626', bg: '#FEE2E2' },
+            { key: 'NORMAL'  as FilterOption, label: 'Normal',  color: '#2563EB', bg: '#DBEAFE' },
+            { key: 'LOW'     as FilterOption, label: 'Low',     color: '#6B7280', bg: '#F3F4F6' },
+            { key: 'ROUTINE' as FilterOption, label: 'Routine', color: '#059669', bg: '#D1FAE5' },
           ] as const).map((sub) => {
             const isActive = selected === sub.key;
             return (
@@ -159,14 +165,19 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       )}
 
       {/* ── Status sub-chips ───────────────────────────────────── */}
       {expandedGroup === 'status' && (
-        <View style={styles.subRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subRow}
+        >
           {([
-            { key: 'ASSIGNED'   as FilterOption, label: 'Assigned',   color: TEAL,     bg: '#E0F2F1' },
+            { key: 'ASSIGNED'   as FilterOption, label: 'Assigned',   color: TEAL,      bg: '#E0F2F1' },
+            { key: 'IN_QUEUE'   as FilterOption, label: 'In Queue',   color: '#D97706', bg: '#FEF3C7' },
             { key: 'PROCESSING' as FilterOption, label: 'Processing', color: '#7C3AED', bg: '#EDE9FE' },
           ] as const).map((sub) => {
             const isActive = selected === sub.key;
@@ -196,7 +207,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -269,7 +280,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingBottom: 10,
-    flexWrap: 'wrap',
   },
   subChip: {
     flexDirection: 'row',
