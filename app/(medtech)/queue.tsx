@@ -14,8 +14,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
-import { QueueItemCard } from '../../src/components/QueueItemCard';
-import { QueueFilterBar } from '../../src/components/QueueFilterBar';
+import { QueueItemCard } from '../../src/features/queue/components/QueueItemCard';
+import { QueueFilterBar } from '../../src/features/queue/components/QueueFilterBar';
 import { MOCK_QUEUE_ITEMS } from '../../src/mocks/queueMockData';
 import type { FilterOption, QueueItem } from '../../src/features/queue/types';
 

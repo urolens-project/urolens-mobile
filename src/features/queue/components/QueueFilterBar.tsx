@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { FilterOption } from '../features/queue/types';
+import type { FilterOption } from '../types';
 
 const TEAL = '#2E7D7A';
 
