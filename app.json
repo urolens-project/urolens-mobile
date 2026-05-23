@@ -2,6 +2,7 @@
   "expo": {
     "name": "UroLens",
     "slug": "urolens-mobile",
+    "owner": "urolens-project",
     "version": "1.0.0",
     "scheme": "urolens",
     "orientation": "portrait",
@@ -70,7 +71,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "993725d9-aeb9-4088-8fb2-f1ff4b5c9d29"
+        "projectId": "3f14cf1b-7df0-4088-9b0b-10b92ce65720"
       }
     }
   }
