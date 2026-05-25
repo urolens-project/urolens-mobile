@@ -187,7 +187,17 @@ export default function SampleDetailScreen() {
   }
 
   function handleBeginAnalysis() {
-    router.push(`/(medtech)/capture?specimenId=${id}`);
+    if (!specimen?.serverId) {
+      Alert.alert(
+        'Not Synced',
+        'This specimen has not been synced with the server yet. Please wait or pull to refresh.',
+      );
+      return;
+    }
+    router.push({
+      pathname: '/(medtech)/capture',
+      params: { specimenId: specimen.serverId, localSpecimenId: id },
+    });
   }
 
   function handleRejectSpecimen() {

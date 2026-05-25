@@ -3,29 +3,29 @@
  * Domain types for the Image Capture & Retake feature (T2.7).
  */
 
-/** Status values for the Image row — mirrors ImageStatus enum on the backend. */
+/** Status values for the Image row — mirrors ImageStatus enum on the backend (SDD migration 0013). */
 export const ImageStatus = {
-  UPLOADED: 'UPLOADED',
-  PROCESSING: 'PROCESSING',
-  PROCESSED: 'PROCESSED',
-  FAILED: 'FAILED',
+  ACTIVE: 'ACTIVE',
   DISCARDED: 'DISCARDED',
+  REPLACED: 'REPLACED',
 } as const;
 
 export type ImageStatus = (typeof ImageStatus)[keyof typeof ImageStatus];
 
-/** Shape of the POST /images/upload response body. */
+/** Shape of the POST /api/v1/images/upload response body. */
 export interface UploadResponse {
-  id: string;          // AnalysisResult UUID
+  id: string;                                   // result_id alias — AnalysisResult UUID
+  result_id: string;                            // AnalysisResult UUID
   specimen_id: string;
-  image_id: string;
-  status: string;      // ResultStatus
+  image_id: string | null;
+  status: string;                               // ResultStatus (e.g. PENDING_CONFIRM)
   ai_findings: Record<string, number> | null;
+  flagged_anomalies: Record<string, number> | null;
 }
 
-/** Shape of the POST /images/{id}/discard response body. */
+/** Shape of the POST /api/v1/images/{image_id}/discard response body. */
 export interface DiscardResponse {
-  id: string;          // Image UUID
+  image_id: string;
   status: ImageStatus;
   discarded_at: string | null;
 }
@@ -41,5 +41,5 @@ export interface AIFindings {
   Bacteria: number;
   Crystals: number;
   Casts: number;
-  [particle: string]: number;  // future particles
+  [particle: string]: number;
 }

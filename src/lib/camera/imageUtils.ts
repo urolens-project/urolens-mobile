@@ -11,8 +11,7 @@
  * We treat the manipulated result as the canonical upload payload.
  */
 
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { ImagePickerAsset } from 'expo-image-picker';
 import { CameraCapturedPicture } from 'expo-camera';
 
@@ -63,7 +62,7 @@ export class ImageFormatError extends Error {
 export async function processCapture(
   picture: CameraCapturedPicture,
 ): Promise<ProcessedImage> {
-  return _processUri(picture.uri, picture.width, picture.height, 'captured');
+  return _processUri(picture.uri, 'captured');
 }
 
 /**
@@ -75,8 +74,6 @@ export async function processPickerAsset(
   if (!asset.uri) throw new ImageFormatError('unknown');
   return _processUri(
     asset.uri,
-    asset.width ?? 0,
-    asset.height ?? 0,
     asset.fileName ?? 'gallery-image',
     asset.mimeType as SupportedMimeType | undefined,
   );
@@ -104,41 +101,39 @@ export function buildUploadFormData(
 
 async function _processUri(
   uri: string,
-  rawWidth: number,
-  rawHeight: number,
   filenameStem: string,
   mimeType?: SupportedMimeType,
 ): Promise<ProcessedImage> {
   // Default to JPEG — Expo Camera always produces JPEG
   const outputMime: SupportedMimeType = mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
-  const format =
-    outputMime === 'image/png'
-      ? ImageManipulator.SaveFormat.PNG
-      : ImageManipulator.SaveFormat.JPEG;
+  const format = outputMime === 'image/png' ? SaveFormat.PNG : SaveFormat.JPEG;
 
-  // Re-encode to strip all EXIF. No resize — we keep full resolution.
-  const result = await ImageManipulator.manipulateAsync(uri, [], {
-    compress: 0.92, // slight compression, keeps diagnostic quality
-    format,
-  });
-
-  const { width, height } = result;
+  // Re-encode via new chain API — strips all EXIF, no resize.
+  const imageRef = await ImageManipulator.manipulate(uri).renderAsync();
+  const { width, height } = imageRef;
 
   // Resolution validation (mirrors backend check)
   if (width < MIN_WIDTH || height < MIN_HEIGHT) {
     throw new ImageResolutionError(width, height);
   }
 
-  // Read file size for logging/UI
-  const fileInfo = await FileSystem.getInfoAsync(result.uri, { size: true });
-  const sizeBytes = fileInfo.exists && 'size' in fileInfo ? fileInfo.size : 0;
+  const saved = await imageRef.saveAsync({ compress: 0.92, format });
+
+  // Approximate file size via fetch blob — non-critical, used for UI only
+  let sizeBytes = 0;
+  try {
+    const blob = await fetch(saved.uri).then((r) => r.blob());
+    sizeBytes = blob.size;
+  } catch {
+    // ignore — size is not required for upload
+  }
 
   return {
-    uri: result.uri,
+    uri: saved.uri,
     width,
     height,
     mimeType: outputMime,
     sizeBytes,
-    filename: `${filenameStem}-${Date.now()}.${format === ImageManipulator.SaveFormat.PNG ? 'png' : 'jpg'}`,
+    filename: `${filenameStem}-${Date.now()}.${format === SaveFormat.PNG ? 'png' : 'jpg'}`,
   };
 }
