@@ -6,7 +6,6 @@ const LAST_SYNC_KEY = 'urolens_last_sync_at';
 
 // Guard against concurrent syncs
 let isSyncing = false;
-
 export async function synchronize(): Promise<void> {
   if (isSyncing) {
     console.log('[SyncManager] Sync already in progress — skipping.');
@@ -17,16 +16,23 @@ export async function synchronize(): Promise<void> {
   try {
     const lastSyncedAt = await AsyncStorage.getItem(LAST_SYNC_KEY);
 
-    // Pull first — get latest server state before pushing local writes
-    const newTimestamp = await pullChanges(lastSyncedAt);
+    console.log('[SyncManager] Starting sync cycle...');
 
-    // Push second — send all queued offline actions to the server
+    // 1. Push FIRST — Send upstream local modifications so the server can run conflict checks
     await pushChanges();
 
-    await AsyncStorage.setItem(LAST_SYNC_KEY, newTimestamp);
-    console.log(`[SyncManager] Sync complete at ${newTimestamp}`);
+    // 2. Pull SECOND — Fetch the absolute, source-of-truth state down from the server
+    const newTimestamp = await pullChanges(lastSyncedAt);
+
+    // 3. Persist Timestamp ONLY after both steps succeed cleanly
+    if (newTimestamp) {
+      await AsyncStorage.setItem(LAST_SYNC_KEY, newTimestamp);
+      console.log(`[SyncManager] Sync complete at ${newTimestamp}`);
+    }
   } catch (err) {
-    console.error('[SyncManager] Sync failed:', err);
+    // If pushing or pulling throws a Network Error, code execution drops out here safely
+    console.error('[SyncManager] Sync cycle aborted due to error:', err);
+    throw err; // Propagate up so UI indicators can display a "Sync Failed" warning
   } finally {
     isSyncing = false;
   }
