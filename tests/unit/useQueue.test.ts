@@ -56,14 +56,24 @@ function makeSpecimen(overrides: Partial<Record<string, unknown>> = {}) {
 
 // ─── Test setup ──────────────────────────────────────────────────────────────
 
-/** Captures the subscriber callback so tests can push data into the hook */
-let emitSpecimens: (specimens: ReturnType<typeof makeSpecimen>[]) => void;
+/**
+ * The hook sets up two WatermelonDB subscriptions:
+ *  1. filtered items (re-subscribes when filter changes)
+ *  2. allItems totals (subscribes once on mount)
+ *
+ * We track them by subscribe-call order so tests can emit to the right one.
+ */
+let emitItems: (specimens: ReturnType<typeof makeSpecimen>[]) => void;
 const mockUnsubscribe = jest.fn();
+let subscribeCallCount = 0;
 
 function buildDbChain() {
+  subscribeCallCount = 0;
   const mockSubscribe = jest.fn().mockImplementation(
     (cb: (s: ReturnType<typeof makeSpecimen>[]) => void) => {
-      emitSpecimens = cb;
+      subscribeCallCount += 1;
+      if (subscribeCallCount === 1) emitItems = cb; // filter subscription
+      // 2nd call is allItems — no need to emit to it in these tests
       return { unsubscribe: mockUnsubscribe };
     },
   );
@@ -75,6 +85,7 @@ function buildDbChain() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  subscribeCallCount = 0;
   const { mockGet } = buildDbChain();
   (database.get as jest.Mock).mockImplementation(mockGet);
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
@@ -107,7 +118,7 @@ describe('useQueue', () => {
       const { result } = renderHook(() => useQueue());
 
       await act(async () => {
-        emitSpecimens([makeSpecimen()]);
+        emitItems([makeSpecimen()]);
       });
 
       expect(result.current.isLoading).toBe(false);
@@ -118,7 +129,7 @@ describe('useQueue', () => {
       const { result } = renderHook(() => useQueue());
 
       await act(async () => {
-        emitSpecimens([
+        emitItems([
           makeSpecimen({
             id: 'spec-42',
             sampleUid: 'SAMPLE-042',
@@ -141,12 +152,12 @@ describe('useQueue', () => {
       const { result } = renderHook(() => useQueue());
 
       await act(async () => {
-        emitSpecimens([makeSpecimen({ id: 'spec-1' })]);
+        emitItems([makeSpecimen({ id: 'spec-1' })]);
       });
       expect(result.current.items).toHaveLength(1);
 
       await act(async () => {
-        emitSpecimens([
+        emitItems([
           makeSpecimen({ id: 'spec-1' }),
           makeSpecimen({ id: 'spec-2', sampleUid: 'SAMPLE-002' }),
         ]);
@@ -157,7 +168,8 @@ describe('useQueue', () => {
     it('unsubscribes from WatermelonDB when the component unmounts', () => {
       const { unmount } = renderHook(() => useQueue());
       unmount();
-      expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+      // Two subscriptions (filtered items + allItems) are both cleaned up
+      expect(mockUnsubscribe).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -184,9 +196,10 @@ describe('useQueue', () => {
         result.current.setFilter('HIGH');
       });
 
-      // Old subscription should be cleaned up and a new one started
+      // Filter subscription cleaned up; allItems subscription stays
       expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
-      expect(database.get).toHaveBeenCalledTimes(2);
+      // mount: 2 (filter + allItems), setFilter: +1 = 3 total
+      expect(database.get).toHaveBeenCalledTimes(3);
     });
   });
 

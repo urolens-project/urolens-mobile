@@ -19,3 +19,8 @@ android/
 
 expo-env.d.ts
 # @end expo-cli
+
+# Expo internal files
+./urolens-mobile/expo/
+.expo/
+.expo

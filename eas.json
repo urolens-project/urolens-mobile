@@ -1,19 +1,26 @@
 {
   "cli": {
-    "version": ">= 5.0.0"
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "pnpm": "9.15.4",
+      "env": {
+        "EAS_BUILD_SKIP_LOCKFILE_CHECK": "1"
+      }
     },
     "preview": {
       "distribution": "internal",
+      "pnpm": "9.15.4",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },
     "production": {
+      "pnpm": "9.15.4",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
       }

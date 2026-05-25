@@ -13,6 +13,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'ASSIGNED',
     priorityLevel: 'HIGH', receivedAt: t(10, 45),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '2', serverId: 'srv-2', sampleUid: '88242',
@@ -20,6 +21,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'IN_QUEUE',
     priorityLevel: 'NORMAL', receivedAt: t(11, 15),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '3', serverId: 'srv-3', sampleUid: '88239',
@@ -27,6 +29,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'PROCESSING',
     priorityLevel: 'NORMAL', receivedAt: t(9, 30),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '4', serverId: 'srv-4', sampleUid: '88245',
@@ -34,6 +37,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'ASSIGNED',
     priorityLevel: 'HIGH', receivedAt: t(11, 42),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '5', serverId: 'srv-5', sampleUid: '88246',
@@ -41,6 +45,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'IN_QUEUE',
     priorityLevel: 'NORMAL', receivedAt: t(11, 55),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '6', serverId: 'srv-6', sampleUid: '88250',
@@ -48,6 +53,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'PROCESSING',
     priorityLevel: 'NORMAL', receivedAt: t(8, 50),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '7', serverId: 'srv-7', sampleUid: '88253',
@@ -55,6 +61,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'ASSIGNED',
     priorityLevel: 'HIGH', receivedAt: t(10, 10),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '8', serverId: 'srv-8', sampleUid: '88255',
@@ -62,6 +69,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'PROCESSING',
     priorityLevel: 'NORMAL', receivedAt: t(9, 5),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '9', serverId: 'srv-9', sampleUid: '88258',
@@ -69,6 +77,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'IN_QUEUE',
     priorityLevel: 'LOW', receivedAt: t(12, 3),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '10', serverId: 'srv-10', sampleUid: '88260',
@@ -76,6 +85,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'PROCESSING',
     priorityLevel: 'NORMAL', receivedAt: t(8, 20),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '11', serverId: 'srv-11', sampleUid: '88263',
@@ -83,6 +93,7 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'IN_QUEUE',
     priorityLevel: 'NORMAL', receivedAt: t(12, 18),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
   {
     id: '12', serverId: 'srv-12', sampleUid: '88265',
@@ -90,5 +101,6 @@ export const MOCK_QUEUE_ITEMS: QueueItem[] = [
     testType: 'Urinalysis', status: 'PROCESSING',
     priorityLevel: 'NORMAL', receivedAt: t(7, 45),
     medtechId: 'mt-1', syncedAt: null,
+    rejectionReason: null, rejectionNote: null, rejectedAt: null,
   },
 ];

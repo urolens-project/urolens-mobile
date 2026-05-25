@@ -1,16 +1,31 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+// app/(medtech)/capture.tsx
+/**
+ * T2.7 — Image Capture Route
+ *
+ * Reads route params here (in the actual route file, where useLocalSearchParams
+ * is reliable) and forwards them as props to ImageCaptureScreen.
+ *
+ * Expected query params:
+ *   specimenId       — server UUID of the specimen (required)
+ *   localSpecimenId  — WatermelonDB local ID, used for return navigation
+ *   existingImageId  — server UUID of an existing image (present on retake only)
+ */
 
-// Implemented in EPIC-MOB-05 (STORY-MOB-08)
-export default function CaptureScreen() {
+import { useLocalSearchParams } from 'expo-router';
+import { ImageCaptureScreen } from '@features/image-retake/components/ImageCaptureScreen';
+
+export default function CaptureRoute() {
+  const { specimenId, localSpecimenId, existingImageId } = useLocalSearchParams<{
+    specimenId: string;
+    localSpecimenId: string;
+    existingImageId?: string;
+  }>();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Capture — EPIC-MOB-05</Text>
-    </View>
+    <ImageCaptureScreen
+      specimenId={specimenId}
+      localSpecimenId={localSpecimenId}
+      existingImageId={existingImageId}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  text: { fontSize: 16, color: '#6B7280' },
-});
