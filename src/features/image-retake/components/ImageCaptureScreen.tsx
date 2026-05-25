@@ -31,6 +31,9 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
+import { Q } from '@nozbe/watermelondb';
+import { database } from '@db/database';
+import AnalysisResult from '@db/models/AnalysisResult';
 import { DiscardConfirmationModal } from './DiscardConfirmationModal';
 import {
   processCapture,
@@ -135,18 +138,62 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
     try {
       const form = buildUploadFormData(processed, specimenId);
-      const response = await apiClient.post('/images/upload', form, {
-        // undefined clears the global application/json default so React Native
-        // XHR sets multipart/form-data with the correct boundary automatically.
-        headers: { 'Content-Type': undefined },
-        onUploadProgress: (evt) => {
-          if (evt.total) {
-            setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
-          }
-        },
-      });
 
-      const { id: resultId } = response.data;
+      // Axios's global 15 s timeout doesn't reliably abort multipart uploads
+      // in React Native. Use an explicit AbortController with a 60 s ceiling.
+      const controller = new AbortController();
+      const uploadTimeout = setTimeout(() => controller.abort(), 60_000);
+
+      let response;
+      try {
+        response = await apiClient.post('/images/upload', form, {
+          // undefined clears the global application/json default so React Native
+          // XHR sets multipart/form-data with the correct boundary automatically.
+          headers: { 'Content-Type': undefined },
+          timeout: 60_000,
+          signal: controller.signal,
+          onUploadProgress: (evt) => {
+            if (evt.total) {
+              setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
+            }
+          },
+        });
+      } finally {
+        clearTimeout(uploadTimeout);
+      }
+
+      const { id: resultId, result_id, image_id: uploadedImageId, status, ai_findings } = response.data;
+
+      // Write result into WatermelonDB immediately so Sample Detail shows it
+      // without waiting for the next background sync.
+      await database.write(async () => {
+        const collection = database.get<AnalysisResult>('analysis_results');
+        const existing = await collection.query(Q.where('specimen_id', specimenId)).fetch();
+        const findings = JSON.stringify(ai_findings ?? {});
+
+        if (existing.length > 0) {
+          await existing[0].update((r) => {
+            r.serverId = result_id ?? resultId;
+            r.imageId = uploadedImageId ?? null;
+            r.status = status;
+            r.aiFindingsJson = findings;
+            r.flaggedAnomaliesJson = JSON.stringify({});
+            r.smartDiagnosisJson = null;
+            r.syncedAt = new Date().toISOString();
+          });
+        } else {
+          await collection.create((r) => {
+            r.serverId = result_id ?? resultId;
+            r.specimenId = specimenId;
+            r.imageId = uploadedImageId ?? null;
+            r.status = status;
+            r.aiFindingsJson = findings;
+            r.flaggedAnomaliesJson = JSON.stringify({});
+            r.smartDiagnosisJson = null;
+            r.syncedAt = new Date().toISOString();
+          });
+        }
+      });
 
       router.replace({
         pathname: '/(medtech)/sample/[id]',

@@ -200,6 +200,23 @@ export default function SampleDetailScreen() {
     });
   }
 
+  function handleRetakeImage() {
+    if (!specimen?.serverId) {
+      Alert.alert('Not Synced', 'Specimen has not synced yet. Please wait.');
+      return;
+    }
+    router.push({
+      pathname: '/(medtech)/capture',
+      params: {
+        specimenId: specimen.serverId,
+        localSpecimenId: id,
+        // Pass the current image ID so the capture screen triggers the
+        // discard confirmation modal before allowing a new capture.
+        existingImageId: analysisResult?.imageId ?? undefined,
+      },
+    });
+  }
+
   function handleRejectSpecimen() {
     router.push(`/(medtech)/sample/reject/${id}`);
   }
@@ -345,20 +362,30 @@ export default function SampleDetailScreen() {
 
             <AIDisclaimer />
 
-            {/* Confirm result */}
+            {/* Confirm result + Retake */}
             {isPendingConfirm && (
-              <TouchableOpacity
-                style={styles.confirmBtn}
-                onPress={handleConfirmResult}
-                disabled={isConfirming}
-                accessibilityRole="button"
-                accessibilityLabel="Confirm analysis result"
-              >
-                {isConfirming
-                  ? <ActivityIndicator size="small" color="#FFFFFF" />
-                  : <Text style={styles.confirmBtnText}>Confirm Result</Text>
-                }
-              </TouchableOpacity>
+              <View style={styles.resultActions}>
+                <TouchableOpacity
+                  style={styles.confirmBtn}
+                  onPress={handleConfirmResult}
+                  disabled={isConfirming}
+                  accessibilityRole="button"
+                  accessibilityLabel="Confirm analysis result"
+                >
+                  {isConfirming
+                    ? <ActivityIndicator size="small" color="#FFFFFF" />
+                    : <Text style={styles.confirmBtnText}>Confirm Result</Text>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.retakeBtn}
+                  onPress={handleRetakeImage}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retake image"
+                >
+                  <Text style={styles.retakeBtnText}>Retake Image</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {isConfirmed && (
@@ -544,13 +571,22 @@ const styles = StyleSheet.create({
   findingName:  { flex: 1, fontSize: 13, color: '#374151' },
   findingCount: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
 
-  // Confirm / confirmed
+  // Retake + Confirm row
+  resultActions: { gap: 10, marginTop: 4 },
+  retakeBtn: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  retakeBtnText: { color: '#374151', fontSize: 15, fontWeight: '600' },
   confirmBtn: {
     backgroundColor: TEAL,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 4,
   },
   confirmBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   confirmedBanner: {
