@@ -177,7 +177,6 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
             r.imageId = uploadedImageId ?? null;
             r.status = status;
             r.aiFindingsJson = findings;
-            r.flaggedAnomaliesJson = JSON.stringify({});
             r.smartDiagnosisJson = null;
             r.syncedAt = new Date().toISOString();
           });
@@ -188,7 +187,6 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
             r.imageId = uploadedImageId ?? null;
             r.status = status;
             r.aiFindingsJson = findings;
-            r.flaggedAnomaliesJson = JSON.stringify({});
             r.smartDiagnosisJson = null;
             r.syncedAt = new Date().toISOString();
           });
