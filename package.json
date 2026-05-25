@@ -71,12 +71,22 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "roots": ["<rootDir>/src", "<rootDir>/tests"],
+    "testPathIgnorePatterns": ["/node_modules/"],
     "setupFilesAfterEnv": [
       "@testing-library/jest-native/extend-expect",
       "<rootDir>/tests/setup.ts"
     ],
     "transformIgnorePatterns": [
       "node_modules/(?!(\\.pnpm|(?:jest-)?react-native|@react-native(?:-community)?|expo(?:nent)?|@expo(?:nent)?/|@expo-google-fonts/|react-navigation|@react-navigation/|@unimodules/|unimodules|sentry-expo|native-base|react-native-svg|@nozbe/watermelondb))"
+    ],
+    "collectCoverageFrom": [
+      "src/db/sync/conflictResolver.ts",
+      "src/lib/auth/tokenStorage.ts",
+      "src/lib/camera/imageUtils.ts",
+      "src/features/image-retake/hooks/useImageRetake.ts",
+      "src/features/queue/hooks/useQueue.ts",
+      "src/features/specimen-rejection/hooks/useRejectSpecimen.ts"
     ],
     "moduleNameMapper": {
       "^@app-types/(.*)$": "<rootDir>/src/types/$1",
