@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 2,
+  version: 3,
   tables: [
     tableSchema({
       name: 'specimens',
@@ -36,27 +36,35 @@ export const schema = appSchema({
     tableSchema({
       name: 'analysis_results',
       columns: [
-        { name: 'server_id',              type: 'string', isOptional: true },
-        { name: 'specimen_id',            type: 'string' },
-        { name: 'ai_findings_json',       type: 'string' },
-        { name: 'flagged_anomalies_json', type: 'string', isOptional: true },
-        { name: 'smart_diagnosis_json',   type: 'string', isOptional: true },
-        { name: 'status',                 type: 'string' },
-        { name: 'image_id',               type: 'string', isOptional: true },
-        { name: 'synced_at',              type: 'string', isOptional: true },
+        { name: 'server_id',                   type: 'string',  isOptional: true },
+        { name: 'specimen_id',                 type: 'string' },
+        { name: 'image_id',                    type: 'string',  isOptional: true },
+        { name: 'status',                      type: 'string' },
+        { name: 'ai_findings_json',            type: 'string' },
+        { name: 'smart_diagnosis_json',        type: 'string',  isOptional: true },
+        { name: 'smart_diagnosis_unavailable', type: 'boolean' },
+        { name: 'confirmed_at',                type: 'string',  isOptional: true },
+        { name: 'confirmed_by',                type: 'string',  isOptional: true },
+        { name: 'is_synced',                   type: 'boolean' },
+        { name: 'created_at',                  type: 'string',  isOptional: true },
+        { name: 'synced_at',                   type: 'string',  isOptional: true },
+        // kept for migrated installs — not exposed in model
+        { name: 'flagged_anomalies_json',      type: 'string',  isOptional: true },
       ],
     }),
     tableSchema({
       name: 'manual_overrides',
       columns: [
-        { name: 'server_id',        type: 'string',  isOptional: true },
-        { name: 'result_id',        type: 'string' },
-        { name: 'parameter_name',   type: 'string' },
-        { name: 'original_ai_value',type: 'string' },
-        { name: 'corrected_value',  type: 'string' },
-        { name: 'rationale',        type: 'string' },
-        { name: 'is_synced',        type: 'boolean' },
-        { name: 'synced_at',        type: 'string',  isOptional: true },
+        { name: 'server_id',         type: 'string',  isOptional: true },
+        { name: 'result_id',         type: 'string' },
+        { name: 'parameter',         type: 'string' },
+        { name: 'original_ai_value', type: 'number' },
+        { name: 'corrected_value',   type: 'number' },
+        { name: 'rationale',         type: 'string' },
+        { name: 'overridden_by',     type: 'string' },
+        { name: 'is_synced',         type: 'boolean' },
+        { name: 'created_at',        type: 'string' },
+        { name: 'synced_at',         type: 'string',  isOptional: true },
       ],
     }),
     tableSchema({
@@ -67,9 +75,9 @@ export const schema = appSchema({
         { name: 'action',         type: 'string' },
         { name: 'payload_json',   type: 'string' },
         { name: 'status',         type: 'string' },
-        { name: 'error_message',  type: 'string', isOptional: true },
+        { name: 'error_message',  type: 'string',  isOptional: true },
         { name: 'created_at',     type: 'number' },
-        { name: 'attempted_at',   type: 'number', isOptional: true },
+        { name: 'attempted_at',   type: 'number',  isOptional: true },
       ],
     }),
   ],
