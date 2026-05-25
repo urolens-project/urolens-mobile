@@ -22,16 +22,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
-import { useImageRetake } from '../hooks/useImageRetake';
 import { DiscardConfirmationModal } from './DiscardConfirmationModal';
 import {
   processCapture,
@@ -45,14 +44,13 @@ import apiClient from '@lib/apiClient';
 
 type ScreenPhase = 'idle' | 'previewing' | 'uploading' | 'discarding';
 
-export function ImageCaptureScreen() {
-  // ── Route params ─────────────────────────────────────────────────────────
-  // specimenId: always present
-  // existingImageId: present when retaking from ResultReviewScreen
-  const { specimenId, existingImageId } = useLocalSearchParams<{
-    specimenId: string;
-    existingImageId?: string;
-  }>();
+interface Props {
+  specimenId: string;
+  localSpecimenId: string;
+  existingImageId?: string;
+}
+
+export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageId }: Props) {
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [permission, requestPermission] = useCameraPermissions();
@@ -98,7 +96,7 @@ export function ImageCaptureScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 1,
       allowsEditing: false,
       exif: false,
@@ -121,7 +119,16 @@ export function ImageCaptureScreen() {
 
   // ── Upload ────────────────────────────────────────────────────────────────
   const handleUseImage = useCallback(async () => {
-    if (!processed || !specimenId) return;
+    console.log('[ImageCaptureScreen] handleUseImage tapped', { specimenId, localSpecimenId, hasProcessed: !!processed });
+    // Defensive guard with visible feedback so silent failures are surfaced
+    if (!processed) return;
+    if (!specimenId) {
+      Alert.alert(
+        'Missing Specimen ID',
+        'The specimen server ID was not passed to this screen. Go back and try again.',
+      );
+      return;
+    }
 
     setPhase('uploading');
     setUploadProgress(0);
@@ -129,7 +136,9 @@ export function ImageCaptureScreen() {
     try {
       const form = buildUploadFormData(processed, specimenId);
       const response = await apiClient.post('/images/upload', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        // undefined clears the global application/json default so React Native
+        // XHR sets multipart/form-data with the correct boundary automatically.
+        headers: { 'Content-Type': undefined },
         onUploadProgress: (evt) => {
           if (evt.total) {
             setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
@@ -139,19 +148,21 @@ export function ImageCaptureScreen() {
 
       const { id: resultId } = response.data;
 
-      // Navigate to result review screen
       router.replace({
         pathname: '/(medtech)/sample/[id]',
-        params: { id: specimenId, resultId },
+        params: { id: localSpecimenId, resultId },
       });
     } catch (err: any) {
+      // apiClient interceptor rejects with a plain ApiError { code, message },
+      // not an Axios error, so read .message directly.
       const msg =
-        err?.response?.data?.error?.message ??
+        err?.message ??
         'Upload failed. Please check your connection and try again.';
+      Alert.alert('Upload Failed', msg);
       setValidationError(msg);
       setPhase('previewing');
     }
-  }, [processed, specimenId]);
+  }, [processed, specimenId, localSpecimenId]);
 
   // ── Retake ────────────────────────────────────────────────────────────────
   const handleRetapTap = useCallback(() => {

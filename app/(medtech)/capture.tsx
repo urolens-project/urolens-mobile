@@ -1,27 +1,31 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-
 // app/(medtech)/capture.tsx
 /**
  * T2.7 — Image Capture Route
  *
- * This is a thin Expo Router screen. All logic lives in ImageCaptureScreen.
+ * Reads route params here (in the actual route file, where useLocalSearchParams
+ * is reliable) and forwards them as props to ImageCaptureScreen.
  *
- * Expected query params (from expo-router useLocalSearchParams):
- *   specimenId       — UUID of the specimen being analysed (required)
- *   existingImageId  — UUID of a previously uploaded image (present on retake only)
- *
- * Navigation in:
- *   sample/[id].tsx → "Begin Analysis" button → router.push('/(medtech)/capture', { specimenId })
- *   sample/[id].tsx → "Retake" on result review → router.push with existingImageId
- *
- * Navigation out (from ImageCaptureScreen):
- *   Success → router.replace('/(medtech)/sample/[id]', { id: specimenId, resultId })
- *   Back    → router.back()
+ * Expected query params:
+ *   specimenId       — server UUID of the specimen (required)
+ *   localSpecimenId  — WatermelonDB local ID, used for return navigation
+ *   existingImageId  — server UUID of an existing image (present on retake only)
  */
- 
+
+import { useLocalSearchParams } from 'expo-router';
 import { ImageCaptureScreen } from '@features/image-retake/components/ImageCaptureScreen';
- 
+
 export default function CaptureRoute() {
-  return <ImageCaptureScreen />;
+  const { specimenId, localSpecimenId, existingImageId } = useLocalSearchParams<{
+    specimenId: string;
+    localSpecimenId: string;
+    existingImageId?: string;
+  }>();
+
+  return (
+    <ImageCaptureScreen
+      specimenId={specimenId}
+      localSpecimenId={localSpecimenId}
+      existingImageId={existingImageId}
+    />
+  );
 }

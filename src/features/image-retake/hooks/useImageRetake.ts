@@ -16,7 +16,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, CameraType } from 'expo-camera';
+import { Camera } from 'expo-camera';
 import apiClient from '@lib/apiClient';
 import {
   processCapture,
@@ -90,7 +90,11 @@ export function useImageRetake(): UseImageRetakeReturn {
         const form = buildUploadFormData(processed, specimenId);
 
         const response = await apiClient.post('/images/upload', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+          // Setting Content-Type to undefined clears the global application/json
+          // default and lets React Native XHR set multipart/form-data with the
+          // correct boundary automatically. Explicitly setting it without a
+          // boundary causes python-multipart to reject the body (422).
+          headers: { 'Content-Type': undefined },
           signal: abortRef.current.signal,
           onUploadProgress: (evt) => {
             if (evt.total && evt.total > 0) {
@@ -155,7 +159,7 @@ async function _acquireAsset(source: CaptureSource) {
   }
 
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    mediaTypes: ['images'],
     quality: 1, // no additional compression — we handle it in imageUtils
     allowsEditing: false,
     exif: false, // don't even load EXIF into memory
