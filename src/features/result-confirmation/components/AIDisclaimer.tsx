@@ -1,14 +1,23 @@
+// Path: urolens-mobile/src/features/result-confirmation/components/AIDisclaimer.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-export function AIDisclaimer() {
+// Mandatory compliance component per SRS.
+// Must appear at the top of ResultReviewScreen.
+// Never conditionally hide or remove.
+export function AIDisclaimer(): React.JSX.Element {
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>
-        ⚕ UroLens is a clinical decision-support tool. AI-generated findings and Smart
-        Diagnosis indicators are not substitutes for professional medical judgment.
-        All results must be reviewed and confirmed by a licensed Medical Technologist
-        and Laboratory Supervisor.
+    <View
+      style={styles.container}
+      accessible={true}
+      accessibilityRole="text"
+      accessibilityLabel="AI disclaimer"
+    >
+      <Text style={styles.label} accessible={false}>Clinical Decision Support</Text>
+      <Text style={styles.body} accessible={false}>
+        AI-generated findings are a clinical decision-support tool only. Results are not
+        substitutes for professional medical judgment. All results must be reviewed and confirmed
+        by a licensed Medical Technologist and Laboratory Supervisor.
       </Text>
     </View>
   );
@@ -16,16 +25,27 @@ export function AIDisclaimer() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#E0E7FF',
+    backgroundColor: '#EEF9F8',
     borderLeftWidth: 3,
-    borderLeftColor: '#312E81',
-    padding: 10,
-    borderRadius: 6,
-    marginVertical: 8,
+    borderLeftColor: '#2E7D7A',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
   },
-  text: {
-    fontSize: 11,
-    color: '#312E81',
-    lineHeight: 16,
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2E7D7A',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  body: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#3D7874',
   },
 });

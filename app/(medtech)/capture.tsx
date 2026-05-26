@@ -9,9 +9,14 @@
  *   specimenId       — server UUID of the specimen (required)
  *   localSpecimenId  — WatermelonDB local ID, used for return navigation
  *   existingImageId  — server UUID of an existing image (present on retake only)
+ *
+ * useFocusEffect increments mountKey on every screen focus so ImageCaptureScreen
+ * always remounts fresh — this prevents stale uploading/previewing state from
+ * a previous session being shown when the user navigates back for a retake.
  */
 
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ImageCaptureScreen } from '@features/image-retake/components/ImageCaptureScreen';
 
 export default function CaptureRoute() {
@@ -21,8 +26,17 @@ export default function CaptureRoute() {
     existingImageId?: string;
   }>();
 
+  const [mountKey, setMountKey] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setMountKey((k) => k + 1);
+    }, []),
+  );
+
   return (
     <ImageCaptureScreen
+      key={mountKey}
       specimenId={specimenId}
       localSpecimenId={localSpecimenId}
       existingImageId={existingImageId}

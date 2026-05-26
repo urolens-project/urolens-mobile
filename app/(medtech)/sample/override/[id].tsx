@@ -1,16 +1,35 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, Stack } from 'expo-router';
+import { OverrideEntryForm } from '@features/manual-override/components/OverrideEntryForm';
 
-// Implemented in EPIC-MOB-06 (STORY-MOB-10)
-export default function OverrideScreen() {
+export default function OverrideScreen(): React.JSX.Element {
+  const { id, parameter, originalValue } = useLocalSearchParams<{
+    id: string;
+    parameter: string;
+    originalValue: string;
+  }>();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Override — EPIC-MOB-06</Text>
-    </View>
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Override Parameter',
+          headerBackTitle: 'Result',
+        }}
+      />
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <OverrideEntryForm
+          resultId={id}
+          parameter={parameter}
+          originalAiValue={Number(originalValue ?? '0')}
+        />
+      </SafeAreaView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  text: { fontSize: 16, color: '#6B7280' },
+  safe: { flex: 1, backgroundColor: '#F3F4F6' },
 });
