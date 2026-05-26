@@ -43,4 +43,4 @@ jobs:
         run: pnpm type-check
 
       - name: Run tests
-        run: pnpm test -- --coverage --coverageThreshold='{"global":{"lines":80}}'
+        run: pnpm test:ci

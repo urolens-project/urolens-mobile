@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -111,23 +113,28 @@ export default function RejectSpecimenScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      {/* Specimen info card */}
-      {specimenInfo && (
-        <View style={styles.specimenCard}>
-          <Text style={styles.specimenUid}>{specimenInfo.sampleUid}</Text>
-          <Text style={styles.specimenName}>{specimenInfo.patientName}</Text>
-        </View>
-      )}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Specimen info card */}
+        {specimenInfo && (
+          <View style={styles.specimenCard}>
+            <Text style={styles.specimenUid}>{specimenInfo.sampleUid}</Text>
+            <Text style={styles.specimenName}>{specimenInfo.patientName}</Text>
+          </View>
+        )}
 
-      {/* Reason selection + confirm */}
-      <RejectionReasonModal
-        selectedReason={selectedReason}
-        onSelectReason={setSelectedReason}
-        note={note}
-        onNoteChange={setNote}
-        onConfirm={handleConfirm}
-        isLoading={isRejecting}
-      />
+        {/* Reason selection + confirm */}
+        <RejectionReasonModal
+          selectedReason={selectedReason}
+          onSelectReason={setSelectedReason}
+          note={note}
+          onNoteChange={setNote}
+          onConfirm={handleConfirm}
+          isLoading={isRejecting}
+        />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -136,6 +143,9 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: '#F3F4F6',
+  },
+  flex: {
+    flex: 1,
   },
   center: {
     flex: 1,

@@ -15,9 +15,9 @@ export function AIDisclaimer(): React.JSX.Element {
     >
       <Text style={styles.label} accessible={false}>Clinical Decision Support</Text>
       <Text style={styles.body} accessible={false}>
-        AI-generated findings are a clinical decision-support tool only. Results are not
-        substitutes for professional medical judgment. All results must be reviewed and confirmed
-        by a licensed Medical Technologist and Laboratory Supervisor.
+        UroLens is a clinical decision-support tool. AI-generated findings and Smart Diagnosis
+        indicators are not substitutes for professional medical judgment. All results must be
+        reviewed and confirmed by a licensed Medical Technologist and Laboratory Supervisor.
       </Text>
     </View>
   );
