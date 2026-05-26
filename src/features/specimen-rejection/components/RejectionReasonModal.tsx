@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
@@ -59,8 +59,11 @@ export function RejectionReasonModal({
   onConfirm,
   isLoading,
 }: Props) {
+  const scrollRef = useRef<ScrollView>(null);
+
   return (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
@@ -116,6 +119,7 @@ export function RejectionReasonModal({
         maxLength={500}
         textAlignVertical="top"
         accessibilityLabel="Additional notes"
+        onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
       />
       <Text style={styles.charCount}>{note.length}/500</Text>
 
