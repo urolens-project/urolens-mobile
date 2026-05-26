@@ -1,3 +1,4 @@
+// Path: urolens-mobile/app/(medtech)/sample/[id].tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -9,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
 import { Ionicons } from '@expo/vector-icons';
 import { database } from '@db/database';
@@ -17,8 +18,8 @@ import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
 import { useConfirmResult } from '@features/result-confirmation/hooks/useConfirmResult';
-import { ResultStatus } from '@app-types/enums';
-import type { SmartDiagnosisDTO } from '@app-types/domain';
+import { ResultReviewScreen } from '@features/result-confirmation/components/ResultReviewScreen';
+import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
 import type { QueueItem } from '../../../src/features/queue/types';
 
 const TEAL = '#2E7D7A';
@@ -54,7 +55,7 @@ const LEVEL_COLORS: Record<string, { bg: string; text: string }> = {
   LOW:      { bg: '#D1FAE5', text: '#065F46' },
 };
 
-function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisDTO }) {
+function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson }) {
   if (diagnosis.no_significant_indicators) {
     return (
       <View style={styles.noIndicators}>
@@ -64,25 +65,25 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisDTO }) 
     );
   }
 
-  const conditions = (
-    ['gout', 'glomerulonephritis', 'nephrolithiasis'] as const
-  )
-    .map((key) => diagnosis[key])
-    .filter(Boolean)
-    .sort((a, b) => b.weighted_score - a.weighted_score);
+  const conditions = [
+    { label: 'Gout',              level: diagnosis.gout_score },
+    { label: 'Glomerulonephritis', level: diagnosis.gn_score },
+    { label: 'Nephrolithiasis',   level: diagnosis.nephro_score },
+  ];
+
+  const LEVEL_LABELS: Record<string, string> = { HIGH: 'High', MODERATE: 'Moderate', LOW: 'Low' };
 
   return (
     <View style={styles.diagnosisRows}>
       {conditions.map((c) => {
         const colors = LEVEL_COLORS[c.level] ?? LEVEL_COLORS.LOW;
         return (
-          <View key={c.condition} style={styles.diagnosisRow}>
-            <Text style={styles.diagnosisCondition}>{c.condition}</Text>
-            <View style={styles.diagnosisRight}>
-              <View style={[styles.levelBadge, { backgroundColor: colors.bg }]}>
-                <Text style={[styles.levelText, { color: colors.text }]}>{c.level}</Text>
-              </View>
-              <Text style={styles.diagnosisScore}>{c.weighted_score.toFixed(2)}</Text>
+          <View key={c.label} style={styles.diagnosisRow}>
+            <Text style={styles.diagnosisCondition}>{c.label}</Text>
+            <View style={[styles.levelBadge, { backgroundColor: colors.bg }]}>
+              <Text style={[styles.levelText, { color: colors.text }]}>
+                {LEVEL_LABELS[c.level] ?? c.level ?? '—'}
+              </Text>
             </View>
           </View>
         );
@@ -110,8 +111,11 @@ function AIFindingsSection({ findings }: { findings: Record<string, number> }) {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-export default function SampleDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+export default function SampleDetailScreen(): React.JSX.Element {
+  const { id: specimenId, resultId } = useLocalSearchParams<{
+    id: string;
+    resultId?: string;
+  }>();
   const router = useRouter();
 
   const [specimen, setSpecimen] = useState<QueueItem | null>(null);
@@ -121,16 +125,16 @@ export default function SampleDetailScreen() {
 
   const { confirm, isLoading: isConfirming } = useConfirmResult();
 
-  // Observe specimen by WatermelonDB local ID using model.observe()
-  // so any field update (status, rejectionReason, etc.) triggers a re-render.
+  // Both useEffect hooks must remain unconditional (Rules of Hooks).
+  // Internal guards make them no-ops when specimenId/serverId are absent.
   useEffect(() => {
-    if (!id) return;
+    if (!specimenId) return;
 
     let sub: { unsubscribe: () => void } | null = null;
 
     database
       .get<Specimen>('specimens')
-      .find(id)
+      .find(specimenId)
       .then((model) => {
         sub = model.observe().subscribe((s) => {
           setSpecimen({
@@ -158,9 +162,8 @@ export default function SampleDetailScreen() {
       });
 
     return () => sub?.unsubscribe();
-  }, [id]);
+  }, [specimenId]);
 
-  // Observe analysis results once specimen is known
   useEffect(() => {
     if (!specimen?.serverId) return;
 
@@ -174,6 +177,24 @@ export default function SampleDetailScreen() {
 
     return () => subscription.unsubscribe();
   }, [specimen?.serverId]);
+
+  // Route variation: resultId present → mount review screen directly
+  if (resultId) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: 'Result Review',
+            headerBackTitle: 'Queue',
+          }}
+        />
+        <ResultReviewScreen
+          resultId={resultId}
+          specimenId={specimenId}
+        />
+      </>
+    );
+  }
 
   async function handleConfirmResult() {
     if (!analysisResult) return;
@@ -196,7 +217,7 @@ export default function SampleDetailScreen() {
     }
     router.push({
       pathname: '/(medtech)/capture',
-      params: { specimenId: specimen.serverId, localSpecimenId: id },
+      params: { specimenId: specimen.serverId, localSpecimenId: specimenId },
     });
   }
 
@@ -209,30 +230,14 @@ export default function SampleDetailScreen() {
       pathname: '/(medtech)/capture',
       params: {
         specimenId: specimen.serverId,
-        localSpecimenId: id,
-        // Pass the current image ID so the capture screen triggers the
-        // discard confirmation modal before allowing a new capture.
+        localSpecimenId: specimenId,
         existingImageId: analysisResult?.imageId ?? undefined,
       },
     });
   }
 
   function handleRejectSpecimen() {
-    router.push(`/(medtech)/sample/reject/${id}`);
-  }
-
-  function handleRequestReassignment() {
-    Alert.alert(
-      'Request Reassignment',
-      'Are you sure you want to request reassignment for this sample?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Request',
-          onPress: () => Alert.alert('Reassignment requested.'),
-        },
-      ],
-    );
+    router.push(`/(medtech)/sample/reject/${specimenId}`);
   }
 
   if (isLoading) {
@@ -265,10 +270,9 @@ export default function SampleDetailScreen() {
   const isRejected       = specimen.status === 'REJECTED';
   const smartDiagnosis   = analysisResult?.smartDiagnosis ?? null;
   const aiFindings       = analysisResult?.aiFindings ?? {};
-  const isPendingConfirm = analysisResult?.status === ResultStatus.PENDING_CONFIRM;
-  const isConfirmed      = analysisResult?.status === ResultStatus.PENDING_SUPERVISOR_APPROVAL
-                        || analysisResult?.status === ResultStatus.APPROVED
-                        || analysisResult?.status === ResultStatus.RELEASED;
+  const isPendingConfirm = analysisResult?.status === 'PENDING_CONFIRM';
+  const isConfirmed      = analysisResult?.status === 'PENDING_SUPERVISOR_APPROVAL'
+                        || analysisResult?.status === 'APPROVED';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -417,13 +421,6 @@ export default function SampleDetailScreen() {
               <Text style={styles.actionBtnDangerText}>Reject Specimen</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnSecondary]}
-            onPress={handleRequestReassignment}
-            accessibilityRole="button"
-          >
-            <Text style={styles.actionBtnSecondaryText}>Request Reassignment</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -614,8 +611,6 @@ const styles = StyleSheet.create({
   actionBtnPrimaryText:  { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   actionBtnDanger:       { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
   actionBtnDangerText:   { color: '#B91C1C', fontSize: 16, fontWeight: '600' },
-  actionBtnSecondary:    { backgroundColor: '#FFFFFF', borderColor: '#D1D5DB' },
-  actionBtnSecondaryText:{ color: '#374151', fontSize: 16, fontWeight: '500' },
 
   // Rejection card
   rejectionCard: {
