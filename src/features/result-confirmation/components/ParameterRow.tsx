@@ -5,9 +5,13 @@ import type { AIFindingEntry } from '../types';
 
 interface ParameterRowProps {
   finding: AIFindingEntry;
-  overriddenValue?: number; // set when a ManualOverride exists for this parameter
+  overriddenValue?: number;
   onOverride: (parameter: string, originalValue: number) => void;
   disabled?: boolean;
+}
+
+function formatName(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export function ParameterRow({
@@ -25,36 +29,35 @@ export function ParameterRow({
       accessibilityLabel={`${finding.parameter}: ${displayValue}`}
     >
       <View style={styles.left}>
-        <Text style={styles.parameterName}>{finding.parameter}</Text>
-        {finding.isAnomalous && (
-          <View style={styles.anomalousBadge}>
-            <Text style={styles.anomalousBadgeText}>Anomalous</Text>
-          </View>
-        )}
-        {isOverridden && (
-          <View style={styles.overriddenBadge}>
-            <Text style={styles.overriddenBadgeText}>
-              Overridden (AI: {finding.count})
-            </Text>
-          </View>
-        )}
+        <Text style={styles.parameterName}>{formatName(finding.parameter)}</Text>
+        <View style={styles.badges}>
+          {finding.isAnomalous && (
+            <View style={styles.anomalousBadge}>
+              <Text style={styles.anomalousBadgeText}>Anomalous</Text>
+            </View>
+          )}
+          {isOverridden && (
+            <View style={styles.overriddenBadge}>
+              <Text style={styles.overriddenBadgeText}>Overridden · AI: {finding.count}</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={styles.right}>
         <Text style={[styles.count, finding.isAnomalous && styles.anomalousCount]}>
           {displayValue}
         </Text>
-        <TouchableOpacity
-          style={[styles.overrideButton, disabled && styles.overrideButtonDisabled]}
-          onPress={() => onOverride(finding.parameter, finding.count)}
-          disabled={disabled}
-          accessibilityLabel={`Override ${finding.parameter}`}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.overrideButtonText, disabled && styles.overrideButtonTextDisabled]}>
-            Override
-          </Text>
-        </TouchableOpacity>
+        {!disabled && (
+          <TouchableOpacity
+            style={styles.overrideButton}
+            onPress={() => onOverride(finding.parameter, finding.count)}
+            accessibilityLabel={`Override ${finding.parameter}`}
+            accessibilityRole="button"
+          >
+            <Text style={styles.overrideButtonText}>Override</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -65,58 +68,63 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
     backgroundColor: '#FFFFFF',
   },
   anomalousRow: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFFBF0',
   },
   left: {
     flex: 1,
-    gap: 4,
+    gap: 5,
+    marginRight: 12,
   },
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   parameterName: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#111827',
-    textTransform: 'capitalize',
+    color: '#1A1A1A',
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
   },
   count: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A1A1A',
     minWidth: 32,
     textAlign: 'right',
   },
   anomalousCount: {
-    color: '#C2410C',
+    color: '#B45309',
   },
   anomalousBadge: {
     alignSelf: 'flex-start',
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 5,
   },
   anomalousBadgeText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#92400E',
   },
   overriddenBadge: {
     alignSelf: 'flex-start',
     backgroundColor: '#EDE9FE',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 5,
   },
   overriddenBadgeText: {
     fontSize: 11,
@@ -127,20 +135,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#6B7280',
-    borderRadius: 6,
-    backgroundColor: '#FFFFFF',
-  },
-  overrideButtonDisabled: {
     borderColor: '#D1D5DB',
-    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
   },
   overrideButtonText: {
     fontSize: 12,
     fontWeight: '500',
     color: '#374151',
-  },
-  overrideButtonTextDisabled: {
-    color: '#9CA3AF',
   },
 });

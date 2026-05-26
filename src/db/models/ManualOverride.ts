@@ -14,6 +14,6 @@ export default class ManualOverride extends Model {
   @field('overridden_by') overriddenBy!: string;
   // is_synced drives CLIENT_WINS conflict resolution in conflictResolver.ts
   @field('is_synced') isSynced!: boolean;
-  @field('created_at') createdAt!: string;
+  @field('created_at') createdAt!: number;
   @field('synced_at') syncedAt!: string | null;
 }
