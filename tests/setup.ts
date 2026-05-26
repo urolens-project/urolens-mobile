@@ -100,6 +100,7 @@ jest.mock('expo-image-manipulator', () => ({
 jest.mock('@expo/vector-icons', () => ({
   Ionicons: 'Ionicons',
   MaterialIcons: 'MaterialIcons',
+  MaterialCommunityIcons: 'MaterialCommunityIcons',
   FontAwesome: 'FontAwesome',
   Feather: 'Feather',
 }));
