@@ -4,7 +4,7 @@ import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import AnalysisResult from '@db/models/AnalysisResult';
 import PendingSync from '@db/models/PendingSync';
-import { apiClient } from '@lib/apiClient';
+import apiClient from '@lib/apiClient';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
 import type { AIFindingEntry, ConfirmResultResponse } from '../types';

@@ -30,7 +30,7 @@ export default schemaMigrations({
             { name: 'confirmed_at',                type: 'string', isOptional: true },
             { name: 'confirmed_by',                type: 'string', isOptional: true },
             { name: 'is_synced',                   type: 'boolean' },
-            { name: 'created_at',                  type: 'string', isOptional: true },
+            { name: 'created_at',                  type: 'number' },
           ],
         }),
 
@@ -41,7 +41,7 @@ export default schemaMigrations({
           columns: [
             { name: 'parameter',     type: 'string' },
             { name: 'overridden_by', type: 'string' },
-            { name: 'created_at',    type: 'string' },
+            { name: 'created_at',    type: 'number' },
           ],
         }),
 

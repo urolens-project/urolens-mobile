@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
+import { database } from '@db/database';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
@@ -78,12 +80,14 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(medtech)" />
-        <Stack.Screen name="index" />
-      </Stack>
-    </GestureHandlerRootView>
+    <DatabaseProvider database={database}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(medtech)" />
+          <Stack.Screen name="index" />
+        </Stack>
+      </GestureHandlerRootView>
+    </DatabaseProvider>
   );
 }

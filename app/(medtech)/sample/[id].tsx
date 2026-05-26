@@ -71,6 +71,8 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson })
     { label: 'Nephrolithiasis',   level: diagnosis.nephro_score },
   ];
 
+  const LEVEL_LABELS: Record<string, string> = { HIGH: 'High', MODERATE: 'Moderate', LOW: 'Low' };
+
   return (
     <View style={styles.diagnosisRows}>
       {conditions.map((c) => {
@@ -79,7 +81,9 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson })
           <View key={c.label} style={styles.diagnosisRow}>
             <Text style={styles.diagnosisCondition}>{c.label}</Text>
             <View style={[styles.levelBadge, { backgroundColor: colors.bg }]}>
-              <Text style={[styles.levelText, { color: colors.text }]}>{c.level}</Text>
+              <Text style={[styles.levelText, { color: colors.text }]}>
+                {LEVEL_LABELS[c.level] ?? c.level ?? '—'}
+              </Text>
             </View>
           </View>
         );
@@ -121,26 +125,8 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
   const { confirm, isLoading: isConfirming } = useConfirmResult();
 
-  // Route variation: If resultId exists, bypass fallback data loading and mount review screen directly
-  if (resultId) {
-    return (
-      <>
-        <Stack.Screen
-          options={{
-            title: 'Result Review',
-            headerBackTitle: 'Queue',
-          }}
-        />
-        <ResultReviewScreen
-          resultId={resultId}
-          specimenId={specimenId}
-        />
-      </>
-    );
-  }
-
-  // Observe specimen by WatermelonDB local ID using model.observe()
-  // so any field update (status, rejectionReason, etc.) triggers a re-render.
+  // Both useEffect hooks must remain unconditional (Rules of Hooks).
+  // Internal guards make them no-ops when specimenId/serverId are absent.
   useEffect(() => {
     if (!specimenId) return;
 
@@ -178,7 +164,6 @@ export default function SampleDetailScreen(): React.JSX.Element {
     return () => sub?.unsubscribe();
   }, [specimenId]);
 
-  // Observe analysis results once specimen is known
   useEffect(() => {
     if (!specimen?.serverId) return;
 
@@ -192,6 +177,24 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
     return () => subscription.unsubscribe();
   }, [specimen?.serverId]);
+
+  // Route variation: resultId present → mount review screen directly
+  if (resultId) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: 'Result Review',
+            headerBackTitle: 'Queue',
+          }}
+        />
+        <ResultReviewScreen
+          resultId={resultId}
+          specimenId={specimenId}
+        />
+      </>
+    );
+  }
 
   async function handleConfirmResult() {
     if (!analysisResult) return;
@@ -281,7 +284,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
   const isRejected       = specimen.status === 'REJECTED';
   const smartDiagnosis   = analysisResult?.smartDiagnosis ?? null;
   const aiFindings       = analysisResult?.aiFindings ?? {};
-  const isPendingConfirm = analysisResult?.status === 'PENDING_REVIEW';
+  const isPendingConfirm = analysisResult?.status === 'PENDING_CONFIRM';
   const isConfirmed      = analysisResult?.status === 'PENDING_SUPERVISOR_APPROVAL'
                         || analysisResult?.status === 'APPROVED';
 

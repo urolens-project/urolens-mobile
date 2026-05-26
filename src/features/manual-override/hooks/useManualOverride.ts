@@ -1,9 +1,11 @@
 // Path: urolens-mobile/src/features/manual-override/hooks/useManualOverride.ts
 import { useState } from 'react';
+import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
+import AnalysisResult from '@db/models/AnalysisResult';
 import ManualOverride from '@db/models/ManualOverride';
 import PendingSync from '@db/models/PendingSync';
-import { apiClient } from '@lib/apiClient';
+import apiClient from '@lib/apiClient';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
 import { useAuthStore } from '@lib/auth/authStore';
@@ -39,10 +41,11 @@ export function useManualOverride(): UseManualOverrideReturn {
         // Server will persist original_ai_value — local record marks synced
         await _writeLocalOverride(resultId, payload, true);
       } else {
-        // Offline path — pending_sync + local record with is_synced=false
-        // is_synced=false triggers CLIENT_WINS in conflictResolver.ts
+        // Offline path — pending_sync + local record with is_synced=false.
+        // Two separate writes: _writeLocalOverride owns its own transaction, so
+        // we must not nest it inside another database.write() call.
+        await _writeLocalOverride(resultId, payload, false);
         await database.write(async () => {
-          await _writeLocalOverride(resultId, payload, false);
           await database.get<PendingSync>('pending_sync').create((r) => {
             r.entity      = 'manual_override';
             r.entityId    = resultId;
@@ -73,14 +76,11 @@ async function _writeLocalOverride(
 ): Promise<void> {
   const userId = useAuthStore.getState().userId ?? '';
 
-  // Read current AI value from local AnalysisResult before writing override
-  const results = await database
-    .get('analysis_results')
-    .query()
-    .fetch() as unknown as { serverId: string; aiFindings: Record<string, number> }[];
-
-  const result = results.find((r) => r.serverId === resultId);
-  const originalAiValue = result?.aiFindings?.[payload.parameter] ?? 0;
+  const records = await database
+    .get<AnalysisResult>('analysis_results')
+    .query(Q.where('server_id', resultId))
+    .fetch();
+  const originalAiValue = records[0]?.aiFindings?.[payload.parameter] ?? 0;
 
   await database.write(async () => {
     await database.get<ManualOverride>('manual_overrides').create((r) => {
@@ -91,7 +91,7 @@ async function _writeLocalOverride(
       r.rationale       = payload.rationale;
       r.overriddenBy    = userId;
       r.isSynced        = isSynced;
-      r.createdAt       = new Date().toISOString();
+      r.createdAt       = Date.now();
     });
   });
 }

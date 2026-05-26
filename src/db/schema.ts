@@ -46,7 +46,7 @@ export const schema = appSchema({
         { name: 'confirmed_at',                type: 'string',  isOptional: true },
         { name: 'confirmed_by',                type: 'string',  isOptional: true },
         { name: 'is_synced',                   type: 'boolean' },
-        { name: 'created_at',                  type: 'string',  isOptional: true },
+        { name: 'created_at',                  type: 'number' },
         { name: 'synced_at',                   type: 'string',  isOptional: true },
         // kept for migrated installs — not exposed in model
         { name: 'flagged_anomalies_json',      type: 'string',  isOptional: true },
@@ -63,7 +63,7 @@ export const schema = appSchema({
         { name: 'rationale',         type: 'string' },
         { name: 'overridden_by',     type: 'string' },
         { name: 'is_synced',         type: 'boolean' },
-        { name: 'created_at',        type: 'string' },
+        { name: 'created_at',        type: 'number' },
         { name: 'synced_at',         type: 'string',  isOptional: true },
       ],
     }),

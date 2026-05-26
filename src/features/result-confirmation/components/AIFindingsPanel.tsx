@@ -1,11 +1,14 @@
 // Path: urolens-mobile/src/features/result-confirmation/components/AIFindingsPanel.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Q } from '@nozbe/watermelondb';
 import { useDatabase } from '@nozbe/watermelondb/hooks';
 import ManualOverride from '@db/models/ManualOverride';
 import { ParameterRow } from './ParameterRow';
 import type { AIFindingEntry } from '../types';
+
+const TEAL = '#2E7D7A';
 
 interface AIFindingsPanelProps {
   resultId: string;           // server_id of the AnalysisResult
@@ -43,12 +46,15 @@ export function AIFindingsPanel({
   const anomalousCount = findings.filter((f) => f.isAnomalous).length;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.title}>AI Findings</Text>
+        <View style={styles.headerLeft}>
+          <Ionicons name="eye-outline" size={16} color={TEAL} />
+          <Text style={styles.title}>AI Findings</Text>
+        </View>
         {anomalousCount > 0 && (
-          <View style={styles.anomalousSummary}>
-            <Text style={styles.anomalousSummaryText}>
+          <View style={styles.anomalousPill}>
+            <Text style={styles.anomalousPillText}>
               {anomalousCount} anomal{anomalousCount === 1 ? 'y' : 'ies'}
             </Text>
           </View>
@@ -57,7 +63,9 @@ export function AIFindingsPanel({
 
       {findings.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>No particles detected</Text>
+          <Ionicons name="flask-outline" size={32} color="#C9C7C1" />
+          <Text style={styles.emptyTitle}>No particles detected</Text>
+          <Text style={styles.emptyBody}>AI analysis returned no findings for this image.</Text>
         </View>
       ) : (
         <View style={styles.list}>
@@ -77,13 +85,13 @@ export function AIFindingsPanel({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginTop: 16,
-    marginHorizontal: 16,
+  card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0,0,0,0.1)',
+    marginHorizontal: 16,
+    marginTop: 12,
     overflow: 'hidden',
   },
   header: {
@@ -91,36 +99,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    paddingVertical: 13,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: '#F7F6F3',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: '#1A1A1A',
   },
-  anomalousSummary: {
+  anomalousPill: {
     backgroundColor: '#FEF3C7',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 12,
+    borderRadius: 10,
   },
-  anomalousSummaryText: {
+  anomalousPillText: {
     fontSize: 12,
     fontWeight: '500',
     color: '#92400E',
   },
-  list: {
-    // ParameterRow components render with their own borders
-  },
+  list: {},
   empty: {
-    padding: 24,
     alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+    gap: 6,
   },
-  emptyText: {
-    fontSize: 14,
-    color: '#6B7280',
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#888780',
+    marginTop: 4,
+  },
+  emptyBody: {
+    fontSize: 13,
+    color: '#C9C7C1',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

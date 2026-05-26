@@ -30,6 +30,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
@@ -162,7 +163,8 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
         clearTimeout(uploadTimeout);
       }
 
-      const { id: resultId, result_id, image_id: uploadedImageId, status, ai_findings } = response.data;
+      // Backend: both `id` and `result_id` equal the analysis result UUID; `image_id` is the image UUID.
+      const { id: serverResultId, image_id: uploadedImageId, status, ai_findings } = response.data;
 
       // Write result into WatermelonDB immediately so Sample Detail shows it
       // without waiting for the next background sync.
@@ -173,21 +175,26 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
         if (existing.length > 0) {
           await existing[0].update((r) => {
-            r.serverId = result_id ?? resultId;
+            r.serverId = serverResultId;
             r.imageId = uploadedImageId ?? null;
             r.status = status;
             r.aiFindingsJson = findings;
             r.smartDiagnosisJson = null;
+            r.smartDiagnosisUnavailable = false;
+            r.isSynced = false;
             r.syncedAt = new Date().toISOString();
           });
         } else {
           await collection.create((r) => {
-            r.serverId = result_id ?? resultId;
+            r.serverId = serverResultId;
             r.specimenId = specimenId;
             r.imageId = uploadedImageId ?? null;
             r.status = status;
             r.aiFindingsJson = findings;
             r.smartDiagnosisJson = null;
+            r.smartDiagnosisUnavailable = false;
+            r.isSynced = false;
+            r.createdAt = Date.now();
             r.syncedAt = new Date().toISOString();
           });
         }
@@ -195,7 +202,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
       router.replace({
         pathname: '/(medtech)/sample/[id]',
-        params: { id: localSpecimenId, resultId },
+        params: { id: localSpecimenId, resultId: serverResultId },
       });
     } catch (err: any) {
       // apiClient interceptor rejects with a plain ApiError { code, message },
@@ -270,29 +277,35 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.previewContainer}>
-          <Image source={{ uri: processed.uri }} style={styles.previewImage} resizeMode="contain" />
-        </View>
-
-        {/* Resolution badge */}
-        <View style={styles.metaBadge}>
-          <Text style={styles.metaText}>
+        {/* Preview header */}
+        <View style={styles.previewHeader}>
+          <Text style={styles.previewTitle}>Image Preview</Text>
+          <Text style={styles.previewMeta}>
             {processed.width} × {processed.height}px · {(processed.sizeBytes / 1024).toFixed(0)} KB
           </Text>
         </View>
 
+        {/* Full-screen image */}
+        <View style={styles.previewContainer}>
+          <Image source={{ uri: processed.uri }} style={styles.previewImage} resizeMode="contain" />
+        </View>
+
         {validationError && (
           <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={14} color="#B91C1C" />
             <Text style={styles.errorText}>{validationError}</Text>
           </View>
         )}
 
+        {/* Action bar */}
         <View style={styles.previewActions}>
-          <TouchableOpacity style={[styles.button, styles.retakeButton]} onPress={handleRetapTap}>
-            <Text style={styles.retakeLabel}>↩ Retake</Text>
+          <TouchableOpacity style={[styles.previewBtn, styles.retakeBtn]} onPress={handleRetapTap}>
+            <Ionicons name="camera-reverse-outline" size={18} color="#D1D5DB" />
+            <Text style={styles.retakeLabel}>Retake</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.button, styles.useButton]} onPress={handleUseImage}>
-            <Text style={styles.useLabel}>Use This Image →</Text>
+          <TouchableOpacity style={[styles.previewBtn, styles.useBtn]} onPress={handleUseImage}>
+            <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+            <Text style={styles.useLabel}>Use This Image</Text>
           </TouchableOpacity>
         </View>
 
@@ -310,7 +323,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   if (phase === 'uploading') {
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#2E7D7A" />
         <Text style={styles.uploadingTitle}>Uploading image…</Text>
         <Text style={styles.uploadingProgress}>{uploadProgress}%</Text>
         <Text style={styles.uploadingSubtitle}>AI analysis will begin automatically</Text>
@@ -328,7 +341,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
         {/* Header */}
         <View style={styles.cameraHeader}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backLabel}>✕</Text>
+            <Ionicons name="close" size={22} color="rgba(255,255,255,0.9)" />
           </TouchableOpacity>
           <Text style={styles.cameraTitle}>Specimen Capture</Text>
           <View style={{ width: 40 }} />
@@ -347,10 +360,10 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
           </View>
         )}
 
-        {/* Bottom controls */}
+        {/* Bottom controls — gallery left, capture centered, mirror spacer right */}
         <View style={styles.cameraControls}>
           <TouchableOpacity style={styles.galleryButton} onPress={handleGalleryPick}>
-            <Text style={styles.galleryIcon}>🖼</Text>
+            <Ionicons name="images-outline" size={28} color="rgba(255,255,255,0.85)" />
             <Text style={styles.galleryLabel}>Gallery</Text>
           </TouchableOpacity>
 
@@ -358,7 +371,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
             <View style={styles.captureButton} />
           </TouchableOpacity>
 
-          <View style={{ width: 64 }} />
+          <View style={styles.captureSpacer} />
         </View>
       </CameraView>
     </SafeAreaView>
@@ -370,7 +383,7 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center', gap: 12 },
   camera: { flex: 1 },
 
-  // Camera UI
+  // ── Camera UI ────────────────────────────────────────────────────────────────
   viewfinderGuide: {
     position: 'absolute',
     top: '25%',
@@ -390,7 +403,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  backLabel: { color: '#fff', fontSize: 18 },
   cameraTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
   instructionBanner: {
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -400,69 +412,93 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   instructionText: { color: '#E5E7EB', fontSize: 12, textAlign: 'center', lineHeight: 17 },
+  // space-between with equal-width gallery + spacer perfectly centers the capture ring
   cameraControls: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 48,
     left: 0,
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 32,
+    justifyContent: 'space-between',
+    paddingHorizontal: 40,
   },
-  galleryButton: { alignItems: 'center', gap: 4 },
-  galleryIcon: { fontSize: 28 },
+  galleryButton: { width: 60, alignItems: 'center', gap: 4 },
   galleryLabel: { color: '#E5E7EB', fontSize: 11 },
   captureRing: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 3,
     borderColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
   },
   captureButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#fff',
   },
+  captureSpacer: { width: 60 },
 
-  // Preview
+  // ── Preview ───────────────────────────────────────────────────────────────────
+  previewHeader: {
+    backgroundColor: '#0D0D0D',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  previewMeta: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 3,
+  },
   previewContainer: { flex: 1, backgroundColor: '#111' },
   previewImage: { flex: 1 },
-  metaBadge: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  metaText: { color: '#9CA3AF', fontSize: 12 },
   previewActions: {
     flexDirection: 'row',
-    gap: 12,
-    padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    backgroundColor: '#111',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 16,
+    backgroundColor: '#0D0D0D',
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
-  button: {
+  previewBtn: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    borderRadius: 12,
+    gap: 7,
   },
-  retakeButton: { backgroundColor: '#1F2937' },
-  useButton: { backgroundColor: '#2563EB' },
+  retakeBtn: {
+    backgroundColor: '#1C2431',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  useBtn: { backgroundColor: '#2E7D7A' },
   retakeLabel: { color: '#D1D5DB', fontWeight: '600', fontSize: 15 },
   useLabel: { color: '#fff', fontWeight: '600', fontSize: 15 },
 
-  // Errors
+  // ── Errors ────────────────────────────────────────────────────────────────────
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#FEE2E2',
     marginHorizontal: 16,
     borderRadius: 8,
-    padding: 12,
+    padding: 10,
     marginBottom: 8,
   },
   errorBannerCamera: {
@@ -472,14 +508,14 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 8,
   },
-  errorText: { color: '#B91C1C', fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  errorText: { color: '#B91C1C', fontSize: 13, lineHeight: 18, flex: 1 },
 
-  // Upload progress
+  // ── Upload progress ───────────────────────────────────────────────────────────
   uploadingTitle: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  uploadingProgress: { color: '#60A5FA', fontSize: 32, fontWeight: '700' },
+  uploadingProgress: { color: '#4DB6AC', fontSize: 36, fontWeight: '700' },
   uploadingSubtitle: { color: '#6B7280', fontSize: 13 },
 
-  // Permission
+  // ── Permission ────────────────────────────────────────────────────────────────
   permissionBox: {
     flex: 1,
     justifyContent: 'center',
@@ -490,7 +526,7 @@ const styles = StyleSheet.create({
   permissionTitle: { color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center' },
   permissionBody: { color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 20 },
   primaryButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#2E7D7A',
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 12,
@@ -498,5 +534,5 @@ const styles = StyleSheet.create({
   },
   primaryLabel: { color: '#fff', fontWeight: '600', fontSize: 15 },
   secondaryButton: { paddingVertical: 10 },
-  secondaryLabel: { color: '#60A5FA', fontSize: 14 },
+  secondaryLabel: { color: '#4DB6AC', fontSize: 14 },
 });

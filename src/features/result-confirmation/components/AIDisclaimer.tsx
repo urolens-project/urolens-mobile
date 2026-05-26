@@ -8,14 +8,10 @@ import { View, Text, StyleSheet } from 'react-native';
 export function AIDisclaimer(): React.JSX.Element {
   return (
     <View style={styles.container} accessibilityRole="text" accessibilityLabel="AI disclaimer">
-      <View style={styles.iconRow}>
-        <Text style={styles.icon}>ℹ</Text>
-        <Text style={styles.title}>Clinical Decision Support</Text>
-      </View>
+      <Text style={styles.label}>Clinical Decision Support</Text>
       <Text style={styles.body}>
-        UroLens is a clinical decision-support tool. AI-generated findings and Smart
-        Diagnosis indicators are not substitutes for professional medical judgment.
-        All results must be reviewed and confirmed by a licensed Medical Technologist
+        AI-generated findings are decision support only — not a substitute for professional
+        judgment. All results must be reviewed and confirmed by a licensed Medical Technologist
         and Laboratory Supervisor.
       </Text>
     </View>
@@ -24,33 +20,27 @@ export function AIDisclaimer(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#EFF6FF',
-    borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
-    borderRadius: 6,
-    padding: 12,
+    backgroundColor: '#EEF9F8',
+    borderLeftWidth: 3,
+    borderLeftColor: '#2E7D7A',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     marginHorizontal: 16,
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  iconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 6,
-  },
-  icon: {
-    fontSize: 14,
-    color: '#1D4ED8',
-  },
-  title: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1D4ED8',
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2E7D7A',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   body: {
     fontSize: 12,
-    lineHeight: 18,
-    color: '#1E40AF',
+    lineHeight: 17,
+    color: '#3D7874',
   },
 });

@@ -3,11 +3,12 @@ import { Model } from '@nozbe/watermelondb';
 import { field } from '@nozbe/watermelondb/decorators';
 
 export type ResultStatus =
-  | 'PENDING_REVIEW'
+  | 'PENDING_CONFIRM'
   | 'PENDING_SUPERVISOR_APPROVAL'
   | 'APPROVED'
-  | 'RETURNED'
-  | 'DISCARDED';
+  | 'RELEASED'
+  | 'RETURNED_FOR_CORRECTION'
+  | 'CRITICAL_ESCALATED';
 
 export interface AIFindings {
   [particle: string]: number;
@@ -35,7 +36,7 @@ export default class AnalysisResult extends Model {
   @field('confirmed_at') confirmedAt!: string | null;
   @field('confirmed_by') confirmedBy!: string | null;
   @field('is_synced') isSynced!: boolean;
-  @field('created_at') createdAt!: string;
+  @field('created_at') createdAt!: number;
   @field('synced_at') syncedAt!: string | null;
 
   // Computed getter — parses JSONB string safely
