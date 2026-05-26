@@ -7,12 +7,17 @@ import { View, Text, StyleSheet } from 'react-native';
 // Never conditionally hide or remove.
 export function AIDisclaimer(): React.JSX.Element {
   return (
-    <View style={styles.container} accessibilityRole="text" accessibilityLabel="AI disclaimer">
-      <Text style={styles.label}>Clinical Decision Support</Text>
-      <Text style={styles.body}>
-        AI-generated findings are decision support only — not a substitute for professional
-        judgment. All results must be reviewed and confirmed by a licensed Medical Technologist
-        and Laboratory Supervisor.
+    <View
+      style={styles.container}
+      accessible={true}
+      accessibilityRole="text"
+      accessibilityLabel="AI disclaimer"
+    >
+      <Text style={styles.label} accessible={false}>Clinical Decision Support</Text>
+      <Text style={styles.body} accessible={false}>
+        AI-generated findings are a clinical decision-support tool only. Results are not
+        substitutes for professional medical judgment. All results must be reviewed and confirmed
+        by a licensed Medical Technologist and Laboratory Supervisor.
       </Text>
     </View>
   );

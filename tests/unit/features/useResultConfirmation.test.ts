@@ -15,6 +15,7 @@ jest.mock('@db/database', () => ({
 }));
 
 jest.mock('@lib/apiClient', () => ({
+  __esModule: true,
   apiClient: {
     post: jest.fn(),
   },
