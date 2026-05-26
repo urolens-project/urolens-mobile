@@ -1,10 +1,10 @@
 // Path: urolens-mobile/src/features/result-confirmation/hooks/useResultConfirmation.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import AnalysisResult from '@db/models/AnalysisResult';
 import PendingSync from '@db/models/PendingSync';
-import apiClient from '@lib/apiClient';
+import { apiClient } from '@lib/apiClient';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
 import type { AIFindingEntry, ConfirmResultResponse } from '../types';
@@ -34,6 +34,8 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
   const [isLoading, setIsLoading] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ref guard prevents double-submission regardless of React re-render timing.
+  const confirmingRef = useRef(false);
 
   // Observe local WatermelonDB record — components never call API directly (SRP)
   useEffect(() => {
@@ -50,7 +52,8 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
   }, [resultId]);
 
   const confirmResult = async (): Promise<void> => {
-    if (isConfirming) return;
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     setIsConfirming(true);
     setError(null);
 
@@ -86,6 +89,7 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
       const message = err instanceof Error ? err.message : 'Failed to confirm result';
       setError(message);
     } finally {
+      confirmingRef.current = false;
       setIsConfirming(false);
     }
   };

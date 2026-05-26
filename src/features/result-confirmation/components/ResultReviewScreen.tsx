@@ -33,6 +33,9 @@ export function ResultReviewScreen({
     result,
     aiFindings,
     isLoading,
+    isConfirming,
+    error,
+    confirmResult,
   } = useResultConfirmation(resultId);
 
   const isConfirmed = result?.isConfirmed ?? false;
@@ -65,7 +68,7 @@ export function ResultReviewScreen({
   if (isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={TEAL} />
+        <ActivityIndicator testID="loading" size="large" color={TEAL} />
       </View>
     );
   }
@@ -122,34 +125,48 @@ export function ResultReviewScreen({
           unavailable={result.smartDiagnosisUnavailable}
         />
 
-        {isConfirmed && (
-          <View style={styles.confirmedBanner}>
-            <Ionicons name="checkmark-circle" size={16} color="#065F46" />
-            <Text style={styles.confirmedText}>Submitted for Supervisor approval</Text>
-          </View>
-        )}
-
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      {error ? (
+        <Text style={styles.errorText}>{error}</Text>
+      ) : null}
 
       <View style={styles.actionBar}>
         <TouchableOpacity
           style={styles.retakeButton}
           onPress={handleRetake}
+          accessible={true}
           accessibilityLabel="Retake image"
           accessibilityRole="button"
         >
           <Text style={styles.retakeButtonText}>Retake Image</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.confirmButton}
-          onPress={handleContinue}
-          accessibilityLabel="Continue to sample detail"
-          accessibilityRole="button"
-        >
-          <Text style={styles.confirmButtonText}>Continue</Text>
-        </TouchableOpacity>
+        {isConfirmed ? (
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={handleContinue}
+            accessible={true}
+            accessibilityLabel="Continue to sample detail"
+            accessibilityRole="button"
+          >
+            <Text style={styles.confirmButtonText}>Continue</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={confirmResult}
+            disabled={isConfirming}
+            accessible={true}
+            accessibilityLabel={isOnline ? 'Confirm Result' : 'Queue Confirmation'}
+            accessibilityRole="button"
+          >
+            <Text style={styles.confirmButtonText}>
+              {isOnline ? 'Confirm Result' : 'Queue Confirmation'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -259,5 +276,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#065F46',
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#DC2626',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
 });

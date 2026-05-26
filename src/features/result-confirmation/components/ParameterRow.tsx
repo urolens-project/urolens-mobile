@@ -10,9 +10,6 @@ interface ParameterRowProps {
   disabled?: boolean;
 }
 
-function formatName(key: string): string {
-  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export function ParameterRow({
   finding,
@@ -29,7 +26,7 @@ export function ParameterRow({
       accessibilityLabel={`${finding.parameter}: ${displayValue}`}
     >
       <View style={styles.left}>
-        <Text style={styles.parameterName}>{formatName(finding.parameter)}</Text>
+        <Text style={styles.parameterName}>{finding.parameter}</Text>
         <View style={styles.badges}>
           {finding.isAnomalous && (
             <View style={styles.anomalousBadge}>

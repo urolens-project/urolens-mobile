@@ -4,7 +4,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react-nativ
 import { OverrideEntryForm } from '@features/manual-override/components/OverrideEntryForm';
 import { useManualOverride } from '@features/manual-override/hooks/useManualOverride';
 
-jest.mock('@features/manual-override/hooks/useManualOverride');
+jest.mock('@features/manual-override/hooks/useManualOverride', () => ({
+  __esModule: true,
+  useManualOverride: jest.fn(),
+}));
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn() },
 }));

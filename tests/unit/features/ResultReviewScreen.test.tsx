@@ -6,7 +6,10 @@ import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclai
 import { useResultConfirmation } from '@features/result-confirmation/hooks/useResultConfirmation';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
-jest.mock('@features/result-confirmation/hooks/useResultConfirmation');
+jest.mock('@features/result-confirmation/hooks/useResultConfirmation', () => ({
+  __esModule: true,
+  useResultConfirmation: jest.fn(),
+}));
 jest.mock('@hooks/useNetworkStatus');
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },

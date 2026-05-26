@@ -5,7 +5,7 @@ import { database } from '@db/database';
 import AnalysisResult from '@db/models/AnalysisResult';
 import ManualOverride from '@db/models/ManualOverride';
 import PendingSync from '@db/models/PendingSync';
-import apiClient from '@lib/apiClient';
+import { apiClient } from '@lib/apiClient';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
 import { useAuthStore } from '@lib/auth/authStore';

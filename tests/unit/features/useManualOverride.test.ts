@@ -14,6 +14,7 @@ jest.mock('@db/database', () => ({
 }));
 
 jest.mock('@lib/apiClient', () => ({
+  __esModule: true,
   apiClient: { post: jest.fn() },
 }));
 
@@ -22,7 +23,7 @@ jest.mock('@hooks/useNetworkStatus', () => ({
 }));
 
 jest.mock('@lib/auth/authStore', () => ({
-  authStore: { getState: () => ({ userId: 'user-456' }) },
+  useAuthStore: { getState: () => ({ userId: 'user-456' }) },
 }));
 
 const mockCreate = jest.fn();
