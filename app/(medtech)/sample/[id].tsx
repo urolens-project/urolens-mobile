@@ -240,20 +240,6 @@ export default function SampleDetailScreen(): React.JSX.Element {
     router.push(`/(medtech)/sample/reject/${specimenId}`);
   }
 
-  function handleRequestReassignment() {
-    Alert.alert(
-      'Request Reassignment',
-      'Are you sure you want to request reassignment for this sample?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Request',
-          onPress: () => Alert.alert('Reassignment requested.'),
-        },
-      ],
-    );
-  }
-
   if (isLoading) {
     return (
       <SafeAreaView style={styles.center}>
@@ -435,13 +421,6 @@ export default function SampleDetailScreen(): React.JSX.Element {
               <Text style={styles.actionBtnDangerText}>Reject Specimen</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnSecondary]}
-            onPress={handleRequestReassignment}
-            accessibilityRole="button"
-          >
-            <Text style={styles.actionBtnSecondaryText}>Request Reassignment</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -632,8 +611,6 @@ const styles = StyleSheet.create({
   actionBtnPrimaryText:  { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   actionBtnDanger:       { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
   actionBtnDangerText:   { color: '#B91C1C', fontSize: 16, fontWeight: '600' },
-  actionBtnSecondary:    { backgroundColor: '#FFFFFF', borderColor: '#D1D5DB' },
-  actionBtnSecondaryText:{ color: '#374151', fontSize: 16, fontWeight: '500' },
 
   // Rejection card
   rejectionCard: {
