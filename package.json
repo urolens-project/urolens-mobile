@@ -8,6 +8,7 @@
     "ios": "expo run:ios",
     "ios:device": "bash scripts/run-ios-device.sh",
     "test": "jest --watchAll=false",
+    "test:ci": "jest --watchAll=false --coverage",
     "test:coverage": "jest --watchAll=false --coverage",
     "test:watch": "jest --watchAll",
     "type-check": "tsc --noEmit",
@@ -88,6 +89,11 @@
     "transformIgnorePatterns": [
       "node_modules/(?!(\\.pnpm|(?:jest-)?react-native|@react-native(?:-community)?|expo(?:nent)?|@expo(?:nent)?/|@expo-google-fonts/|react-navigation|@react-navigation/|@unimodules/|unimodules|sentry-expo|native-base|react-native-svg|@nozbe/watermelondb))"
     ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 80
+      }
+    },
     "collectCoverageFrom": [
       "src/db/sync/conflictResolver.ts",
       "src/lib/auth/tokenStorage.ts",
