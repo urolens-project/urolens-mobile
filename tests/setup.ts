@@ -1,9 +1,10 @@
+/// <reference types="jest" />
 import '@testing-library/jest-native/extend-expect';
-import { configure } from '@testing-library/react-native';
+import { configureInternal } from '@testing-library/react-native/build/config';
 
 // React 19's act() is async; RNTL v12's detectHostComponentNames() breaks because
 // renderWithAct() returns before renderer is initialised. Pre-configure to skip detection.
-configure({
+configureInternal({
   hostComponentNames: {
     text: 'Text',
     textInput: 'TextInput',
