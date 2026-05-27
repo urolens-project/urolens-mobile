@@ -333,7 +333,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
               </Text>
             </View>
           </View>
-          <Text style={styles.patientName}>{specimen.patientName}</Text>
+          <Text style={styles.patientName}>{specimen.patientUid}</Text>
         </View>
 
         {/* Details card */}
