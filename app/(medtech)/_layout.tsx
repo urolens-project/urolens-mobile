@@ -7,6 +7,10 @@ import { useAuthStore } from '@lib/auth/authStore';
 import { UserRole } from '@app-types/enums';
 import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
 import { synchronize } from '@db/sync/syncManager';
+import {
+  registerForPushNotifications,
+  registerNotificationListeners,
+} from '@lib/notifications/notificationHandler';
 
 const TEAL = '#2E7D7A';
 
@@ -47,6 +51,8 @@ export default function MedTechLayout() {
     if (!isAuthenticated || role !== UserRole.MEDTECH) return;
 
     synchronize();
+    registerForPushNotifications();
+    const cleanupListeners = registerNotificationListeners();
 
     const appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'active') synchronize();
@@ -61,6 +67,7 @@ export default function MedTechLayout() {
     return () => {
       appStateSub.remove();
       netInfoUnsub();
+      cleanupListeners();
     };
   }, [isAuthenticated, role]);
 
