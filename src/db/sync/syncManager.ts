@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { database } from '../database';
 import { pullChanges } from './pullChanges';
 import { pushChanges } from './pushChanges';
 
@@ -21,7 +22,15 @@ export async function synchronize(): Promise<void> {
     // 1. Push FIRST — Send upstream local modifications so the server can run conflict checks
     await pushChanges();
 
-    // 2. Pull SECOND — Fetch the absolute, source-of-truth state down from the server
+    // 2. On full sync, reset local DB so records deleted on the server don't persist locally
+    if (!lastSyncedAt) {
+      await database.write(async () => {
+        await database.unsafeResetDatabase();
+      });
+      console.log('[SyncManager] Local DB reset for full sync.');
+    }
+
+    // 3. Pull SECOND — Fetch the absolute, source-of-truth state down from the server
     const newTimestamp = await pullChanges(lastSyncedAt);
 
     // 3. Persist Timestamp ONLY after both steps succeed cleanly

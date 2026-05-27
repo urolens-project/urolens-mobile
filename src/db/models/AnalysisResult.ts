@@ -8,18 +8,26 @@ export type ResultStatus =
   | 'APPROVED'
   | 'RELEASED'
   | 'RETURNED_FOR_CORRECTION'
-  | 'CRITICAL_ESCALATED';
+  | 'CRITICAL_ESCALATED'
+  | 'IMAGE_RETAKE_REQUESTED'
+  | 'FAILED';
 
 export interface AIFindings {
   [particle: string]: number;
 }
 
+export interface ConditionScore {
+  level: 'LOW' | 'MODERATE' | 'HIGH';
+  weighted_score: number;
+  evidence: unknown[];
+  condition?: string;
+}
+
 export interface SmartDiagnosisJson {
-  gout_score: 'LOW' | 'MODERATE' | 'HIGH';
-  gn_score: 'LOW' | 'MODERATE' | 'HIGH';
-  nephro_score: 'LOW' | 'MODERATE' | 'HIGH';
+  gout: ConditionScore;
+  glomerulonephritis: ConditionScore;
+  nephrolithiasis: ConditionScore;
   no_significant_indicators: boolean;
-  evidence_map: Record<string, unknown>;
   unavailable?: boolean;
 }
 
