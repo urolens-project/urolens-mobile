@@ -35,6 +35,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import AnalysisResult from '@db/models/AnalysisResult';
+import ManualOverride from '@db/models/ManualOverride';
 import { DiscardConfirmationModal } from './DiscardConfirmationModal';
 import {
   processCapture,
@@ -175,6 +176,17 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
         const diagnosisJson = smart_diagnosis ? JSON.stringify(smart_diagnosis) : null;
 
         if (existing.length > 0) {
+          // Backend reuses the same result_id on retake (UPDATE, not INSERT),
+          // so always purge stale overrides before writing new AI findings.
+          if (existing[0].serverId) {
+            const staleOverrides = await database
+              .get<ManualOverride>('manual_overrides')
+              .query(Q.where('result_id', existing[0].serverId))
+              .fetch();
+            for (const o of staleOverrides) {
+              await o.destroyPermanently();
+            }
+          }
           await existing[0].update((r) => {
             r.serverId = serverResultId;
             r.imageId = uploadedImageId ?? null;
