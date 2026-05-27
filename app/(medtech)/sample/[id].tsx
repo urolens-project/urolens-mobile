@@ -267,12 +267,15 @@ export default function SampleDetailScreen(): React.JSX.Element {
   };
   const pColor = priorityColors[specimen.priorityLevel ?? 'NORMAL'] ?? priorityColors.NORMAL;
 
-  const isRejected       = specimen.status === 'REJECTED';
-  const smartDiagnosis   = analysisResult?.smartDiagnosis ?? null;
-  const aiFindings       = analysisResult?.aiFindings ?? {};
-  const isPendingConfirm = analysisResult?.status === 'PENDING_CONFIRM';
-  const isConfirmed      = analysisResult?.status === 'PENDING_SUPERVISOR_APPROVAL'
-                        || analysisResult?.status === 'APPROVED';
+  const isRejected              = specimen.status === 'REJECTED';
+  const smartDiagnosis          = analysisResult?.smartDiagnosis ?? null;
+  const aiFindings              = analysisResult?.aiFindings ?? {};
+  const resultStatus            = analysisResult?.status;
+  const isPendingConfirm        = resultStatus === 'PENDING_CONFIRM';
+  const isPendingApproval       = resultStatus === 'PENDING_SUPERVISOR_APPROVAL';
+  const isApproved              = resultStatus === 'APPROVED';
+  const isReleased              = resultStatus === 'RELEASED';
+  const isReturnedForCorrection = resultStatus === 'RETURNED_FOR_CORRECTION';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -366,7 +369,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
             <AIDisclaimer />
 
-            {/* Confirm result + Retake */}
+            {/* Confirm + Retake — shown when pending initial confirmation */}
             {isPendingConfirm && (
               <View style={styles.resultActions}>
                 <TouchableOpacity
@@ -392,10 +395,62 @@ export default function SampleDetailScreen(): React.JSX.Element {
               </View>
             )}
 
-            {isConfirmed && (
-              <View style={styles.confirmedBanner}>
-                <Ionicons name="checkmark-circle" size={16} color="#065F46" />
-                <Text style={styles.confirmedText}>Result submitted for supervisor approval.</Text>
+            {/* Returned for correction — supervisor rejected, medtech must fix */}
+            {isReturnedForCorrection && (
+              <View style={styles.correctionBanner}>
+                <Ionicons name="alert-circle" size={18} color="#92400E" />
+                <View style={styles.bannerTextBlock}>
+                  <Text style={styles.correctionTitle}>Returned for Correction</Text>
+                  <Text style={styles.correctionBody}>
+                    The supervisor has returned this result. Please retake the image and re-confirm.
+                  </Text>
+                </View>
+              </View>
+            )}
+            {isReturnedForCorrection && (
+              <View style={styles.resultActions}>
+                <TouchableOpacity
+                  style={styles.retakeBtn}
+                  onPress={handleRetakeImage}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retake image"
+                >
+                  <Text style={styles.retakeBtnText}>Retake Image</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Awaiting supervisor review */}
+            {isPendingApproval && (
+              <View style={styles.pendingBanner}>
+                <Ionicons name="time-outline" size={16} color="#1E40AF" />
+                <Text style={styles.pendingText}>Awaiting supervisor review.</Text>
+              </View>
+            )}
+
+            {/* Approved by supervisor */}
+            {isApproved && (
+              <View style={styles.approvedBanner}>
+                <Ionicons name="checkmark-circle" size={18} color="#065F46" />
+                <View style={styles.bannerTextBlock}>
+                  <Text style={styles.approvedTitle}>Approved by Supervisor</Text>
+                  <Text style={styles.approvedBody}>
+                    This result has been reviewed and approved. It is ready for release.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Released to patient */}
+            {isReleased && (
+              <View style={styles.releasedBanner}>
+                <Ionicons name="send" size={16} color="#065F46" />
+                <View style={styles.bannerTextBlock}>
+                  <Text style={styles.approvedTitle}>Result Released</Text>
+                  <Text style={styles.approvedBody}>
+                    This result has been released to the patient.
+                  </Text>
+                </View>
               </View>
             )}
           </View>
@@ -412,7 +467,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
               <Text style={styles.actionBtnPrimaryText}>Begin Analysis</Text>
             </TouchableOpacity>
           )}
-          {!isRejected && (
+          {!isRejected && !isApproved && !isReleased && (
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnDanger]}
               onPress={handleRejectSpecimen}
@@ -598,6 +653,66 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   confirmedText: { fontSize: 13, color: '#065F46', fontWeight: '500', flex: 1 },
+
+  // Shared banner layout
+  bannerTextBlock: { flex: 1, gap: 3 },
+
+  // Awaiting supervisor review
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+  pendingText: { fontSize: 13, color: '#1E40AF', fontWeight: '500', flex: 1 },
+
+  // Approved by supervisor
+  approvedBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+  approvedTitle: { fontSize: 13, fontWeight: '700', color: '#065F46' },
+  approvedBody:  { fontSize: 12, color: '#047857', lineHeight: 17 },
+
+  // Released to patient
+  releasedBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+
+  // Returned for correction
+  correctionBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+  correctionTitle: { fontSize: 13, fontWeight: '700', color: '#92400E' },
+  correctionBody:  { fontSize: 12, color: '#B45309', lineHeight: 17 },
 
   // Action buttons
   actions: { gap: 10, marginTop: 4 },
