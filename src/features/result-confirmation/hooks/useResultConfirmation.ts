@@ -6,6 +6,7 @@ import AnalysisResult from '@db/models/AnalysisResult';
 import PendingSync from '@db/models/PendingSync';
 import { apiClient } from '@lib/apiClient';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { synchronize } from '@db/sync/syncManager';
 import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
 import type { AIFindingEntry, ConfirmResultResponse } from '../types';
 
@@ -61,7 +62,9 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
       if (isOnline) {
         // Online path — direct API call
         await apiClient.post<ConfirmResultResponse>(`/results/${resultId}/confirm`);
-        // Server response will arrive via next sync pull; optimistic update below
+        // Pull smart_diagnosis immediately so the panel renders without waiting
+        // for the next periodic sync.
+        await synchronize();
       } else {
         // Offline path — write pending_sync row, update local status optimistically
         await database.write(async () => {

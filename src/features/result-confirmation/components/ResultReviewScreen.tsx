@@ -43,7 +43,7 @@ export function ResultReviewScreen({
   const handleOverride = (parameter: string, originalValue: number) => {
     router.push({
       pathname: '/(medtech)/sample/override/[id]',
-      params: { id: resultId, parameter, originalValue: String(originalValue) },
+      params: { id: resultId, specimenId, parameter, originalValue: String(originalValue) },
     });
   };
 
@@ -85,12 +85,16 @@ export function ResultReviewScreen({
 
   const smartDiagnosis = result.smartDiagnosis
     ? {
-        goutScore:               result.smartDiagnosis.gout_score,
-        gnScore:                 result.smartDiagnosis.gn_score,
-        nephroScore:             result.smartDiagnosis.nephro_score,
+        goutScore:               result.smartDiagnosis.gout?.level,
+        gnScore:                 result.smartDiagnosis.glomerulonephritis?.level,
+        nephroScore:             result.smartDiagnosis.nephrolithiasis?.level,
         noSignificantIndicators: result.smartDiagnosis.no_significant_indicators,
-        evidenceMap:             result.smartDiagnosis.evidence_map,
-        unavailable:             result.smartDiagnosis.unavailable ?? false,
+        evidenceMap:             {
+          gout:               result.smartDiagnosis.gout,
+          glomerulonephritis: result.smartDiagnosis.glomerulonephritis,
+          nephrolithiasis:    result.smartDiagnosis.nephrolithiasis,
+        },
+        unavailable:             false,
       }
     : null;
 
