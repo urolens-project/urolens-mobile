@@ -334,7 +334,10 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   // ── Idle — live camera ────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
-      <CameraView style={styles.camera} facing="back" ref={cameraRef}>
+      <View style={styles.cameraWrapper}>
+        {/* Camera fills the wrapper; no children allowed by CameraView */}
+        <CameraView style={StyleSheet.absoluteFill} facing="back" ref={cameraRef} />
+
         {/* Viewfinder guide */}
         <View style={styles.viewfinderGuide} />
 
@@ -373,7 +376,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
           <View style={styles.captureSpacer} />
         </View>
-      </CameraView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -381,6 +384,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   centered: { justifyContent: 'center', alignItems: 'center', gap: 12 },
+  cameraWrapper: { flex: 1 },
   camera: { flex: 1 },
 
   // ── Camera UI ────────────────────────────────────────────────────────────────
