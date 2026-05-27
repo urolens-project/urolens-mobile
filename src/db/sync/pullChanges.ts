@@ -129,14 +129,17 @@ function mapServerToLocal(table: string, record: ServerRecord): Record<string, u
     case 'analysis_results':
       return {
         ...base,
-        specimenId:          record['specimen_id'],
-        aiFindingsJson:      JSON.stringify(record['ai_findings'] ?? {}),
-        flaggedAnomaliesJson: JSON.stringify(record['flagged_anomalies'] ?? {}),
-        smartDiagnosisJson:  record['smart_diagnosis']
+        specimenId:                 record['specimen_id'],
+        aiFindingsJson:             JSON.stringify(record['ai_findings'] ?? {}),
+        flaggedAnomaliesJson:       JSON.stringify(record['flagged_anomalies'] ?? {}),
+        smartDiagnosisJson:         record['smart_diagnosis']
           ? JSON.stringify(record['smart_diagnosis'])
           : null,
-        status:  record['status'],
-        imageId: record['image_id'] ?? null,
+        smartDiagnosisUnavailable:  record['smart_diagnosis_unavailable'] ?? false,
+        status:                     record['status'],
+        imageId:                    record['image_id'] ?? null,
+        confirmedAt:                record['confirmed_at'] ?? null,
+        confirmedBy:                record['confirmed_by'] ?? null,
       };
 
     default:
