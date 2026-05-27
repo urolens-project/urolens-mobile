@@ -62,15 +62,15 @@ export function QueueItemCard({ item, onPress, selected = false }: Props) {
       onPress={() => onPress(item.id)}
       activeOpacity={0.8}
       accessibilityRole="button"
-      accessibilityLabel={`Sample ${item.sampleUid}, ${item.patientName}`}
+      accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}`}
     >
       {/* Left priority bar */}
       <View style={[styles.bar, { backgroundColor: badge.barColor }]} />
 
       <View style={styles.content}>
-        {/* Row 1 — name + badge */}
+        {/* Row 1 — patient UID + badge */}
         <View style={styles.row}>
-          <Text style={styles.name} numberOfLines={1}>{item.patientName}</Text>
+          <Text style={styles.patientUid} numberOfLines={1}>{item.patientUid}</Text>
           <View style={[styles.badge, { backgroundColor: badge.bg }]}>
             <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
           </View>
@@ -132,11 +132,12 @@ const styles = StyleSheet.create({
   bottomRow: {
     marginTop: 2,
   },
-  name: {
+  patientUid: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#111827',
+    fontVariant: ['tabular-nums'],
     marginRight: 8,
   },
   uid: {
