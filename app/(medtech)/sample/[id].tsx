@@ -66,9 +66,9 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson })
   }
 
   const conditions = [
-    { label: 'Gout',              level: diagnosis.gout_score },
-    { label: 'Glomerulonephritis', level: diagnosis.gn_score },
-    { label: 'Nephrolithiasis',   level: diagnosis.nephro_score },
+    { label: 'Gout',               level: diagnosis.gout?.level },
+    { label: 'Glomerulonephritis', level: diagnosis.glomerulonephritis?.level },
+    { label: 'Nephrolithiasis',    level: diagnosis.nephrolithiasis?.level },
   ];
 
   const LEVEL_LABELS: Record<string, string> = { HIGH: 'High', MODERATE: 'Moderate', LOW: 'Low' };
