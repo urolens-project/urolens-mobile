@@ -30,7 +30,7 @@ export default function RejectSpecimenScreen() {
 
   const [specimenInfo, setSpecimenInfo] = useState<{
     sampleUid: string;
-    patientName: string;
+    patientUid: string;
   } | null>(null);
   const [isLoadingSpecimen, setIsLoadingSpecimen] = useState(true);
 
@@ -44,7 +44,7 @@ export default function RejectSpecimenScreen() {
 
     if (USE_MOCK) {
       const found = MOCK_QUEUE_ITEMS.find((item) => item.id === id);
-      if (found) setSpecimenInfo({ sampleUid: found.sampleUid, patientName: found.patientName });
+      if (found) setSpecimenInfo({ sampleUid: found.sampleUid, patientUid: found.patientUid });
       setIsLoadingSpecimen(false);
       return;
     }
@@ -57,7 +57,7 @@ export default function RejectSpecimenScreen() {
         if (results[0]) {
           setSpecimenInfo({
             sampleUid: results[0].sampleUid,
-            patientName: results[0].patientName,
+            patientUid: results[0].patientUid,
           });
         }
         setIsLoadingSpecimen(false);
@@ -121,7 +121,7 @@ export default function RejectSpecimenScreen() {
         {specimenInfo && (
           <View style={styles.specimenCard}>
             <Text style={styles.specimenUid}>{specimenInfo.sampleUid}</Text>
-            <Text style={styles.specimenName}>{specimenInfo.patientName}</Text>
+            <Text style={styles.specimenName}>{specimenInfo.patientUid}</Text>
           </View>
         )}
 

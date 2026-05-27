@@ -103,10 +103,25 @@ export function ResultReviewScreen({
       {!isOnline && <OfflineBanner />}
 
       <View style={styles.titleBar}>
-        <Text style={styles.titleBarText}>Analysis Result</Text>
-        <Text style={styles.titleBarSub}>
-          {isConfirmed ? 'Submitted for Supervisor approval' : 'Pending your confirmation'}
-        </Text>
+        <TouchableOpacity
+          style={styles.titleBarBack}
+          onPress={() =>
+            router.replace({
+              pathname: '/(medtech)/sample/[id]',
+              params: { id: specimenId },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Back to sample detail"
+        >
+          <Ionicons name="chevron-back" size={26} color={TEAL} />
+        </TouchableOpacity>
+        <View style={styles.titleBarContent}>
+          <Text style={styles.titleBarText}>Analysis Result</Text>
+          <Text style={styles.titleBarSub}>
+            {isConfirmed ? 'Submitted for Supervisor approval' : 'Pending your confirmation'}
+          </Text>
+        </View>
       </View>
 
       <ScrollView
@@ -159,16 +174,23 @@ export function ResultReviewScreen({
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={styles.confirmButton}
+            style={[styles.confirmButton, isConfirming && styles.confirmButtonBusy]}
             onPress={confirmResult}
             disabled={isConfirming}
             accessible={true}
-            accessibilityLabel={isOnline ? 'Confirm Result' : 'Queue Confirmation'}
+            accessibilityLabel={isConfirming ? 'Running diagnosis' : isOnline ? 'Confirm Result' : 'Queue Confirmation'}
             accessibilityRole="button"
           >
-            <Text style={styles.confirmButtonText}>
-              {isOnline ? 'Confirm Result' : 'Queue Confirmation'}
-            </Text>
+            {isConfirming ? (
+              <View style={styles.confirmingRow}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.confirmButtonText}>Running diagnosis...</Text>
+              </View>
+            ) : (
+              <Text style={styles.confirmButtonText}>
+                {isOnline ? 'Confirm Result' : 'Queue Confirmation'}
+              </Text>
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -204,12 +226,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   titleBar: {
-    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: 72,
     paddingBottom: 12,
+    paddingHorizontal: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(0,0,0,0.08)',
     backgroundColor: '#F7F6F3',
+  },
+  titleBarBack: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  titleBarContent: {
+    flex: 1,
+    paddingRight: 44,
   },
   titleBarText: {
     fontSize: 18,
@@ -258,6 +292,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     backgroundColor: TEAL,
+  },
+  confirmButtonBusy: {
+    opacity: 0.75,
+  },
+  confirmingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   confirmButtonText: {
     fontSize: 15,
