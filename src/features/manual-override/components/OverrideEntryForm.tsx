@@ -48,13 +48,17 @@ export function OverrideEntryForm({
 
   const handleSubmit = async () => {
     if (!isValid || isSubmitting) return;
-    await submitOverride(resultId, {
+    const success = await submitOverride(resultId, {
       parameter,
+      originalAiValue,
       correctedValue: correctedNum,
       rationale: rationale.trim(),
     });
-    if (!error) {
-      router.back();
+    if (success) {
+      router.replace({
+        pathname: '/(medtech)/sample/[id]',
+        params: { id: specimenId, resultId },
+      });
     }
   };
 

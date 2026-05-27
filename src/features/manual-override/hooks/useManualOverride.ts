@@ -1,8 +1,6 @@
 // Path: urolens-mobile/src/features/manual-override/hooks/useManualOverride.ts
 import { useState } from 'react';
-import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
-import AnalysisResult from '@db/models/AnalysisResult';
 import ManualOverride from '@db/models/ManualOverride';
 import PendingSync from '@db/models/PendingSync';
 import { apiClient } from '@lib/apiClient';
@@ -14,7 +12,7 @@ import type { OverridePayload, OverrideResponse } from '../types';
 interface UseManualOverrideReturn {
   isSubmitting: boolean;
   error: string | null;
-  submitOverride: (resultId: string, payload: OverridePayload) => Promise<void>;
+  submitOverride: (resultId: string, payload: OverridePayload) => Promise<boolean>;
 }
 
 export function useManualOverride(): UseManualOverrideReturn {
@@ -25,8 +23,8 @@ export function useManualOverride(): UseManualOverrideReturn {
   const submitOverride = async (
     resultId: string,
     payload: OverridePayload,
-  ): Promise<void> => {
-    if (isSubmitting) return;
+  ): Promise<boolean> => {
+    if (isSubmitting) return false;
     setIsSubmitting(true);
     setError(null);
 
@@ -34,9 +32,10 @@ export function useManualOverride(): UseManualOverrideReturn {
       if (isOnline) {
         // Online path — direct API call
         await apiClient.post<OverrideResponse>(`/results/${resultId}/override`, {
-          parameter:      payload.parameter,
-          corrected_value: payload.correctedValue,
-          rationale:      payload.rationale,
+          parameter_name:    payload.parameter,
+          original_ai_value: String(payload.originalAiValue),
+          corrected_value:   String(payload.correctedValue),
+          rationale:         payload.rationale,
         });
         // Server will persist original_ai_value — local record marks synced
         await _writeLocalOverride(resultId, payload, true);
@@ -56,9 +55,11 @@ export function useManualOverride(): UseManualOverrideReturn {
           });
         });
       }
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to submit override';
       setError(message);
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -68,7 +69,6 @@ export function useManualOverride(): UseManualOverrideReturn {
 }
 
 // Writes a local ManualOverride record. Used in both online and offline paths.
-// original_ai_value is read from local WatermelonDB so it is never lost.
 async function _writeLocalOverride(
   resultId: string,
   payload: OverridePayload,
@@ -76,17 +76,11 @@ async function _writeLocalOverride(
 ): Promise<void> {
   const userId = useAuthStore.getState().userId ?? '';
 
-  const records = await database
-    .get<AnalysisResult>('analysis_results')
-    .query(Q.where('server_id', resultId))
-    .fetch();
-  const originalAiValue = records[0]?.aiFindings?.[payload.parameter] ?? 0;
-
   await database.write(async () => {
     await database.get<ManualOverride>('manual_overrides').create((r) => {
       r.resultId        = resultId;
       r.parameter       = payload.parameter;
-      r.originalAiValue = originalAiValue;
+      r.originalAiValue = payload.originalAiValue;
       r.correctedValue  = payload.correctedValue;
       r.rationale       = payload.rationale;
       r.overriddenBy    = userId;
