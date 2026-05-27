@@ -2,6 +2,14 @@
 // Tests syncManager in isolation by resetting module state between each test
 // so the module-level isSyncing guard starts false every time.
 
+// Prevent database.ts from loading the native SQLite adapter after resetModules()
+jest.mock('@db/database', () => ({
+  database: {
+    write: jest.fn((fn: () => Promise<void>) => fn()),
+    unsafeResetDatabase: jest.fn(() => Promise.resolve()),
+  },
+}));
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),

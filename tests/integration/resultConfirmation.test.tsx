@@ -33,6 +33,10 @@ jest.mock('@components/OfflineBanner', () => ({
   OfflineBanner: () => null,
 }));
 
+jest.mock('@db/sync/syncManager', () => ({
+  synchronize: jest.fn(() => Promise.resolve()),
+}));
+
 // ── Shared test data ──────────────────────────────────────────────────────────
 
 const mockUpdate = jest.fn();
@@ -110,7 +114,7 @@ describe('Result Confirmation — integration (TASK-MOB-09-12)', () => {
       await act(async () => {
         fireEvent.press(screen.getByRole('button', { name: 'Confirm Result' }));
       });
-      expect(apiClient.post).toHaveBeenCalledWith('/results/result-int-01/confirm');
+      expect(apiClient.post).toHaveBeenCalledWith('/results/result-int-01/confirm', {});
     });
 
     it('updates local result status to PENDING_SUPERVISOR_APPROVAL optimistically', async () => {
