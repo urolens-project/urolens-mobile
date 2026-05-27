@@ -25,6 +25,10 @@ jest.mock('@hooks/useNetworkStatus', () => ({
   useNetworkStatus: jest.fn(),
 }));
 
+jest.mock('@db/sync/syncManager', () => ({
+  synchronize: jest.fn(() => Promise.resolve()),
+}));
+
 const mockObserve = jest.fn();
 const mockQuery   = jest.fn(() => ({ observe: mockObserve }));
 const mockCreate  = jest.fn();
@@ -78,7 +82,7 @@ describe('useResultConfirmation', () => {
     it('calls POST /results/{id}/confirm when online', async () => {
       const { result } = renderHook(() => useResultConfirmation('result-123'));
       await act(async () => { await result.current.confirmResult(); });
-      expect(apiClient.post).toHaveBeenCalledWith('/results/result-123/confirm');
+      expect(apiClient.post).toHaveBeenCalledWith('/results/result-123/confirm', {});
     });
 
     it('updates local status optimistically after confirm', async () => {

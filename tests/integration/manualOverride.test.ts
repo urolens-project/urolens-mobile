@@ -77,9 +77,10 @@ function extractRow(mockFn: jest.Mock, callIndex = 0): Record<string, unknown> {
 describe('Manual Override — integration (TASK-MOB-10-8)', () => {
   const resultId = 'result-int-02';
   const wbcPayload = {
-    parameter:      'wbc',
-    correctedValue: 10,
-    rationale:      'Re-examined under 40× — count was lower than AI estimated.',
+    parameter:       'wbc',
+    originalAiValue: 18,
+    correctedValue:  10,
+    rationale:       'Re-examined under 40× — count was lower than AI estimated.',
   };
 
   describe('online path', () => {
@@ -92,9 +93,10 @@ describe('Manual Override — integration (TASK-MOB-10-8)', () => {
       expect(apiClient.post).toHaveBeenCalledWith(
         `/results/${resultId}/override`,
         {
-          parameter:       'wbc',
-          corrected_value: 10,
-          rationale:       wbcPayload.rationale,
+          parameter_name:    'wbc',
+          original_ai_value: '18',
+          corrected_value:   '10',
+          rationale:         wbcPayload.rationale,
         },
       );
     });

@@ -46,6 +46,7 @@ beforeEach(() => {
 
 const payload = {
   parameter: 'wbc',
+  originalAiValue: 12,
   correctedValue: 8,
   rationale: 'Recount showed lower value under higher magnification',
 };
@@ -63,7 +64,12 @@ describe('useManualOverride', () => {
 
       expect(apiClient.post).toHaveBeenCalledWith(
         '/results/result-123/override',
-        { parameter: 'wbc', corrected_value: 8, rationale: payload.rationale },
+        {
+          parameter_name:    'wbc',
+          original_ai_value: '12',
+          corrected_value:   '8',
+          rationale:         payload.rationale,
+        },
       );
     });
 
