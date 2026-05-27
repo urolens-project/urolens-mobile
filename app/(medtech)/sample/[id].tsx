@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
+import ManualOverride from '@db/models/ManualOverride';
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
 import { useConfirmResult } from '@features/result-confirmation/hooks/useConfirmResult';
 import { ResultReviewScreen } from '@features/result-confirmation/components/ResultReviewScreen';
@@ -120,6 +121,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
   const [specimen, setSpecimen] = useState<QueueItem | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -178,6 +180,22 @@ export default function SampleDetailScreen(): React.JSX.Element {
     return () => subscription.unsubscribe();
   }, [specimen?.serverId]);
 
+  useEffect(() => {
+    if (!analysisResult?.serverId) return;
+
+    const subscription = database
+      .get<ManualOverride>('manual_overrides')
+      .query(Q.where('result_id', analysisResult.serverId))
+      .observe()
+      .subscribe((records) => {
+        const map: Record<string, number> = {};
+        for (const r of records) map[r.parameter] = r.correctedValue;
+        setOverrides(map);
+      });
+
+    return () => subscription.unsubscribe();
+  }, [analysisResult?.serverId]);
+
   // Route variation: resultId present → mount review screen directly
   if (resultId) {
     return (
@@ -226,14 +244,30 @@ export default function SampleDetailScreen(): React.JSX.Element {
       Alert.alert('Not Synced', 'Specimen has not synced yet. Please wait.');
       return;
     }
-    router.push({
-      pathname: '/(medtech)/capture',
-      params: {
-        specimenId: specimen.serverId,
-        localSpecimenId: specimenId,
-        existingImageId: analysisResult?.imageId ?? undefined,
-      },
-    });
+
+    const doRetake = () =>
+      router.push({
+        pathname: '/(medtech)/capture',
+        params: {
+          specimenId: specimen.serverId,
+          localSpecimenId: specimenId,
+          existingImageId: analysisResult?.imageId ?? undefined,
+        },
+      });
+
+    if (Object.keys(overrides).length > 0) {
+      Alert.alert(
+        'Discard Overrides?',
+        'Retaking the image will run a new AI analysis. Your existing manual overrides will be removed.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retake', style: 'destructive', onPress: doRetake },
+        ],
+      );
+      return;
+    }
+
+    doRetake();
   }
 
   function handleRejectSpecimen() {
@@ -269,7 +303,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
   const isRejected              = specimen.status === 'REJECTED';
   const smartDiagnosis          = analysisResult?.smartDiagnosis ?? null;
-  const aiFindings              = analysisResult?.aiFindings ?? {};
+  const aiFindings              = { ...(analysisResult?.aiFindings ?? {}), ...overrides };
   const resultStatus            = analysisResult?.status;
   const isPendingConfirm        = resultStatus === 'PENDING_CONFIRM';
   const isPendingApproval       = resultStatus === 'PENDING_SUPERVISOR_APPROVAL';
