@@ -9,6 +9,7 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { synchronize } from '@db/sync/syncManager';
 import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
 import type { AIFindingEntry, ConfirmResultResponse } from '../types';
+import type { ApiError } from '@app-types/domain';
 
 interface UseResultConfirmationReturn {
   result: AnalysisResult | null;
@@ -61,7 +62,14 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
     try {
       if (isOnline) {
         // Online path — direct API call
-        await apiClient.post<ConfirmResultResponse>(`/results/${resultId}/confirm`);
+        try {
+          await apiClient.post<ConfirmResultResponse>(`/results/${resultId}/confirm`);
+        } catch (apiErr) {
+          // 409 RESULT_ALREADY_CONFIRMED = already confirmed (double-tap or retry
+          // after a request that succeeded server-side but errored on the client).
+          // Treat as success: fall through to sync + local update.
+          if ((apiErr as ApiError)?.code !== 'RESULT_ALREADY_CONFIRMED') throw apiErr;
+        }
         // Pull smart_diagnosis immediately so the panel renders without waiting
         // for the next periodic sync.
         await synchronize();

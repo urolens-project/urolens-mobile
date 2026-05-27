@@ -31,12 +31,6 @@ function formatDate(): string {
   });
 }
 
-function abbreviateName(fullName: string): string {
-  const parts = fullName.trim().split(' ');
-  if (parts.length < 2) return fullName;
-  return `${parts[0][0]}. ${parts.slice(1).join(' ')}`;
-}
-
 // ─── Empty state ─────────────────────────────────────────────────────────────
 function EmptyState({ isOnline, filter }: { isOnline: boolean; filter: FilterOption }) {
   if (!isOnline) {
@@ -236,7 +230,7 @@ export default function QueueScreen() {
           <View style={styles.actionInfo}>
             <Text style={styles.actionTitle}>Selected: {selectedItem.sampleUid}</Text>
             <Text style={styles.actionSub}>
-              {abbreviateName(selectedItem.patientName)} • {selectedItem.testType}
+              {selectedItem.patientUid} • {selectedItem.testType}
             </Text>
           </View>
           <View style={styles.actionButtons}>
