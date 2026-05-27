@@ -9,7 +9,7 @@ jest.mock('@features/manual-override/hooks/useManualOverride', () => ({
   useManualOverride: jest.fn(),
 }));
 jest.mock('expo-router', () => ({
-  router: { back: jest.fn(), push: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
 }));
 
 const mockSubmitOverride = jest.fn();
@@ -32,7 +32,8 @@ const defaultProps = {
 describe('OverrideEntryForm', () => {
   it('renders the parameter name', () => {
     render(<OverrideEntryForm {...defaultProps} />);
-    expect(screen.getByText('wbc')).toBeTruthy();
+    // formatParameter() capitalises the first letter of each word: "wbc" → "Wbc"
+    expect(screen.getByText('Wbc')).toBeTruthy();
   });
 
   it('shows the original AI value as read-only', () => {
@@ -63,7 +64,7 @@ describe('OverrideEntryForm', () => {
   });
 
   it('calls submitOverride with correct payload on submit', async () => {
-    mockSubmitOverride.mockResolvedValue(undefined);
+    mockSubmitOverride.mockResolvedValue(true);
     render(<OverrideEntryForm {...defaultProps} />);
     fireEvent.changeText(screen.getByLabelText('Corrected value'), '8');
     fireEvent.changeText(screen.getByLabelText('Rationale for override'), 'Recount showed lower value');
@@ -72,6 +73,7 @@ describe('OverrideEntryForm', () => {
     await waitFor(() => {
       expect(mockSubmitOverride).toHaveBeenCalledWith('result-123', {
         parameter: 'wbc',
+        originalAiValue: 12,
         correctedValue: 8,
         rationale: 'Recount showed lower value',
       });

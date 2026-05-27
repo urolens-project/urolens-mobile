@@ -63,7 +63,7 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
       if (isOnline) {
         // Online path — direct API call
         try {
-          await apiClient.post<ConfirmResultResponse>(`/results/${resultId}/confirm`);
+          await apiClient.post<ConfirmResultResponse>(`/results/${resultId}/confirm`, {});
         } catch (apiErr) {
           // 409 RESULT_ALREADY_CONFIRMED = already confirmed (double-tap or retry
           // after a request that succeeded server-side but errored on the client).

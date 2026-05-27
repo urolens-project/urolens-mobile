@@ -1,6 +1,7 @@
 // Path: urolens-mobile/src/features/manual-override/types.ts
 export interface OverridePayload {
   parameter: string;
+  originalAiValue: number;
   correctedValue: number;
   rationale: string;
 }

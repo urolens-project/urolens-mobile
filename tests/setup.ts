@@ -1,5 +1,10 @@
 /// <reference types="jest" />
 import '@testing-library/jest-native/extend-expect';
+
+// babel-plugin-transform-typescript-metadata injects Reflect.metadata() calls around
+// WatermelonDB @field decorators. reflect-metadata is not installed, so we polyfill
+// the single method that Babel emits before any module requires it.
+(global.Reflect as unknown as Record<string, unknown>).metadata = jest.fn(() => () => {});
 import { configureInternal } from '@testing-library/react-native/build/config';
 
 // React 19's act() is async; RNTL v12's detectHostComponentNames() breaks because
@@ -177,6 +182,22 @@ jest.mock('@nozbe/watermelondb/hooks', () => {
     DatabaseProvider: ({ children }: { children: unknown }) => children,
   };
 });
+
+// Accessing AsyncStorage's native RCTAsyncStorage bridge crashes without a native env.
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  __esModule: true,
+  default: {
+    getItem: jest.fn(() => Promise.resolve(null)),
+    setItem: jest.fn(() => Promise.resolve()),
+    removeItem: jest.fn(() => Promise.resolve()),
+    mergeItem: jest.fn(() => Promise.resolve()),
+    clear: jest.fn(() => Promise.resolve()),
+    getAllKeys: jest.fn(() => Promise.resolve([])),
+    multiGet: jest.fn(() => Promise.resolve([])),
+    multiSet: jest.fn(() => Promise.resolve()),
+    multiRemove: jest.fn(() => Promise.resolve()),
+  },
+}));
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(() => Promise.resolve(null)),
