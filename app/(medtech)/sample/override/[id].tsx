@@ -5,23 +5,20 @@ import { useLocalSearchParams, Stack } from 'expo-router';
 import { OverrideEntryForm } from '@features/manual-override/components/OverrideEntryForm';
 
 export default function OverrideScreen(): React.JSX.Element {
-  const { id, parameter, originalValue } = useLocalSearchParams<{
+  const { id, parameter, originalValue, specimenId } = useLocalSearchParams<{
     id: string;
     parameter: string;
     originalValue: string;
+    specimenId: string;
   }>();
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Override Parameter',
-          headerBackTitle: 'Result',
-        }}
-      />
-      <SafeAreaView style={styles.safe} edges={['bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <OverrideEntryForm
           resultId={id}
+          specimenId={specimenId ?? ''}
           parameter={parameter}
           originalAiValue={Number(originalValue ?? '0')}
         />
@@ -31,5 +28,5 @@ export default function OverrideScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F3F4F6' },
+  safe: { flex: 1, backgroundColor: '#F7F6F3' },
 });
