@@ -21,32 +21,38 @@ const aliasMap = {
   '@mocks': path.resolve(__dirname, 'src/mocks'),
 };
 
+// WatermelonDB's SQLite adapter statically requires a Node-only backend
+// (better-sqlite3) that isn't installed for RN and would otherwise crash
+// Metro's resolver. Stub these out to an empty module.
+const emptyModules = new Set([
+  'better-sqlite3',
+  '@nozbe/watermelondb/adapters/sqlite/sqlite-node/Database',
+]);
+const emptyModulePath = path.resolve(__dirname, 'metro/empty-module.js');
+
 // 2. 💡 Route aliases through Metro's functional resolveRequest pipeline
 const defaultResolver = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (emptyModules.has(moduleName)) {
+    return { type: 'sourceFile', filePath: emptyModulePath };
+  }
+
   // Check if the current module import matches any of our alias keys
   for (const [alias, aliasPath] of Object.entries(aliasMap)) {
     if (moduleName === alias || moduleName.startsWith(`${alias}/`)) {
       const relativePath = moduleName.slice(alias.length);
       const targetPath = path.join(aliasPath, relativePath);
-      
+
       // Redirect Metro to the true mapped file path directory
       return context.resolveRequest(context, targetPath, platform);
     }
   }
-  
+
   // Fallback to traditional resolution for standard npm packages
   if (defaultResolver) {
     return defaultResolver(context, moduleName, platform);
   }
   return context.resolveRequest(context, moduleName, platform);
-};
-
-// FORCE METRO TO STUB DESKTOP/NODE DRIVERS DURING SSR/WEB BUNDLE REVIEWS
-config.resolver.emptyModulesByHeaderName = {
-  ...config.resolver.emptyModulesByHeaderName,
-  '@nozbe/watermelondb/adapters/sqlite/sqlite-node/Database': true,
-  'better-sqlite3': true,
 };
 
 module.exports = config;

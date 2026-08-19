@@ -3,7 +3,7 @@ import '@abraham/reflection';
 
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '@db/database';
@@ -11,12 +11,10 @@ import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
 
-// TEMP — clear sync timestamp so next launch triggers a full sync + local DB reset
 import AsyncStorage from '@react-native-async-storage/async-storage';
-AsyncStorage.removeItem('urolens_last_sync_at');
 
 // DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
-if (__DEV__) {
+if (__DEV__ && Platform.OS !== 'web') {
   const { DevSettings } = require('react-native');
   DevSettings.addMenuItem('Reset Auth → Login', async () => {
     const { tokenStorage: ts } = require('@lib/auth/tokenStorage');
@@ -36,6 +34,11 @@ export default function RootLayout() {
   // 1. 💡 Force a pure, secondary effect frame to handle the mounting lifecycle safely
   useEffect(() => {
     setHasMounted(true);
+  }, []);
+
+  // TEMP — clear sync timestamp so next launch triggers a full sync + local DB reset
+  useEffect(() => {
+    AsyncStorage.removeItem('urolens_last_sync_at');
   }, []);
 
   // 2. Handle asynchronous authentication bootstrapping safely after mount
