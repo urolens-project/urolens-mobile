@@ -12,10 +12,6 @@ import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
 import { ErrorBoundary } from '@components/ErrorBoundary';
 
-// TEMP — clear sync timestamp so next launch triggers a full sync + local DB reset
-import AsyncStorage from '@react-native-async-storage/async-storage';
-AsyncStorage.removeItem('urolens_last_sync_at');
-
 // DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
 if (__DEV__) {
   const { DevSettings } = require('react-native');
