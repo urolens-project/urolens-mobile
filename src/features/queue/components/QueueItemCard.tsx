@@ -53,7 +53,7 @@ function getTestTypeIcon(testType: string): React.ComponentProps<typeof Ionicons
   return 'flask-outline';
 }
 
-export function QueueItemCard({ item, onPress, selected = false }: Props) {
+function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
   const badge = getBadge(item);
 
   return (
@@ -169,3 +169,5 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
 });
+
+export const QueueItemCard = React.memo(QueueItemCardComponent);

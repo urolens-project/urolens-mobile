@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
@@ -84,9 +84,9 @@ export default function QueueScreen() {
     [items, selectedId],
   );
 
-  function handleItemPress(id: string) {
+  const handleItemPress = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
-  }
+  }, []);
 
   function handleProceed() {
     if (selectedItem) router.push(`/(medtech)/sample/${selectedItem.id}`);
