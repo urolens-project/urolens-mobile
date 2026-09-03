@@ -37,7 +37,7 @@ export default function RejectSpecimenScreen() {
   const [selectedReason, setSelectedReason] = useState<RejectionReason | null>(null);
   const [note, setNote] = useState('');
 
-  const { reject, isLoading: isRejecting } = useRejectSpecimen(id ?? '');
+  const { reject, isLoading: isRejecting, error: rejectError } = useRejectSpecimen(id ?? '');
 
   useEffect(() => {
     if (!id) return;
@@ -77,12 +77,11 @@ export default function RejectSpecimenScreen() {
       return;
     }
 
-    try {
-      await reject(selectedReason, note);
+    const success = await reject(selectedReason, note);
+    if (success) {
       router.replace(`/(medtech)/sample/${id}`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'An error occurred.';
-      Alert.alert('Rejection Failed', message);
+    } else {
+      Alert.alert('Rejection Failed', rejectError ?? 'An error occurred.');
     }
   }
 

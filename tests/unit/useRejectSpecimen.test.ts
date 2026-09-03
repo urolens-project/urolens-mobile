@@ -208,28 +208,32 @@ describe('useRejectSpecimen', () => {
   });
 
   describe('error cases', () => {
-    it('throws when specimen has no serverId', async () => {
+    it('resolves false and sets error when specimen has no serverId', async () => {
       const specimen = makeSpecimen({ serverId: null });
       setupDb(specimen);
       const { result } = renderHook(() => useRejectSpecimen('local-1'));
 
+      let success: boolean | undefined;
       await act(async () => {
-        await expect(result.current.reject(RejectionReason.OTHER)).rejects.toThrow(
-          'Specimen has not been synced',
-        );
+        success = await result.current.reject(RejectionReason.OTHER);
       });
+
+      expect(success).toBe(false);
+      expect(result.current.error).toMatch(/Specimen has not been synced/);
     });
 
-    it('resets isLoading to false even when API throws', async () => {
+    it('resolves false and resets isLoading to false when API throws', async () => {
       const specimen = makeSpecimen();
       setupDb(specimen);
       (apiClient.post as jest.Mock).mockRejectedValue(new Error('network'));
       const { result } = renderHook(() => useRejectSpecimen('local-1'));
 
+      let success: boolean | undefined;
       await act(async () => {
-        await result.current.reject(RejectionReason.OTHER).catch(() => {});
+        success = await result.current.reject(RejectionReason.OTHER);
       });
 
+      expect(success).toBe(false);
       expect(result.current.isLoading).toBe(false);
     });
   });
