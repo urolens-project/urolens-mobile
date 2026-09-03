@@ -1,5 +1,5 @@
 // Path: urolens-mobile/src/features/result-confirmation/hooks/useResultConfirmation.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import AnalysisResult from '@db/models/AnalysisResult';
@@ -49,7 +49,10 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
     await confirmAction(result);
   };
 
-  const aiFindings: AIFindingEntry[] = result ? deriveFindings(result.aiFindings) : [];
+  const aiFindings = useMemo<AIFindingEntry[]>(
+    () => (result ? deriveFindings(result.aiFindings) : []),
+    [result],
+  );
 
   return { result, aiFindings, isLoading, isConfirming, error, confirmResult };
 }
