@@ -10,6 +10,7 @@ import { database } from '@db/database';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
+import { ErrorBoundary } from '@components/ErrorBoundary';
 
 // TEMP — clear sync timestamp so next launch triggers a full sync + local DB reset
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,6 +30,14 @@ if (__DEV__) {
 }
 
 export default function RootLayout() {
+  return (
+    <ErrorBoundary>
+      <RootLayoutInner />
+    </ErrorBoundary>
+  );
+}
+
+function RootLayoutInner() {
   const { isLoading, setAuthenticated, clearAuth } = useAuthStore();
   const [hasMounted, setHasMounted] = useState(false);
   const [isReady, setIsReady] = useState(false);
