@@ -124,7 +124,6 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
   // ── Upload ────────────────────────────────────────────────────────────────
   const handleUseImage = useCallback(async () => {
-    console.log('[ImageCaptureScreen] handleUseImage tapped', { specimenId, localSpecimenId, hasProcessed: !!processed });
     // Defensive guard with visible feedback so silent failures are surfaced
     if (!processed) return;
     if (!specimenId) {
