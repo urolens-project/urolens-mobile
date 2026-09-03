@@ -1,15 +1,10 @@
 // Path: urolens-mobile/src/features/result-confirmation/hooks/useResultConfirmation.ts
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import AnalysisResult from '@db/models/AnalysisResult';
-import PendingSync from '@db/models/PendingSync';
-import { apiClient } from '@lib/apiClient';
-import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import { synchronize } from '@db/sync/syncManager';
-import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
-import type { AIFindingEntry, ConfirmResultResponse } from '../types';
-import type { ApiError } from '@app-types/domain';
+import { useConfirmAction } from './useConfirmAction';
+import type { AIFindingEntry } from '../types';
 
 interface UseResultConfirmationReturn {
   result: AnalysisResult | null;
@@ -31,13 +26,9 @@ function deriveFindings(raw: Record<string, number>): AIFindingEntry[] {
 }
 
 export function useResultConfirmation(resultId: string): UseResultConfirmationReturn {
-  const { isOnline } = useNetworkStatus();
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Ref guard prevents double-submission regardless of React re-render timing.
-  const confirmingRef = useRef(false);
+  const { confirmResult: confirmAction, isConfirming, error } = useConfirmAction();
 
   // Observe local WatermelonDB record — components never call API directly (SRP)
   useEffect(() => {
@@ -54,55 +45,8 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
   }, [resultId]);
 
   const confirmResult = async (): Promise<void> => {
-    if (confirmingRef.current) return;
-    confirmingRef.current = true;
-    setIsConfirming(true);
-    setError(null);
-
-    try {
-      if (isOnline) {
-        // Online path — direct API call
-        try {
-          await apiClient.post<ConfirmResultResponse>(`/results/${resultId}/confirm`, {});
-        } catch (apiErr) {
-          // 409 RESULT_ALREADY_CONFIRMED = already confirmed (double-tap or retry
-          // after a request that succeeded server-side but errored on the client).
-          // Treat as success: fall through to sync + local update.
-          if ((apiErr as ApiError)?.code !== 'RESULT_ALREADY_CONFIRMED') throw apiErr;
-        }
-        // Pull smart_diagnosis immediately so the panel renders without waiting
-        // for the next periodic sync.
-        await synchronize();
-      } else {
-        // Offline path — write pending_sync row, update local status optimistically
-        await database.write(async () => {
-          await database.get<PendingSync>('pending_sync').create((r) => {
-            r.entity      = 'analysis_result';
-            r.entityId    = resultId;
-            r.action      = PendingSyncAction.CONFIRM_RESULT;
-            r.payloadJson = JSON.stringify({ resultId });
-            r.status      = PendingSyncStatus.PENDING;
-            r.createdAt   = Date.now();
-          });
-        });
-      }
-
-      // Optimistic local status update in both online and offline paths
-      if (result) {
-        await database.write(async () => {
-          await result.update((r) => {
-            r.status   = 'PENDING_SUPERVISOR_APPROVAL';
-            r.isSynced = isOnline;
-          });
-        });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to confirm result';
-      setError(message);
-    } finally {
-      confirmingRef.current = false;
-      setIsConfirming(false);
-    }
+    if (!result) return;
+    await confirmAction(result);
   };
 
   const aiFindings: AIFindingEntry[] = result ? deriveFindings(result.aiFindings) : [];
