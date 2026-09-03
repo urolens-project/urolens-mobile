@@ -27,12 +27,17 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn(), replace: jest.fn() },
 }));
 
+jest.mock('@db/database', () => ({
+  database: { get: jest.fn() },
+}));
+
 // Platform is already mocked in setup.ts — override per test via direct assignment
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import apiClient from '@lib/apiClient';
 import { synchronize } from '@db/sync/syncManager';
+import { database } from '@db/database';
 
 import {
   registerForPushNotifications,
@@ -49,6 +54,11 @@ const mockAddNotificationResponseReceivedListener = Notifications.addNotificatio
 const mockApiPost = (apiClient as unknown as { post: jest.Mock }).post;
 const mockRouterPush = router.push as jest.Mock;
 const mockSynchronize = synchronize as jest.Mock;
+const mockDbGet = database.get as jest.Mock;
+
+// Flush the microtask queue so async work inside the (un-awaited) response
+// listener callback — the specimen lookup — resolves before assertions run.
+const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -61,6 +71,9 @@ beforeEach(() => {
   mockAddNotificationResponseReceivedListener.mockReturnValue({ remove: jest.fn() });
   mockApiPost.mockResolvedValue(undefined);
   mockSynchronize.mockResolvedValue(undefined);
+  mockDbGet.mockReturnValue({
+    query: jest.fn(() => ({ fetch: jest.fn().mockResolvedValue([]) })),
+  });
 });
 
 // ── registerForPushNotifications ─────────────────────────────────────────────
@@ -163,22 +176,47 @@ describe('registerNotificationListeners', () => {
     expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/queue');
   });
 
-  it('navigates to sample detail on RESULT_RETURNED tap with entity_id', () => {
+  it('resolves the local specimen by server_id and navigates using its local id', async () => {
+    const mockFetch = jest.fn().mockResolvedValue([{ id: 'local-42' }]);
+    const mockQuery = jest.fn(() => ({ fetch: mockFetch }));
+    mockDbGet.mockReturnValue({ query: mockQuery });
+
     registerNotificationListeners();
     const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
     responseCb({
       notification: {
         request: {
           content: {
-            data: { notification_type: 'RESULT_RETURNED', entity_id: 'specimen-abc' },
+            data: { notification_type: 'RESULT_RETURNED', entity_id: 'server-abc' },
           },
         },
       },
     });
-    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/specimen-abc');
+    await flush();
+
+    expect(mockDbGet).toHaveBeenCalledWith('specimens');
+    // local id ("local-42"), not the server id from the payload ("server-abc")
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-42');
   });
 
-  it('navigates to queue on RESULT_RETURNED tap without entity_id', () => {
+  it('falls back to queue on RESULT_RETURNED when no local specimen matches the server_id', async () => {
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: {
+            data: { notification_type: 'RESULT_RETURNED', entity_id: 'server-unknown' },
+          },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/queue');
+  });
+
+  it('navigates to queue on RESULT_RETURNED tap without entity_id', async () => {
     registerNotificationListeners();
     const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
     responseCb({
@@ -186,7 +224,10 @@ describe('registerNotificationListeners', () => {
         request: { content: { data: { notification_type: 'RESULT_RETURNED' } } },
       },
     });
+    await flush();
+
     expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/queue');
+    expect(mockDbGet).not.toHaveBeenCalled();
   });
 
   it('navigates to alerts on unknown notification type', () => {
