@@ -37,7 +37,7 @@ function EmptyState({ isOnline, filter }: { isOnline: boolean; filter: FilterOpt
     return (
       <View style={styles.empty}>
         <Ionicons name="cloud-offline-outline" size={40} color="#D1D5DB" />
-        <Text style={styles.emptyTitle}>You're offline</Text>
+        <Text style={styles.emptyTitle}>You&apos;re offline</Text>
         <Text style={styles.emptySub}>Connect to sync your latest queue.</Text>
       </View>
     );
