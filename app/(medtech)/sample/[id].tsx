@@ -18,7 +18,7 @@ import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import ManualOverride from '@db/models/ManualOverride';
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
-import { useConfirmResult } from '@features/result-confirmation/hooks/useConfirmResult';
+import { useConfirmAction } from '@features/result-confirmation/hooks/useConfirmAction';
 import { ResultReviewScreen } from '@features/result-confirmation/components/ResultReviewScreen';
 import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
 import type { QueueItem } from '../../../src/features/queue/types';
@@ -125,7 +125,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  const { confirm, isLoading: isConfirming } = useConfirmResult();
+  const { confirmResult: confirmAction, isConfirming, error: confirmError } = useConfirmAction();
 
   // Both useEffect hooks must remain unconditional (Rules of Hooks).
   // Internal guards make them no-ops when specimenId/serverId are absent.
@@ -216,12 +216,9 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
   async function handleConfirmResult() {
     if (!analysisResult) return;
-    try {
-      await confirm(analysisResult.id, analysisResult.serverId, undefined);
-    } catch (err) {
-      const e = err as { message?: string };
-      const message = e?.message ?? (err instanceof Error ? err.message : 'An unexpected error occurred.');
-      Alert.alert('Confirmation Failed', message);
+    const ok = await confirmAction(analysisResult);
+    if (!ok) {
+      Alert.alert('Confirmation Failed', confirmError ?? 'An unexpected error occurred.');
     }
   }
 
