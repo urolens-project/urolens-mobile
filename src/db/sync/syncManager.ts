@@ -9,15 +9,12 @@ const LAST_SYNC_KEY = 'urolens_last_sync_at';
 let isSyncing = false;
 export async function synchronize(): Promise<void> {
   if (isSyncing) {
-    console.log('[SyncManager] Sync already in progress — skipping.');
     return;
   }
 
   isSyncing = true;
   try {
     const lastSyncedAt = await AsyncStorage.getItem(LAST_SYNC_KEY);
-
-    console.log('[SyncManager] Starting sync cycle...');
 
     // 1. Push FIRST — Send upstream local modifications so the server can run conflict checks
     await pushChanges();
@@ -27,7 +24,6 @@ export async function synchronize(): Promise<void> {
       await database.write(async () => {
         await database.unsafeResetDatabase();
       });
-      console.log('[SyncManager] Local DB reset for full sync.');
     }
 
     // 3. Pull SECOND — Fetch the absolute, source-of-truth state down from the server
@@ -36,7 +32,6 @@ export async function synchronize(): Promise<void> {
     // 3. Persist Timestamp ONLY after both steps succeed cleanly
     if (newTimestamp) {
       await AsyncStorage.setItem(LAST_SYNC_KEY, newTimestamp);
-      console.log(`[SyncManager] Sync complete at ${newTimestamp}`);
     }
   } catch (err) {
     // If pushing or pulling throws a Network Error, code execution drops out here safely
