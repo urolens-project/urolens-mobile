@@ -11,7 +11,7 @@ interface ParameterRowProps {
 }
 
 
-export function ParameterRow({
+function ParameterRowComponent({
   finding,
   overriddenValue,
   onOverride,
@@ -142,3 +142,5 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
 });
+
+export const ParameterRow = React.memo(ParameterRowComponent);

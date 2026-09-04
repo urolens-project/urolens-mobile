@@ -17,7 +17,7 @@ interface AIFindingsPanelProps {
   isConfirmed: boolean;
 }
 
-export function AIFindingsPanel({
+function AIFindingsPanelComponent({
   resultId,
   findings,
   onOverride,
@@ -145,3 +145,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+export const AIFindingsPanel = React.memo(AIFindingsPanelComponent);

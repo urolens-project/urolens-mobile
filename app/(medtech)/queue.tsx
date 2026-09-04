@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
@@ -37,7 +37,7 @@ function EmptyState({ isOnline, filter }: { isOnline: boolean; filter: FilterOpt
     return (
       <View style={styles.empty}>
         <Ionicons name="cloud-offline-outline" size={40} color="#D1D5DB" />
-        <Text style={styles.emptyTitle}>You're offline</Text>
+        <Text style={styles.emptyTitle}>You&apos;re offline</Text>
         <Text style={styles.emptySub}>Connect to sync your latest queue.</Text>
       </View>
     );
@@ -84,9 +84,9 @@ export default function QueueScreen() {
     [items, selectedId],
   );
 
-  function handleItemPress(id: string) {
+  const handleItemPress = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
-  }
+  }, []);
 
   function handleProceed() {
     if (selectedItem) router.push(`/(medtech)/sample/${selectedItem.id}`);
