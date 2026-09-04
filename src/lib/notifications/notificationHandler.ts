@@ -1,6 +1,9 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
+import { Q } from '@nozbe/watermelondb';
+import { database } from '@db/database';
+import Specimen from '@db/models/Specimen';
 import apiClient from '@lib/apiClient';
 import { synchronize } from '@db/sync/syncManager';
 
@@ -59,6 +62,31 @@ export async function registerForPushNotifications(): Promise<void> {
 }
 
 /**
+ * `sample/[id]`'s route param is the local WatermelonDB row id, but a push
+ * notification's `entity_id` is a server id (the backend has no concept of
+ * a device's local ids) — resolve the local record first, then navigate.
+ */
+async function navigateToSpecimenByServerId(serverId: string | undefined): Promise<void> {
+  if (!serverId) {
+    router.push('/(medtech)/queue');
+    return;
+  }
+
+  await synchronize().catch(() => {});
+
+  const matches = await database
+    .get<Specimen>('specimens')
+    .query(Q.where('server_id', serverId))
+    .fetch();
+
+  if (matches[0]) {
+    router.push(`/(medtech)/sample/${matches[0].id}`);
+  } else {
+    router.push('/(medtech)/queue');
+  }
+}
+
+/**
  * Attaches notification listeners to the app.
  * Returns a cleanup function — call it in the layout useEffect cleanup.
  *
@@ -83,11 +111,7 @@ export function registerNotificationListeners(): () => void {
         break;
 
       case 'RESULT_RETURNED':
-        if (data.entity_id) {
-          router.push(`/(medtech)/sample/${data.entity_id}`);
-        } else {
-          router.push('/(medtech)/queue');
-        }
+        navigateToSpecimenByServerId(data.entity_id);
         break;
 
       default:

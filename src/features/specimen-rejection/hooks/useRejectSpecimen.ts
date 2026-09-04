@@ -8,11 +8,13 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 export function useRejectSpecimen(specimenId: string) {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { isOnline } = useNetworkStatus();
 
   const reject = useCallback(
-    async (reason: RejectionReason, note?: string) => {
+    async (reason: RejectionReason, note?: string): Promise<boolean> => {
       setIsLoading(true);
+      setError(null);
       try {
         const specimen = await database.get<Specimen>('specimens').find(specimenId);
 
@@ -45,6 +47,11 @@ export function useRejectSpecimen(specimenId: string) {
             s.rejectedAt = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).replace(' ', 'T') + '+08:00';
           });
         });
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to reject specimen';
+        setError(message);
+        return false;
       } finally {
         setIsLoading(false);
       }
@@ -52,5 +59,5 @@ export function useRejectSpecimen(specimenId: string) {
     [specimenId, isOnline],
   );
 
-  return { reject, isLoading };
+  return { reject, isLoading, error };
 }

@@ -35,10 +35,7 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "VIBRATE"
       ]
     },
     "web": {
@@ -52,7 +49,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "UroLens requires camera access to photograph urine specimens."
+          "cameraPermission": "UroLens requires camera access to photograph urine specimens.",
+          "recordAudioAndroid": false
         }
       ],
       [

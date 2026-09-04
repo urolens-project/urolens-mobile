@@ -2,7 +2,15 @@ name: CI
 
 on:
   push:
-    branches: [develop, main, phase-1]
+    branches:
+      - develop
+      - main
+      - phase-1
+      - 'fix/**'
+      - 'chore/**'
+      - 'feat/**'
+      - 'docs/**'
+      - 'test/**'
   pull_request:
     branches: [develop, main]
 
@@ -41,6 +49,9 @@ jobs:
 
       - name: TypeScript check
         run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
 
       - name: Run tests
         run: pnpm test:ci

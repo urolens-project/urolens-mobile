@@ -1,5 +1,5 @@
 // Path: urolens-mobile/src/features/result-confirmation/components/ResultReviewScreen.tsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -40,12 +40,12 @@ export function ResultReviewScreen({
 
   const isConfirmed = result?.isConfirmed ?? false;
 
-  const handleOverride = (parameter: string, originalValue: number) => {
+  const handleOverride = useCallback((parameter: string, originalValue: number) => {
     router.push({
       pathname: '/(medtech)/sample/override/[id]',
       params: { id: resultId, specimenId, parameter, originalValue: String(originalValue) },
     });
-  };
+  }, [resultId, specimenId]);
 
   const handleRetake = () => {
     router.push({

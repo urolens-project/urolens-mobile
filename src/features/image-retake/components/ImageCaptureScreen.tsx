@@ -64,6 +64,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   const [uploadProgress, setUploadProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const cameraRef = useRef<CameraView>(null);
 
@@ -91,25 +92,26 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   // ── Pick from gallery ─────────────────────────────────────────────────────
   const handleGalleryPick = useCallback(async () => {
     setValidationError(null);
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Photo library access is needed to upload images.',
-      );
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-      allowsEditing: false,
-      exif: false,
-    });
-
-    if (result.canceled || !result.assets[0]) return;
 
     try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Photo library access is needed to upload images.',
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+        allowsEditing: false,
+        exif: false,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
       const img = await processPickerAsset(result.assets[0]);
       setProcessed(img);
       setPhase('previewing');
@@ -124,7 +126,6 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
   // ── Upload ────────────────────────────────────────────────────────────────
   const handleUseImage = useCallback(async () => {
-    console.log('[ImageCaptureScreen] handleUseImage tapped', { specimenId, localSpecimenId, hasProcessed: !!processed });
     // Defensive guard with visible feedback so silent failures are surfaced
     if (!processed) return;
     if (!specimenId) {
@@ -344,12 +345,34 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
     );
   }
 
+  // ── Camera hardware failed to initialize ─────────────────────────────────
+  if (cameraError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.permissionBox}>
+          <Text style={styles.permissionTitle}>Camera Unavailable</Text>
+          <Text style={styles.permissionBody}>{cameraError}</Text>
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleGalleryPick}>
+            <Text style={styles.secondaryLabel}>Upload from Gallery Instead</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // ── Idle — live camera ────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.cameraWrapper}>
         {/* Camera fills the wrapper; no children allowed by CameraView */}
-        <CameraView style={StyleSheet.absoluteFill} facing="back" ref={cameraRef} />
+        <CameraView
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          ref={cameraRef}
+          onMountError={() =>
+            setCameraError('The camera could not be started on this device. You can still upload an image from the gallery.')
+          }
+        />
 
         {/* Viewfinder guide */}
         <View style={styles.viewfinderGuide} />
