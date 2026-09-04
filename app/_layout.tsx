@@ -3,7 +3,7 @@ import '@abraham/reflection';
 
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
-import { ActivityIndicator, Platform } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '@db/database';
@@ -77,15 +77,12 @@ export default function RootLayout() {
     };
   }, [hasMounted, setAuthenticated, clearAuth]);
 
-  // Render a clean fallback background while React finishes mounting and checking auth stores
-  if (!hasMounted || isLoading || !isReady) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#1E3A5F', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#FFFFFF" />
-      </GestureHandlerRootView>
-    );
-  }
+  const isBootstrapping = !hasMounted || isLoading || !isReady;
 
+  // Keep the navigator mounted at all times — expo-router resolves the initial
+  // deep link as soon as it mounts, and swapping it out for a fallback tree
+  // races that resolution against an unmount, producing "state update on a
+  // component that hasn't mounted yet". Overlay the loading state instead.
   return (
     <DatabaseProvider database={database}>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -94,7 +91,21 @@ export default function RootLayout() {
           <Stack.Screen name="(medtech)" />
           <Stack.Screen name="index" />
         </Stack>
+        {isBootstrapping && (
+          <View style={styles.bootstrapOverlay}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+          </View>
+        )}
       </GestureHandlerRootView>
     </DatabaseProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  bootstrapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#1E3A5F',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
