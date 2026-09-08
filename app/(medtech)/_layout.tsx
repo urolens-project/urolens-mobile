@@ -3,6 +3,7 @@ import { AppState, AppStateStatus, View, Text } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@lib/auth/authStore';
 import { UserRole } from '@app-types/enums';
 import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
@@ -46,6 +47,7 @@ function TabProfileAvatar({ focused }: { focused: boolean }) {
 export default function MedTechLayout() {
   const { isAuthenticated, role } = useAuthStore();
   const wasConnected = useRef<boolean | null>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!isAuthenticated || role !== UserRole.MEDTECH) return;
@@ -87,8 +89,8 @@ export default function MedTechLayout() {
             backgroundColor: '#FFFFFF',
             borderTopColor: '#E5E7EB',
             borderTopWidth: 1,
-            height: 80,
-            paddingBottom: 20,
+            height: 56 + insets.bottom,
+            paddingBottom: insets.bottom + 8,
             paddingTop: 8,
           },
           tabBarLabelStyle: {
