@@ -9,11 +9,11 @@ non-writable/sealed properties on the class, but something in the runtime
 instance properties. On Hermes this throws, because Hermes enforces
 non-configurable/non-writable property descriptors strictly.
 
-Three independent patches exist in this repo to work around it. They were
-added at different times without cross-referencing each other, so the repo
-currently carries more workaround surface than necessary.
+Two active patches exist in this repo to work around it, plus one that was
+briefly removed as dead code and has since been reinstated in consolidated
+form — see "History" below.
 
-## The three patches
+## The two active patches
 
 ### 1. `babel.config.js:1-33` — `removeEventPhaseFields` (build-time)
 A custom Babel visitor that runs during transpilation. It matches any file
@@ -24,30 +24,30 @@ whose path includes `Event.js` or `EventTarget`, and deletes:
 This prevents the problematic assignment from ever reaching the compiled
 output for those specific files.
 
-### 2. `index.js:4-24` — `Object.defineProperty` interception (runtime, active)
+### 2. `polyfills.js` — `Object.defineProperty` interception (runtime, active)
 Wraps the global `Object.defineProperty`. Whenever RN's `Event` class tries to
 define one of the four phase constants as non-writable, this forces it to
 `writable: true, configurable: true` instead, then lets the define call
-through. Installed before `require('expo-router/entry')`, so it's in place
-before any app or RN internals load.
+through. Required from `index.js` (`require('./polyfills')`) before
+`require('expo-router/entry')`, so it's in place before any app or RN
+internals load.
 
-### 3. `polyfills.js` — **dead code, not wired in anywhere**
-Attempts the same fix a third way: after `Event` is loaded, walk
-`global.Event.prototype`/`global.Event` and force the four phase properties
-configurable/writable via `Object.defineProperty`.
+## History
 
-**Finding:** `package.json`'s `"main"` field points to `index.js`, not
-`polyfills.js`, and nothing in the repo (`app.json`, `babel.config.js`,
-`metro.config.js`, `index.js`, `src/`, `app/`) requires or imports
-`polyfills.js`. It has never executed. Verified via:
-```
-grep -rn "polyfills" --include="*.js" --include="*.json" --include="*.ts" --include="*.tsx" .
-# only self-match in polyfills.js itself
-```
-Removed in this ticket — it was providing zero protection and existing only
-as a leftover from an earlier, abandoned attempt at this fix.
+This same runtime interception used to live inline in `index.js` at the same
+time a second, weaker copy sat in `polyfills.js` (post-hoc, walked
+`global.Event.prototype` after the fact instead of intercepting the define
+call — unreliable depending on load order). Nothing required `polyfills.js`,
+so it was dead code, and it was removed on `main` for that reason.
 
-## Redundancy between the two remaining patches
+Separately, on `fix/refactor`, the inline copy in `index.js` and the dead
+copy in `polyfills.js` were consolidated: the more robust interception logic
+now lives solely in `polyfills.js`, and `index.js` just requires it. When
+`main` was merged into `fix/refactor`, that consolidation is what survived —
+so `polyfills.js` is back, but as the single active implementation rather
+than a dead duplicate.
+
+## Redundancy between the two active patches
 
 The babel plugin (#1) and the runtime patch (#2) address the same failure
 from different angles — build-time source stripping vs. runtime interception
@@ -66,10 +66,9 @@ on PATH, so a live app boot could not be exercised here to empirically
 confirm which of the two remaining patches is load-bearing versus
 belt-and-suspenders.
 
-**Manual QA needed before merging any future change to these patches** (not
-required for this ticket, since neither remaining patch was touched):
-1. Comment out patch #2 in `index.js`, keep #1. Run `pnpm ios` or
-   `pnpm android`. Exercise a flow that dispatches native events (camera
+**Manual QA needed before merging any future change to these patches:**
+1. Comment out the require in `index.js` (patch #2), keep #1. Run `pnpm ios`
+   or `pnpm android`. Exercise a flow that dispatches native events (camera
    capture, gesture handler interactions, WatermelonDB sync). Confirm no
    crash.
 2. Revert, then comment out patch #1 in `babel.config.js`, keep #2. Repeat
@@ -78,10 +77,11 @@ required for this ticket, since neither remaining patch was touched):
    minimal necessary fix — is the basis for removing the other patch in a
    follow-up ticket.
 
-## Changes made in this ticket
+## Current state
 
-- Removed `polyfills.js` (dead code, never referenced).
-- No changes to `index.js` or `babel.config.js` — both active patches are
-  left in place pending the manual QA pass described above, since removing
-  either without a real device/simulator test is a genuine crash risk on
-  the exact code path we're trying to protect.
+- `polyfills.js` exists and is required by `index.js`. It is not dead code.
+- `index.js` only bootstraps: `require('./polyfills')` then
+  `require('expo-router/entry')`.
+- `babel.config.js`'s `removeEventPhaseFields` plugin is untouched.
+- Neither active patch has had the manual QA pass above run against it, so
+  treat both as load-bearing until that's done.

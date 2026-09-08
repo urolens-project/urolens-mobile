@@ -18,11 +18,8 @@ import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
 import { RejectionReason } from '@app-types/enums';
-import { MOCK_QUEUE_ITEMS } from '../../../../src/mocks/queueMockData';
 import { useRejectSpecimen } from '../../../../src/features/specimen-rejection/hooks/useRejectSpecimen';
 import { RejectionReasonModal } from '../../../../src/features/specimen-rejection/components/RejectionReasonModal';
-
-const USE_MOCK = false;
 
 export default function RejectSpecimenScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,13 +39,6 @@ export default function RejectSpecimenScreen() {
   useEffect(() => {
     if (!id) return;
 
-    if (USE_MOCK) {
-      const found = MOCK_QUEUE_ITEMS.find((item) => item.id === id);
-      if (found) setSpecimenInfo({ sampleUid: found.sampleUid, patientUid: found.patientUid });
-      setIsLoadingSpecimen(false);
-      return;
-    }
-
     const sub = database
       .get<Specimen>('specimens')
       .query(Q.where('id', id))
@@ -67,15 +57,6 @@ export default function RejectSpecimenScreen() {
 
   async function handleConfirm() {
     if (!selectedReason) return;
-
-    if (USE_MOCK) {
-      Alert.alert(
-        'Rejection Submitted (Mock)',
-        `Reason: ${selectedReason}${note.trim() ? `\nNote: ${note.trim()}` : ''}`,
-        [{ text: 'OK', onPress: () => router.replace('/(medtech)/queue') }],
-      );
-      return;
-    }
 
     const success = await reject(selectedReason, note);
     if (success) {
