@@ -36,7 +36,7 @@ export default class AnalysisResult extends Model {
 
   @field('server_id') serverId!: string | null;
   @field('specimen_id') specimenId!: string;
-  @field('image_id') imageId!: string;
+  @field('image_id') imageId!: string | null;
   @field('status') status!: ResultStatus;
   @field('ai_findings_json') aiFindingsJson!: string;
   @field('smart_diagnosis_json') smartDiagnosisJson!: string | null;

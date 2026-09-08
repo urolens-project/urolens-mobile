@@ -10,13 +10,14 @@
  */
 import apiClient from '@lib/apiClient';
 import { tokenStorage } from '@lib/auth/tokenStorage';
+import { ResultStatus } from '@db/models/AnalysisResult';
 
 export interface UploadImageResponse {
   id: string;
   result_id: string;
   specimen_id: string;
   image_id: string | null;
-  status: string;
+  status: ResultStatus;
   ai_findings: Record<string, number> | null;
   flagged_anomalies: Record<string, unknown> | null;
   smart_diagnosis: Record<string, unknown> | null;
