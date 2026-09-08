@@ -4,8 +4,8 @@ import { mockTokenResponse } from '@mocks/fixtures/auth';
 
 export const authApi = {
   async login(username: string, password: string): Promise<TokenResponse> {
-    // DEV MOCK: use username "medtech" / any password to bypass backend
-    if (process.env.EXPO_PUBLIC_APP_ENV === 'development' && username === 'medtech') {
+    // DEV MOCK: set EXPO_PUBLIC_USE_AUTH_MOCK=true to bypass the backend (username "medtech" / any password)
+    if (process.env.EXPO_PUBLIC_USE_AUTH_MOCK === 'true' && username === 'medtech') {
       return mockTokenResponse;
     }
     const response = await apiClient.post<TokenResponse>('/auth/login', {

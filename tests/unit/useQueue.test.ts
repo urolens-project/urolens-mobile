@@ -15,8 +15,13 @@
 
 jest.mock('@nozbe/watermelondb', () => ({
   Q: {
-    where: jest.fn(() => ({ _type: 'where' })),
+    where: jest.fn((field: string, value: unknown) => ({ _type: 'where', field, value })),
     oneOf: jest.fn((vals: unknown[]) => ({ _type: 'oneOf', vals })),
+    gte: jest.fn((v: unknown) => ({ _type: 'gte', v })),
+    lte: jest.fn((v: unknown) => ({ _type: 'lte', v })),
+    sortBy: jest.fn((field: string, dir: string) => ({ _type: 'sortBy', field, dir })),
+    asc: 'asc',
+    desc: 'desc',
   },
   Model: class {},
 }));
@@ -66,6 +71,7 @@ function makeSpecimen(overrides: Partial<Record<string, unknown>> = {}) {
 let emitItems: (specimens: ReturnType<typeof makeSpecimen>[]) => void;
 const mockUnsubscribe = jest.fn();
 let subscribeCallCount = 0;
+let capturedQuery: jest.Mock;
 
 function buildDbChain() {
   subscribeCallCount = 0;
@@ -86,11 +92,20 @@ function buildDbChain() {
 beforeEach(() => {
   jest.clearAllMocks();
   subscribeCallCount = 0;
-  const { mockGet } = buildDbChain();
+  const { mockGet, mockQuery } = buildDbChain();
+  capturedQuery = mockQuery;
   (database.get as jest.Mock).mockImplementation(mockGet);
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
   (synchronize as jest.Mock).mockResolvedValue(undefined);
 });
+
+/** Returns the clauses array passed to the most recent .query(...clauses) call
+ * on the *filter* subscription (the first .get('specimens') call each render —
+ * the allItems subscription is the second and always uses the fixed base clause). */
+function lastFilterQueryClauses(): Array<Record<string, unknown>> {
+  const calls = capturedQuery.mock.calls;
+  return calls[calls.length - 1] as unknown as Array<Record<string, unknown>>;
+}
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -173,6 +188,48 @@ describe('useQueue', () => {
     });
   });
 
+  // QUEUE-02 / QUEUE-07 — empty-queue state (mvp-tier1-test-cases.md §2).
+  // The hook has no notion of "never synced" vs. "synced but genuinely
+  // empty" — both surface identically as an empty WatermelonDB emission, so
+  // one test covers both IDs; this is confirmed-by-design, not a gap.
+  describe('empty queue (QUEUE-02 / QUEUE-07)', () => {
+    it('renders an empty list without error when the DB emits no specimens', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitItems([]);
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.items).toEqual([]);
+    });
+  });
+
+  // QUEUE-06 — a specimen that moves out of ASSIGNED/IN_QUEUE elsewhere
+  // (confirmed, rejected, etc.) should disappear from the queue on the next
+  // reactive emission, without a manual refresh.
+  describe('reactive status changes (QUEUE-06)', () => {
+    it('drops a specimen from the list once it leaves ASSIGNED/IN_QUEUE', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitItems([
+          makeSpecimen({ id: 'spec-1', status: 'ASSIGNED' }),
+          makeSpecimen({ id: 'spec-2', status: 'IN_QUEUE' }),
+        ]);
+      });
+      expect(result.current.items.map((i) => i.id)).toEqual(['spec-1', 'spec-2']);
+
+      // WatermelonDB's reactive query re-emits with spec-1 excluded once its
+      // status moves past ASSIGNED/IN_QUEUE (e.g. confirmed or rejected).
+      await act(async () => {
+        emitItems([makeSpecimen({ id: 'spec-2', status: 'IN_QUEUE' })]);
+      });
+
+      expect(result.current.items.map((i) => i.id)).toEqual(['spec-2']);
+    });
+  });
+
   describe('filter changes', () => {
     it.each<FilterOption>(['ALL', 'HIGH', 'NORMAL', 'ASSIGNED', 'PROCESSING'])(
       'setFilter("%s") updates the filter state',
@@ -200,6 +257,73 @@ describe('useQueue', () => {
       expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
       // mount: 2 (filter + allItems), setFilter: +1 = 3 total
       expect(database.get).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  // QUEUE-03 / QUEUE-04 / QUEUE-05 — verifies buildQuery() produces the
+  // correct WatermelonDB clauses per filter, not just that state updates.
+  // Q.sortBy/Q.gte/Q.lte were previously unmocked, so DATE/LATEST/EARLIEST
+  // would have thrown "not a function" if exercised — this closes that gap.
+  describe('filter query construction (QUEUE-03 / QUEUE-04 / QUEUE-05)', () => {
+    it('QUEUE-03: DATE filter scopes to today via received_at gte/lte and sorts desc', () => {
+      const { result } = renderHook(() => useQueue());
+
+      act(() => {
+        result.current.setFilter('DATE');
+      });
+
+      const clauses = lastFilterQueryClauses();
+      expect(clauses).toHaveLength(4);
+      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status' });
+      expect(clauses[1]).toMatchObject({ _type: 'where', field: 'received_at' });
+      expect((clauses[1] as any).value).toMatchObject({ _type: 'gte' });
+      expect(clauses[2]).toMatchObject({ _type: 'where', field: 'received_at' });
+      expect((clauses[2] as any).value).toMatchObject({ _type: 'lte' });
+      expect(clauses[3]).toMatchObject({ _type: 'sortBy', field: 'received_at', dir: 'desc' });
+
+      // Bounds are today's start/end, not an arbitrary window
+      const start = new Date((clauses[1] as any).value.v);
+      const end = new Date((clauses[2] as any).value.v);
+      const now = new Date();
+      expect(start.getDate()).toBe(now.getDate());
+      expect(start.getHours()).toBe(0);
+      expect(end.getHours()).toBe(23);
+    });
+
+    it.each<[FilterOption, string]>([
+      ['HIGH', 'HIGH'],
+      ['NORMAL', 'NORMAL'],
+      ['LOW', 'LOW'],
+      ['ROUTINE', 'ROUTINE'],
+    ])('QUEUE-04: %s filter scopes to priority_level = %s only', (option, expected) => {
+      const { result } = renderHook(() => useQueue());
+
+      act(() => {
+        result.current.setFilter(option);
+      });
+
+      const clauses = lastFilterQueryClauses();
+      expect(clauses).toHaveLength(2);
+      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status' });
+      expect(clauses[1]).toMatchObject({ _type: 'where', field: 'priority_level', value: expected });
+    });
+
+    it('QUEUE-05: LATEST sorts received_at desc, EARLIEST sorts asc — same base filter otherwise', () => {
+      const { result } = renderHook(() => useQueue());
+
+      act(() => {
+        result.current.setFilter('LATEST');
+      });
+      let clauses = lastFilterQueryClauses();
+      expect(clauses).toHaveLength(2);
+      expect(clauses[1]).toMatchObject({ _type: 'sortBy', field: 'received_at', dir: 'desc' });
+
+      act(() => {
+        result.current.setFilter('EARLIEST');
+      });
+      clauses = lastFilterQueryClauses();
+      expect(clauses).toHaveLength(2);
+      expect(clauses[1]).toMatchObject({ _type: 'sortBy', field: 'received_at', dir: 'asc' });
     });
   });
 
