@@ -122,21 +122,21 @@ describe('ImageFormatError', () => {
 });
 
 describe('buildUploadFormData', () => {
-  it('returns a FormData instance', () => {
-    const form = buildUploadFormData(mockProcessedImage, 'specimen-abc');
+  it('returns a FormData instance', async () => {
+    const form = await buildUploadFormData(mockProcessedImage, 'specimen-abc');
     expect(form).toBeInstanceOf(FormData);
   });
 
-  it('appends specimen_id with the correct value', () => {
+  it('appends specimen_id with the correct value', async () => {
     const appendSpy = jest.spyOn(FormData.prototype, 'append');
-    buildUploadFormData(mockProcessedImage, 'specimen-abc');
+    await buildUploadFormData(mockProcessedImage, 'specimen-abc');
     expect(appendSpy).toHaveBeenCalledWith('specimen_id', 'specimen-abc');
     appendSpy.mockRestore();
   });
 
-  it('appends file with uri, name, and type from the ProcessedImage', () => {
+  it('appends file with uri, name, and type from the ProcessedImage', async () => {
     const appendSpy = jest.spyOn(FormData.prototype, 'append');
-    buildUploadFormData(mockProcessedImage, 'specimen-abc');
+    await buildUploadFormData(mockProcessedImage, 'specimen-abc');
     expect(appendSpy).toHaveBeenCalledWith(
       'file',
       expect.objectContaining({
