@@ -129,10 +129,5 @@
       ]
     }
   },
-  "pnpm": {
-    "overrides": {
-      "@react-navigation/native": "7.1.33"
-    }
-  },
   "private": true
 }
