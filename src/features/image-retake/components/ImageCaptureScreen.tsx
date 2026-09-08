@@ -313,11 +313,11 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
         {/* Action bar */}
         <View style={styles.previewActions}>
-          <TouchableOpacity style={[styles.previewBtn, styles.retakeBtn]} onPress={handleRetapTap}>
+          <TouchableOpacity style={[styles.previewBtn, styles.retakeBtn]} onPress={handleRetapTap} testID="retake-button">
             <Ionicons name="camera-reverse-outline" size={18} color="#D1D5DB" />
             <Text style={styles.retakeLabel}>Retake</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.previewBtn, styles.useBtn]} onPress={handleUseImage}>
+          <TouchableOpacity style={[styles.previewBtn, styles.useBtn]} onPress={handleUseImage} testID="use-image-button">
             <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
             <Text style={styles.useLabel}>Use This Image</Text>
           </TouchableOpacity>
@@ -406,7 +406,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
             <Text style={styles.galleryLabel}>Gallery</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.captureRing} onPress={handleCapture}>
+          <TouchableOpacity style={styles.captureRing} onPress={handleCapture} testID="capture-button">
             <View style={styles.captureButton} />
           </TouchableOpacity>
 
