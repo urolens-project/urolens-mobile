@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '@db/database';
 import { useAuthStore } from '@lib/auth/authStore';
@@ -85,18 +86,20 @@ export default function RootLayout() {
   // component that hasn't mounted yet". Overlay the loading state instead.
   return (
     <DatabaseProvider database={database}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(medtech)" />
-          <Stack.Screen name="index" />
-        </Stack>
-        {isBootstrapping && (
-          <View style={styles.bootstrapOverlay}>
-            <ActivityIndicator size="large" color="#FFFFFF" />
-          </View>
-        )}
-      </GestureHandlerRootView>
+      <SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(medtech)" />
+            <Stack.Screen name="index" />
+          </Stack>
+          {isBootstrapping && (
+            <View style={styles.bootstrapOverlay}>
+              <ActivityIndicator size="large" color="#FFFFFF" />
+            </View>
+          )}
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
     </DatabaseProvider>
   );
 }
