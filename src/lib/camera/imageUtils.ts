@@ -11,6 +11,7 @@
  * We treat the manipulated result as the canonical upload payload.
  */
 
+import { Platform } from 'react-native';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { ImagePickerAsset } from 'expo-image-picker';
 import { CameraCapturedPicture } from 'expo-camera';
@@ -81,19 +82,30 @@ export async function processPickerAsset(
 
 /**
  * Build a FormData object ready for the multipart POST /images/upload.
+ *
+ * Native's FormData polyfill accepts a { uri, name, type } object literal as
+ * a file part, but a real browser FormData does not — it just stringifies
+ * unknown objects. On web the local URI has to be resolved to an actual Blob
+ * first and appended as a File.
  */
-export function buildUploadFormData(
+export async function buildUploadFormData(
   image: ProcessedImage,
   specimenId: string,
-): FormData {
+): Promise<FormData> {
   const form = new FormData();
   form.append('specimen_id', specimenId);
-  // React Native's FormData accepts an object literal for file parts
-  form.append('file', {
-    uri: image.uri,
-    name: image.filename,
-    type: image.mimeType,
-  } as unknown as Blob);
+
+  if (Platform.OS === 'web') {
+    const blob = await fetch(image.uri).then((r) => r.blob());
+    form.append('file', new File([blob], image.filename, { type: image.mimeType }));
+  } else {
+    form.append('file', {
+      uri: image.uri,
+      name: image.filename,
+      type: image.mimeType,
+    } as unknown as Blob);
+  }
+
   return form;
 }
 

@@ -45,6 +45,7 @@ import {
   ImageFormatError,
   ProcessedImage,
 } from '@lib/camera/imageUtils';
+import { uploadImageViaXhr } from '@lib/camera/uploadImage';
 import apiClient from '@lib/apiClient';
 
 type ScreenPhase = 'idle' | 'previewing' | 'uploading' | 'discarding';
@@ -140,33 +141,15 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
     setUploadProgress(0);
 
     try {
-      const form = buildUploadFormData(processed, specimenId);
-
-      // Axios's global 15 s timeout doesn't reliably abort multipart uploads
-      // in React Native. Use an explicit AbortController with a 60 s ceiling.
+      const form = await buildUploadFormData(processed, specimenId);
       const controller = new AbortController();
-      const uploadTimeout = setTimeout(() => controller.abort(), 60_000);
 
-      let response;
-      try {
-        response = await apiClient.post('/images/upload', form, {
-          // undefined clears the global application/json default so React Native
-          // XHR sets multipart/form-data with the correct boundary automatically.
-          headers: { 'Content-Type': undefined },
-          timeout: 60_000,
-          signal: controller.signal,
-          onUploadProgress: (evt) => {
-            if (evt.total) {
-              setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
-            }
-          },
-        });
-      } finally {
-        clearTimeout(uploadTimeout);
-      }
+      const data = await uploadImageViaXhr(form, controller.signal, (progress) => {
+        setUploadProgress(progress);
+      });
 
       // Backend: both `id` and `result_id` equal the analysis result UUID; `image_id` is the image UUID.
-      const { id: serverResultId, image_id: uploadedImageId, status, ai_findings, smart_diagnosis } = response.data;
+      const { id: serverResultId, image_id: uploadedImageId, status, ai_findings, smart_diagnosis } = data;
 
       // Write result into WatermelonDB immediately so Sample Detail shows it
       // without waiting for the next background sync.
