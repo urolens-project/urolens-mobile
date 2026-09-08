@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">94.44% </span>
+                <span class="strong">95.23% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>17/18</span>
+                <span class='fraction'>20/21</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">50% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/0</span>
+                <span class='fraction'>3/6</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">87.5% </span>
+                <span class="strong">90.9% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>7/8</span>
+                <span class='fraction'>10/11</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">94.44% </span>
+                <span class="strong">95.23% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>17/18</span>
+                <span class='fraction'>20/21</span>
             </div>
         
             
@@ -108,12 +108,56 @@
 <a name='L43'></a><a href='#L43'>43</a>
 <a name='L44'></a><a href='#L44'>44</a>
 <a name='L45'></a><a href='#L45'>45</a>
-<a name='L46'></a><a href='#L46'>46</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -153,49 +197,71 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import * as SecureStore from 'expo-secure-store';
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 &nbsp;
 const ACCESS_TOKEN_KEY = 'urolens_access_token';
 const USER_ID_KEY = 'urolens_user_id';
 const USER_ROLE_KEY = 'urolens_user_role';
 const USERNAME_KEY = 'urolens_username';
 &nbsp;
+// expo-secure-store wraps the iOS Keychain / Android Keystore and is unavailable on web,
+// so web falls back to AsyncStorage (localStorage under the hood).
+async function getItem(key: string): Promise&lt;string | null&gt; {
+  return Platform.OS === 'web'
+    ? <span class="branch-0 cbranch-no" title="branch not covered" >AsyncStorage.getItem(key)</span>
+    : SecureStore.getItemAsync(key);
+}
+&nbsp;
+async function setItem(key: string, value: string): Promise&lt;void&gt; {
+  return Platform.OS === 'web'
+    ? <span class="branch-0 cbranch-no" title="branch not covered" >AsyncStorage.setItem(key, value)</span>
+    : SecureStore.setItemAsync(key, value);
+}
+&nbsp;
+async function deleteItem(key: string): Promise&lt;void&gt; {
+  return Platform.OS === 'web'
+    ? <span class="branch-0 cbranch-no" title="branch not covered" >AsyncStorage.removeItem(key)</span>
+    : SecureStore.deleteItemAsync(key);
+}
+&nbsp;
 export const tokenStorage = {
   async saveToken(token: string): Promise&lt;void&gt; {
-    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
+    await setItem(ACCESS_TOKEN_KEY, token);
   },
 &nbsp;
   async getToken(): Promise&lt;string | null&gt; {
-    return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+    return getItem(ACCESS_TOKEN_KEY);
   },
 &nbsp;
   async removeToken(): Promise&lt;void&gt; {
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    await deleteItem(ACCESS_TOKEN_KEY);
   },
 &nbsp;
   async saveUserInfo(userId: string, role: string, username: string): Promise&lt;void&gt; {
-    await SecureStore.setItemAsync(USER_ID_KEY, userId);
-    await SecureStore.setItemAsync(USER_ROLE_KEY, role);
-    await SecureStore.setItemAsync(USERNAME_KEY, username);
+    await setItem(USER_ID_KEY, userId);
+    await setItem(USER_ROLE_KEY, role);
+    await setItem(USERNAME_KEY, username);
   },
 &nbsp;
   async getUserId(): Promise&lt;string | null&gt; {
-    return SecureStore.getItemAsync(USER_ID_KEY);
+    return getItem(USER_ID_KEY);
   },
 &nbsp;
   async getUserRole(): Promise&lt;string | null&gt; {
-    return SecureStore.getItemAsync(USER_ROLE_KEY);
+    return getItem(USER_ROLE_KEY);
   },
 &nbsp;
 <span class="fstat-no" title="function not covered" >  as</span>ync getUsername(): Promise&lt;string | null&gt; {
-<span class="cstat-no" title="statement not covered" >    return SecureStore.getItemAsync(USERNAME_KEY);</span>
+<span class="cstat-no" title="statement not covered" >    return getItem(USERNAME_KEY);</span>
   },
 &nbsp;
   async clearAll(): Promise&lt;void&gt; {
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(USER_ID_KEY);
-    await SecureStore.deleteItemAsync(USER_ROLE_KEY);
-    await SecureStore.deleteItemAsync(USERNAME_KEY);
+    await deleteItem(ACCESS_TOKEN_KEY);
+    await deleteItem(USER_ID_KEY);
+    await deleteItem(USER_ROLE_KEY);
+    await deleteItem(USERNAME_KEY);
   },
 };
 &nbsp;</pre></td></tr></table></pre>
@@ -205,7 +271,7 @@ export const tokenStorage = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-27T12:55:57.284Z
+                at 2026-09-08T12:23:12.130Z
             </div>
         <script src="../../prettify.js"></script>
         <script>
