@@ -85,12 +85,12 @@ function makeUploadResponse(overrides: Record<string, unknown> = {}) {
   return {
     data: {
       id: 'result-uuid',
-      result_id: 'result-uuid',
-      specimen_id: 'specimen-uuid',
-      image_id: 'image-uuid',
+      resultId: 'result-uuid',
+      specimenId: 'specimen-uuid',
+      imageId: 'image-uuid',
       status: 'PENDING_CONFIRM',
-      ai_findings: null,
-      flagged_anomalies: null,
+      aiFindings: null,
+      flaggedAnomalies: null,
       ...overrides,
     },
   };
@@ -168,9 +168,9 @@ describe('useImageRetake', () => {
       );
     });
 
-    it('surfaces ai_findings in success state when server returns them', async () => {
+    it('surfaces aiFindings in success state when server returns them', async () => {
       (apiClient.post as jest.Mock).mockResolvedValue(
-        makeUploadResponse({ ai_findings: { RBC: 3, WBC: 1 } }),
+        makeUploadResponse({ aiFindings: { RBC: 3, WBC: 1 } }),
       );
       const { result } = renderHook(() => useImageRetake());
 

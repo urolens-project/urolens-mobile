@@ -22,8 +22,8 @@ export function useRejectSpecimen(specimenId: string) {
           throw new Error('Specimen has not been synced to the server yet.');
         }
 
-        const payload: Record<string, string> = { reason_code: reason };
-        if (note?.trim()) payload.free_text_note = note.trim();
+        const payload: Record<string, string> = { reasonCode: reason };
+        if (note?.trim()) payload.freeTextNote = note.trim();
 
         if (isOnline) {
           await apiClient.post(`/specimens/${specimen.serverId}/reject`, payload);

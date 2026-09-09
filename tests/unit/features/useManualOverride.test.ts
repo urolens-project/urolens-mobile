@@ -65,10 +65,10 @@ describe('useManualOverride', () => {
       expect(apiClient.post).toHaveBeenCalledWith(
         '/results/result-123/override',
         {
-          parameter_name:    'wbc',
-          original_ai_value: '12',
-          corrected_value:   '8',
-          rationale:         payload.rationale,
+          parameter:       'wbc',
+          originalAiValue: 12,
+          correctedValue:  8,
+          rationale:       payload.rationale,
         },
       );
     });
