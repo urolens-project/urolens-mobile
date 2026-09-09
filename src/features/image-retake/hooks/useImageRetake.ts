@@ -104,13 +104,13 @@ export function useImageRetake(): UseImageRetakeReturn {
           },
         });
 
-        const { id, status, ai_findings } = response.data;
+        const { id, status, aiFindings } = response.data;
 
         setState({
           phase: 'success',
           resultId: id,
           status,
-          aiFindings: ai_findings ?? null,
+          aiFindings: aiFindings ?? null,
         });
       } catch (err: unknown) {
         if (_isAbortError(err)) return; // unmounted — silently stop

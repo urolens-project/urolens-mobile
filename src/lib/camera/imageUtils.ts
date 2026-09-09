@@ -87,7 +87,7 @@ export function buildUploadFormData(
   specimenId: string,
 ): FormData {
   const form = new FormData();
-  form.append('specimen_id', specimenId);
+  form.append('specimenId', specimenId);
   // React Native's FormData accepts an object literal for file parts
   form.append('file', {
     uri: image.uri,

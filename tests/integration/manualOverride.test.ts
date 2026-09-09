@@ -84,7 +84,7 @@ describe('Manual Override — integration (TASK-MOB-10-8)', () => {
   };
 
   describe('online path', () => {
-    it('calls POST /results/{id}/override with correct snake_case payload', async () => {
+    it('calls POST /results/{id}/override with correct camelCase payload', async () => {
       const { result } = renderHook(() => useManualOverride());
       await act(async () => {
         await result.current.submitOverride(resultId, wbcPayload);
@@ -93,10 +93,10 @@ describe('Manual Override — integration (TASK-MOB-10-8)', () => {
       expect(apiClient.post).toHaveBeenCalledWith(
         `/results/${resultId}/override`,
         {
-          parameter_name:    'wbc',
-          original_ai_value: '18',
-          corrected_value:   '10',
-          rationale:         wbcPayload.rationale,
+          parameter:       'wbc',
+          originalAiValue: 18,
+          correctedValue:  10,
+          rationale:       wbcPayload.rationale,
         },
       );
     });
