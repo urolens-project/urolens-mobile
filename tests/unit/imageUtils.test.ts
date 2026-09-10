@@ -127,10 +127,10 @@ describe('buildUploadFormData', () => {
     expect(form).toBeInstanceOf(FormData);
   });
 
-  it('appends specimen_id with the correct value', () => {
+  it('appends specimenId with the correct value', () => {
     const appendSpy = jest.spyOn(FormData.prototype, 'append');
     buildUploadFormData(mockProcessedImage, 'specimen-abc');
-    expect(appendSpy).toHaveBeenCalledWith('specimen_id', 'specimen-abc');
+    expect(appendSpy).toHaveBeenCalledWith('specimenId', 'specimen-abc');
     appendSpy.mockRestore();
   });
 
