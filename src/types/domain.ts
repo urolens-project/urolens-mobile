@@ -8,10 +8,10 @@ export interface AuthUser {
 }
 
 export interface TokenResponse {
-  access_token: string;
-  token_type: string;
+  accessToken: string;
+  tokenType: string;
   role: string;
-  user_id: string;
+  userId: string;
 }
 
 export interface QueueItem {

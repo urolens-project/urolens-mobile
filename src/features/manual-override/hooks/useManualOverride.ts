@@ -32,10 +32,10 @@ export function useManualOverride(): UseManualOverrideReturn {
       if (isOnline) {
         // Online path — direct API call
         await apiClient.post<OverrideResponse>(`/results/${resultId}/override`, {
-          parameter_name:    payload.parameter,
-          original_ai_value: String(payload.originalAiValue),
-          corrected_value:   String(payload.correctedValue),
-          rationale:         payload.rationale,
+          parameter:      payload.parameter,
+          originalAiValue: payload.originalAiValue,
+          correctedValue:  payload.correctedValue,
+          rationale:       payload.rationale,
         });
         // Server will persist original_ai_value — local record marks synced
         await _writeLocalOverride(resultId, payload, true);
