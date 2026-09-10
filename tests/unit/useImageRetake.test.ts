@@ -1,39 +1,34 @@
 /**
  * Unit tests for useImageRetake hook (T2.7)
  *
+ * The hook splits capture/pick from upload into two steps so the UI can show
+ * a preview the MedTech can retake before committing to the upload:
+ *   pickFromGallery() / captureFromCamera() → previewing → confirmUpload()
+ *
  * Covers:
  *  - Initial state (idle)
- *  - Gallery upload: selecting → processing → uploading → success
- *  - Gallery cancelled: selecting → idle
- *  - Camera path returns to idle (capture is driven by the component)
- *  - Camera permission denied → error
- *  - Gallery permission denied → error
- *  - Resolution validation failure → error
- *  - API error → error (Axios error envelope parsed)
- *  - discard: calls POST /images/{id}/discard and resets to idle
- *  - discard API error → error
+ *  - Gallery pick: happy path → previewing, cancelled → idle, permission denied → error
+ *  - Gallery pick validation failures (resolution / format) → error
+ *  - Camera capture: happy path → previewing, no picture → idle, processing failure → error
+ *  - confirmUpload: happy path calls uploadImageViaXhr with progress reporting
+ *  - confirmUpload API error → error (Axios-style error envelope parsed)
+ *  - confirmUpload with no captured image → throws
+ *  - discardImage: calls POST /images/{id}/discard and resets to idle
+ *  - discardImage API error → error
  *  - reset() returns to idle from any state
  */
 
 // ─── Mocks (hoisted before imports) ─────────────────────────────────────────
 
-jest.mock('expo-camera', () => ({
-  Camera: {
-    requestCameraPermissionsAsync: jest.fn(),
-  },
-  CameraType: { back: 'back' },
-}));
-
 jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
-  MediaTypeOptions: { Images: 'Images' },
 }));
 
 jest.mock('@lib/camera/imageUtils', () => ({
   processCapture: jest.fn(),
   processPickerAsset: jest.fn(),
-  buildUploadFormData: jest.fn().mockReturnValue(new FormData()),
+  buildUploadFormData: jest.fn(),
   ImageResolutionError: class ImageResolutionError extends Error {
     constructor(w: number, h: number) {
       super(`Image resolution ${w}×${h} is below the minimum 640×480.`);
@@ -48,6 +43,10 @@ jest.mock('@lib/camera/imageUtils', () => ({
   },
 }));
 
+jest.mock('@lib/camera/uploadImage', () => ({
+  uploadImageViaXhr: jest.fn(),
+}));
+
 jest.mock('@lib/apiClient', () => ({
   __esModule: true,
   default: { post: jest.fn() },
@@ -59,8 +58,8 @@ import { renderHook, act } from '@testing-library/react-native';
 import { useImageRetake } from '../../src/features/image-retake/hooks/useImageRetake';
 import apiClient from '../../src/lib/apiClient';
 import * as imageUtils from '../../src/lib/camera/imageUtils';
+import { uploadImageViaXhr } from '../../src/lib/camera/uploadImage';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera } from 'expo-camera';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -109,8 +108,9 @@ beforeEach(() => {
     assets: [mockGalleryAsset],
   });
   (imageUtils.processPickerAsset as jest.Mock).mockResolvedValue(mockProcessedImage);
-  (imageUtils.buildUploadFormData as jest.Mock).mockReturnValue(new FormData());
-  (apiClient.post as jest.Mock).mockResolvedValue(makeUploadResponse());
+  (imageUtils.processCapture as jest.Mock).mockResolvedValue(mockProcessedImage);
+  (imageUtils.buildUploadFormData as jest.Mock).mockResolvedValue(new FormData());
+  (uploadImageViaXhr as jest.Mock).mockResolvedValue(makeUploadResponse());
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -128,63 +128,18 @@ describe('useImageRetake', () => {
     });
   });
 
-  describe('gallery upload — happy path', () => {
-    it('ends in success phase with PENDING_CONFIRM status', async () => {
+  describe('pickFromGallery()', () => {
+    it('ends in previewing phase and stores the processed image', async () => {
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.pickFromGallery();
       });
 
-      expect(result.current.state.phase).toBe('success');
-      if (result.current.state.phase === 'success') {
-        expect(result.current.state.status).toBe('PENDING_CONFIRM');
-        expect(result.current.state.resultId).toBe('result-uuid');
-      }
-    });
-
-    it('stores the processed image in capturedImage', async () => {
-      const { result } = renderHook(() => useImageRetake());
-
-      await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
-      });
-
+      expect(result.current.state.phase).toBe('previewing');
       expect(result.current.capturedImage).toEqual(mockProcessedImage);
     });
 
-    it('calls apiClient.post with the upload endpoint and clears Content-Type', async () => {
-      const { result } = renderHook(() => useImageRetake());
-
-      await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
-      });
-
-      // Content-Type must be undefined so React Native XHR sets the boundary
-      expect(apiClient.post).toHaveBeenCalledWith(
-        '/images/upload',
-        expect.anything(),
-        expect.objectContaining({ headers: { 'Content-Type': undefined } }),
-      );
-    });
-
-    it('surfaces aiFindings in success state when server returns them', async () => {
-      (apiClient.post as jest.Mock).mockResolvedValue(
-        makeUploadResponse({ aiFindings: { RBC: 3, WBC: 1 } }),
-      );
-      const { result } = renderHook(() => useImageRetake());
-
-      await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
-      });
-
-      if (result.current.state.phase === 'success') {
-        expect(result.current.state.aiFindings).toEqual({ RBC: 3, WBC: 1 });
-      }
-    });
-  });
-
-  describe('gallery — cancelled', () => {
     it('returns to idle when the user cancels the picker', async () => {
       (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({
         canceled: true,
@@ -193,46 +148,13 @@ describe('useImageRetake', () => {
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.pickFromGallery();
       });
 
       expect(result.current.state.phase).toBe('idle');
-      expect(apiClient.post).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('camera path', () => {
-    it('returns to idle after permission granted (capture driven by component)', async () => {
-      (Camera.requestCameraPermissionsAsync as jest.Mock).mockResolvedValue({
-        status: 'granted',
-      });
-      const { result } = renderHook(() => useImageRetake());
-
-      await act(async () => {
-        await result.current.selectAndUpload('camera', 'specimen-uuid');
-      });
-
-      expect(result.current.state.phase).toBe('idle');
+      expect(imageUtils.processPickerAsset).not.toHaveBeenCalled();
     });
 
-    it('transitions to error phase when camera permission is denied', async () => {
-      (Camera.requestCameraPermissionsAsync as jest.Mock).mockResolvedValue({
-        status: 'denied',
-      });
-      const { result } = renderHook(() => useImageRetake());
-
-      await act(async () => {
-        await result.current.selectAndUpload('camera', 'specimen-uuid');
-      });
-
-      expect(result.current.state.phase).toBe('error');
-      if (result.current.state.phase === 'error') {
-        expect(result.current.state.message).toContain('Camera permission');
-      }
-    });
-  });
-
-  describe('permission errors', () => {
     it('transitions to error when gallery permission is denied', async () => {
       (ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock).mockResolvedValue({
         status: 'denied',
@@ -240,7 +162,7 @@ describe('useImageRetake', () => {
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.pickFromGallery();
       });
 
       expect(result.current.state.phase).toBe('error');
@@ -248,20 +170,21 @@ describe('useImageRetake', () => {
         expect(result.current.state.message).toContain('Photo library permission');
       }
     });
-  });
 
-  describe('validation errors', () => {
     it('transitions to error when image resolution is too low', async () => {
       const { ImageResolutionError } = jest.requireActual(
         '../../src/lib/camera/imageUtils',
       ) as typeof imageUtils;
       (imageUtils.processPickerAsset as jest.Mock).mockRejectedValue(
         new ImageResolutionError(320, 240),
+    it('surfaces aiFindings in success state when server returns them', async () => {
+      (apiClient.post as jest.Mock).mockResolvedValue(
+        makeUploadResponse({ aiFindings: { RBC: 3, WBC: 1 } }),
       );
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.pickFromGallery();
       });
 
       expect(result.current.state.phase).toBe('error');
@@ -280,7 +203,7 @@ describe('useImageRetake', () => {
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.pickFromGallery();
       });
 
       expect(result.current.state.phase).toBe('error');
@@ -290,13 +213,116 @@ describe('useImageRetake', () => {
     });
   });
 
-  describe('API errors', () => {
-    it('transitions to error when upload fails', async () => {
-      (apiClient.post as jest.Mock).mockRejectedValue(new Error('network timeout'));
+  describe('captureFromCamera()', () => {
+    it('ends in previewing phase and stores the processed image', async () => {
+      const takePicture = jest.fn().mockResolvedValue({ uri: 'file://photo.jpg' });
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.captureFromCamera(takePicture);
+      });
+
+      expect(result.current.state.phase).toBe('previewing');
+      expect(result.current.capturedImage).toEqual(mockProcessedImage);
+    });
+
+    it('returns to idle when no picture is returned', async () => {
+      const takePicture = jest.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() => useImageRetake());
+
+      await act(async () => {
+        await result.current.captureFromCamera(takePicture);
+      });
+
+      expect(result.current.state.phase).toBe('idle');
+      expect(imageUtils.processCapture).not.toHaveBeenCalled();
+    });
+
+    it('transitions to error when processing the capture fails', async () => {
+      const { ImageResolutionError } = jest.requireActual(
+        '../../src/lib/camera/imageUtils',
+      ) as typeof imageUtils;
+      (imageUtils.processCapture as jest.Mock).mockRejectedValue(
+        new ImageResolutionError(320, 240),
+      );
+      const takePicture = jest.fn().mockResolvedValue({ uri: 'file://photo.jpg' });
+      const { result } = renderHook(() => useImageRetake());
+
+      await act(async () => {
+        await result.current.captureFromCamera(takePicture);
+      });
+
+      expect(result.current.state.phase).toBe('error');
+    });
+  });
+
+  describe('confirmUpload()', () => {
+    it('throws when no image has been captured yet', async () => {
+      const { result } = renderHook(() => useImageRetake());
+
+      await act(async () => {
+        await expect(result.current.confirmUpload('specimen-uuid')).rejects.toThrow(
+          'No image has been captured yet.',
+        );
+      });
+    });
+
+    it('builds the form and uploads via uploadImageViaXhr, reporting progress', async () => {
+      const { result } = renderHook(() => useImageRetake());
+
+      await act(async () => {
+        await result.current.pickFromGallery();
+      });
+
+      let response;
+      await act(async () => {
+        response = await result.current.confirmUpload('specimen-uuid');
+      });
+
+      expect(imageUtils.buildUploadFormData).toHaveBeenCalledWith(
+        mockProcessedImage,
+        'specimen-uuid',
+      );
+      expect(uploadImageViaXhr).toHaveBeenCalledWith(
+        expect.any(FormData),
+        expect.any(AbortSignal),
+        expect.any(Function),
+      );
+      expect(response).toEqual(makeUploadResponse());
+    });
+
+    it('surfaces ai_findings from the server response', async () => {
+      (uploadImageViaXhr as jest.Mock).mockResolvedValue(
+        makeUploadResponse({ ai_findings: { RBC: 3, WBC: 1 } }),
+      );
+      const { result } = renderHook(() => useImageRetake());
+
+      await act(async () => {
+        await result.current.pickFromGallery();
+      });
+
+      let response;
+      await act(async () => {
+        response = await result.current.confirmUpload('specimen-uuid');
+      });
+
+      expect(response).toEqual(
+        expect.objectContaining({ ai_findings: { RBC: 3, WBC: 1 } }),
+      );
+    });
+
+    it('transitions to error when the upload fails', async () => {
+      (uploadImageViaXhr as jest.Mock).mockRejectedValue(new Error('network timeout'));
+      const { result } = renderHook(() => useImageRetake());
+
+      await act(async () => {
+        await result.current.pickFromGallery();
+      });
+
+      await act(async () => {
+        await expect(result.current.confirmUpload('specimen-uuid')).rejects.toThrow(
+          'network timeout',
+        );
       });
 
       expect(result.current.state.phase).toBe('error');
@@ -309,11 +335,15 @@ describe('useImageRetake', () => {
       const axiosError = Object.assign(new Error('Request failed'), {
         response: { data: { error: { message: 'Unsupported image format. Accepted: JPEG, PNG.' } } },
       });
-      (apiClient.post as jest.Mock).mockRejectedValue(axiosError);
+      (uploadImageViaXhr as jest.Mock).mockRejectedValue(axiosError);
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.pickFromGallery();
+      });
+
+      await act(async () => {
+        await expect(result.current.confirmUpload('specimen-uuid')).rejects.toThrow();
       });
 
       if (result.current.state.phase === 'error') {
@@ -339,6 +369,9 @@ describe('useImageRetake', () => {
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
+        await result.current.pickFromGallery();
+      });
+      await act(async () => {
         await result.current.discardImage('image-abc');
       });
 
@@ -351,7 +384,9 @@ describe('useImageRetake', () => {
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.discardImage('image-abc');
+        await expect(result.current.discardImage('image-abc')).rejects.toThrow(
+          'server error',
+        );
       });
 
       expect(result.current.state.phase).toBe('error');
@@ -359,13 +394,13 @@ describe('useImageRetake', () => {
   });
 
   describe('reset()', () => {
-    it('returns to idle from success state', async () => {
+    it('returns to idle from previewing state', async () => {
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.pickFromGallery();
       });
-      expect(result.current.state.phase).toBe('success');
+      expect(result.current.state.phase).toBe('previewing');
 
       act(() => {
         result.current.reset();
@@ -376,11 +411,13 @@ describe('useImageRetake', () => {
     });
 
     it('returns to idle from error state', async () => {
-      (apiClient.post as jest.Mock).mockRejectedValue(new Error('fail'));
+      (ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock).mockResolvedValue({
+        status: 'denied',
+      });
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await result.current.selectAndUpload('gallery', 'specimen-uuid');
+        await result.current.pickFromGallery();
       });
       expect(result.current.state.phase).toBe('error');
 
