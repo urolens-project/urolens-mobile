@@ -3,17 +3,18 @@ import '@abraham/reflection';
 
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '@db/database';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
-import { ErrorBoundary } from '@components/ErrorBoundary';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
-if (__DEV__) {
+if (__DEV__ && Platform.OS !== 'web') {
   const { DevSettings } = require('react-native');
   DevSettings.addMenuItem('Reset Auth → Login', async () => {
     const { tokenStorage: ts } = require('@lib/auth/tokenStorage');
@@ -26,14 +27,6 @@ if (__DEV__) {
 }
 
 export default function RootLayout() {
-  return (
-    <ErrorBoundary>
-      <RootLayoutInner />
-    </ErrorBoundary>
-  );
-}
-
-function RootLayoutInner() {
   const { isLoading, setAuthenticated, clearAuth } = useAuthStore();
   const [hasMounted, setHasMounted] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -41,6 +34,11 @@ function RootLayoutInner() {
   // 1. 💡 Force a pure, secondary effect frame to handle the mounting lifecycle safely
   useEffect(() => {
     setHasMounted(true);
+  }, []);
+
+  // TEMP — clear sync timestamp so next launch triggers a full sync + local DB reset
+  useEffect(() => {
+    AsyncStorage.removeItem('urolens_last_sync_at');
   }, []);
 
   // 2. Handle asynchronous authentication bootstrapping safely after mount
@@ -79,15 +77,12 @@ function RootLayoutInner() {
     };
   }, [hasMounted, setAuthenticated, clearAuth]);
 
-  // Render a clean fallback background while React finishes mounting and checking auth stores
-  if (!hasMounted || isLoading || !isReady) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#1E3A5F', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#FFFFFF" />
-      </GestureHandlerRootView>
-    );
-  }
+  const isBootstrapping = !hasMounted || isLoading || !isReady;
 
+  // Keep the navigator mounted at all times — expo-router resolves the initial
+  // deep link as soon as it mounts, and swapping it out for a fallback tree
+  // races that resolution against an unmount, producing "state update on a
+  // component that hasn't mounted yet". Overlay the loading state instead.
   return (
     <DatabaseProvider database={database}>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -96,7 +91,21 @@ function RootLayoutInner() {
           <Stack.Screen name="(medtech)" />
           <Stack.Screen name="index" />
         </Stack>
+        {isBootstrapping && (
+          <View style={styles.bootstrapOverlay}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+          </View>
+        )}
       </GestureHandlerRootView>
     </DatabaseProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  bootstrapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#1E3A5F',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

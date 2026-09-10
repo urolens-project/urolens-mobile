@@ -16,13 +16,9 @@ import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
 import { QueueItemCard } from '../../src/features/queue/components/QueueItemCard';
 import { QueueFilterBar } from '../../src/features/queue/components/QueueFilterBar';
-import { MOCK_QUEUE_ITEMS } from '../../src/mocks/queueMockData';
 import type { FilterOption, QueueItem } from '../../src/features/queue/types';
 
 const TEAL = '#2E7D7A';
-
-// ── Toggle this to false to use real backend data ────────────────────────────
-const USE_MOCK = false;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function formatDate(): string {
@@ -68,9 +64,9 @@ export default function QueueScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // allItems: always the full unfiltered queue — used for stats card
-  const allItems: QueueItem[] = USE_MOCK ? MOCK_QUEUE_ITEMS : dbAllItems;
+  const allItems: QueueItem[] = dbAllItems;
   // items: filtered list shown in the FlatList
-  const items: QueueItem[] = USE_MOCK ? MOCK_QUEUE_ITEMS : dbItems;
+  const items: QueueItem[] = dbItems;
 
   const counts = useMemo(() => ({
     assigned:   allItems.filter((i) => i.status === 'ASSIGNED').length,
@@ -116,12 +112,12 @@ export default function QueueScreen() {
             style={styles.iconBtn}
             accessibilityLabel="Sync"
             onPress={refresh}
-            disabled={!USE_MOCK && (!isOnline || isRefreshing)}
+            disabled={!isOnline || isRefreshing}
           >
             <Ionicons
               name="sync-outline"
               size={20}
-              color={!USE_MOCK && (!isOnline || isRefreshing) ? '#D1D5DB' : '#374151'}
+              color={!isOnline || isRefreshing ? '#D1D5DB' : '#374151'}
             />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Notifications">
@@ -146,10 +142,10 @@ export default function QueueScreen() {
         )}
         refreshControl={
           <RefreshControl
-            refreshing={!USE_MOCK && isRefreshing}
+            refreshing={isRefreshing}
             onRefresh={refresh}
             tintColor={TEAL}
-            enabled={!USE_MOCK && isOnline}
+            enabled={isOnline}
           />
         }
         ListHeaderComponent={
@@ -216,7 +212,7 @@ export default function QueueScreen() {
           </View>
         }
         ListEmptyComponent={
-          isLoading && !USE_MOCK ? null : (
+          isLoading ? null : (
             <EmptyState isOnline={isOnline} filter={filter} />
           )
         }

@@ -1,2 +1,11 @@
+packages:
+  - '.'
 allowBuilds:
   unrs-resolver: true
+overrides:
+  '@react-navigation/native': 7.1.33
+nodeLinker: hoisted
+virtualStoreDir: C:\vs
+publicHoistPattern:
+  - '*react-native*'
+shamefullyHoist: true

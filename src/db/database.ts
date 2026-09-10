@@ -14,6 +14,8 @@ if (Platform.OS === 'web') {
   // Safe fallback to prevent Metro from crawling native SQLite files during Web/SSR passes
   const LokiJSAdapter = require('@nozbe/watermelondb/adapters/lokijs').default;
   adapter = new LokiJSAdapter({
+    schema,
+    migrations,
     useWebWorker: false,
     useIncrementalIndexedDB: true,
   });
