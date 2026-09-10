@@ -33,9 +33,7 @@ const emptyModulePath = path.resolve(__dirname, 'metro/empty-module.js');
 // 2. 💡 Route aliases through Metro's functional resolveRequest pipeline
 const defaultResolver = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (emptyModules.has(moduleName)) {
-    return { type: 'sourceFile', filePath: emptyModulePath };
-  }
+  if (emptyModules.has(moduleName)) { return { type: 'sourceFile', filePath: emptyModulePath }; }
 
   // Check if the current module import matches any of our alias keys
   for (const [alias, aliasPath] of Object.entries(aliasMap)) {

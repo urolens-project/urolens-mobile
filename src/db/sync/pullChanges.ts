@@ -10,14 +10,14 @@ interface ServerRecord {
 interface SyncChanges {
   changes: {
     specimens?:        { created: ServerRecord[]; updated: ServerRecord[] };
-    queue_assignments?: { created: ServerRecord[]; updated: ServerRecord[] };
-    analysis_results?:  { created: ServerRecord[]; updated: ServerRecord[] };
+    queueAssignments?: { created: ServerRecord[]; updated: ServerRecord[] };
+    analysisResults?:  { created: ServerRecord[]; updated: ServerRecord[] };
   };
   timestamp: string;
 }
 
 export async function pullChanges(lastSyncedAt: string | null): Promise<string> {
-  const params = lastSyncedAt ? `?last_synced_at=${encodeURIComponent(lastSyncedAt)}` : '';
+  const params = lastSyncedAt ? `?lastSyncedAt=${encodeURIComponent(lastSyncedAt)}` : '';
   const response = await apiClient.get<SyncChanges>(`/sync/pull${params}`);
   const { changes, timestamp } = response.data;
 
@@ -26,13 +26,13 @@ export async function pullChanges(lastSyncedAt: string | null): Promise<string> 
       await processCreates('specimens', changes.specimens.created);
       await processUpdates('specimens', changes.specimens.updated);
     }
-    if (changes.queue_assignments) {
-      await processCreates('queue_assignments', changes.queue_assignments.created);
-      await processUpdates('queue_assignments', changes.queue_assignments.updated);
+    if (changes.queueAssignments) {
+      await processCreates('queue_assignments', changes.queueAssignments.created);
+      await processUpdates('queue_assignments', changes.queueAssignments.updated);
     }
-    if (changes.analysis_results) {
-      await processCreates('analysis_results', changes.analysis_results.created);
-      await processUpdates('analysis_results', changes.analysis_results.updated);
+    if (changes.analysisResults) {
+      await processCreates('analysis_results', changes.analysisResults.created);
+      await processUpdates('analysis_results', changes.analysisResults.updated);
     }
   });
 

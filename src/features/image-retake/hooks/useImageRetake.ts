@@ -66,10 +66,7 @@ export function useImageRetake(): UseImageRetakeReturn {
       setState({ phase: 'processing' });
       try {
         const picture = await takePicture();
-        if (!picture) {
-          setState({ phase: 'idle' });
-          return;
-        }
+        if (!picture) { setState({ phase: 'idle' }); return; }
         const processed = await processCapture(picture);
         setCapturedImage(processed);
         setState({ phase: 'previewing' });
@@ -84,9 +81,7 @@ export function useImageRetake(): UseImageRetakeReturn {
     setState({ phase: 'processing' });
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Photo library permission is required. Please enable it in Settings.');
-      }
+      if (status !== 'granted') { throw new Error('Photo library permission is required. Please enable it in Settings.'); }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -95,10 +90,7 @@ export function useImageRetake(): UseImageRetakeReturn {
         exif: false, // don't even load EXIF into memory
       });
 
-      if (result.canceled || !result.assets[0]) {
-        setState({ phase: 'idle' });
-        return;
-      }
+      if (result.canceled || !result.assets[0]) { setState({ phase: 'idle' }); return; }
 
       const processed = await processPickerAsset(result.assets[0]);
       setCapturedImage(processed);
@@ -112,9 +104,7 @@ export function useImageRetake(): UseImageRetakeReturn {
 
   const confirmUpload = useCallback(
     async (specimenId: string): Promise<UploadImageResponse> => {
-      if (!capturedImage) {
-        throw new Error('No image has been captured yet.');
-      }
+      if (!capturedImage) { throw new Error('No image has been captured yet.'); }
 
       setState({ phase: 'uploading', progress: 0 });
       abortRef.current = new AbortController();
@@ -126,9 +116,7 @@ export function useImageRetake(): UseImageRetakeReturn {
         });
         return data;
       } catch (err: unknown) {
-        if (!_isAbortError(err)) {
-          setState({ phase: 'error', message: _extractMessage(err) });
-        }
+        if (!_isAbortError(err)) { setState({ phase: 'error', message: _extractMessage(err) }); }
         throw err;
       }
     },
