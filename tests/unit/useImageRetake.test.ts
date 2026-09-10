@@ -177,9 +177,6 @@ describe('useImageRetake', () => {
       ) as typeof imageUtils;
       (imageUtils.processPickerAsset as jest.Mock).mockRejectedValue(
         new ImageResolutionError(320, 240),
-    it('surfaces aiFindings in success state when server returns them', async () => {
-      (apiClient.post as jest.Mock).mockResolvedValue(
-        makeUploadResponse({ aiFindings: { RBC: 3, WBC: 1 } }),
       );
       const { result } = renderHook(() => useImageRetake());
 
@@ -307,7 +304,9 @@ describe('useImageRetake', () => {
       });
 
       expect(response).toEqual(
-        expect.objectContaining({ ai_findings: { RBC: 3, WBC: 1 } }),
+        expect.objectContaining({
+          data: expect.objectContaining({ ai_findings: { RBC: 3, WBC: 1 } }),
+        }),
       );
     });
 
