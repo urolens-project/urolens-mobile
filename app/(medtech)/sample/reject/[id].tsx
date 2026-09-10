@@ -18,8 +18,8 @@ import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
 import { RejectionReason } from '@app-types/enums';
-import { useRejectSpecimen } from '../../../../src/features/specimen-rejection/hooks/useRejectSpecimen';
-import { RejectionReasonModal } from '../../../../src/features/specimen-rejection/components/RejectionReasonModal';
+import { useRejectSpecimen } from '@src/features/specimen-rejection/hooks/useRejectSpecimen';
+import { RejectionReasonModal } from '@src/features/specimen-rejection/components/RejectionReasonModal';
 
 export default function RejectSpecimenScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

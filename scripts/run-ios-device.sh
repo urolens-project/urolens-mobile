@@ -16,14 +16,16 @@ echo "▶ Running pod install..."
 
 # ── 2. xcodebuild ──────────────────────────────────────────────────────────────
 echo "▶ Building $SCHEME..."
+set -o pipefail
 xcodebuild \
   -workspace "$WORKSPACE" \
   -scheme "$SCHEME" \
   -configuration "$CONFIGURATION" \
   -destination "id=$DEVICE_UDID" \
+  -allowProvisioningUpdates \
   CODE_SIGN_STYLE=Automatic \
   DEVELOPMENT_TEAM=657674YRX5 \
-  | xcpretty --color 2>/dev/null || cat
+  | (command -v xcpretty >/dev/null && xcpretty --color || cat)
 
 # ── 3. Locate the built .app ───────────────────────────────────────────────────
 APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "${SCHEME}.app" \
