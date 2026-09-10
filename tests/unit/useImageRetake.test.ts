@@ -82,15 +82,16 @@ const mockGalleryAsset = {
 
 function makeUploadResponse(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'result-uuid',
-    result_id: 'result-uuid',
-    specimen_id: 'specimen-uuid',
-    image_id: 'image-uuid',
-    status: 'PENDING_CONFIRM',
-    ai_findings: null,
-    flagged_anomalies: null,
-    smart_diagnosis: null,
-    ...overrides,
+    data: {
+      id: 'result-uuid',
+      resultId: 'result-uuid',
+      specimenId: 'specimen-uuid',
+      imageId: 'image-uuid',
+      status: 'PENDING_CONFIRM',
+      aiFindings: null,
+      flaggedAnomalies: null,
+      ...overrides,
+    },
   };
 }
 
@@ -176,6 +177,9 @@ describe('useImageRetake', () => {
       ) as typeof imageUtils;
       (imageUtils.processPickerAsset as jest.Mock).mockRejectedValue(
         new ImageResolutionError(320, 240),
+    it('surfaces aiFindings in success state when server returns them', async () => {
+      (apiClient.post as jest.Mock).mockResolvedValue(
+        makeUploadResponse({ aiFindings: { RBC: 3, WBC: 1 } }),
       );
       const { result } = renderHook(() => useImageRetake());
 

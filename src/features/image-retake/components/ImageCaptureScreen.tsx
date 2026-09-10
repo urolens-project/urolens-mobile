@@ -156,8 +156,8 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
       await database.write(async () => {
         const collection = database.get<AnalysisResult>('analysis_results');
         const existing = await collection.query(Q.where('specimen_id', specimenId)).fetch();
-        const findings = JSON.stringify(ai_findings ?? {});
-        const diagnosisJson = smart_diagnosis ? JSON.stringify(smart_diagnosis) : null;
+        const findings = JSON.stringify(aiFindings ?? {});
+        const diagnosisJson = smartDiagnosis ? JSON.stringify(smartDiagnosis) : null;
 
         if (existing.length > 0) {
           // Backend reuses the same result_id on retake (UPDATE, not INSERT),

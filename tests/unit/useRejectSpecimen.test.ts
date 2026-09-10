@@ -106,12 +106,12 @@ describe('useRejectSpecimen', () => {
       });
 
       expect(apiClient.post).toHaveBeenCalledWith('/specimens/srv-1/reject', {
-        reason_code: 'INSUFFICIENT_VOLUME',
+        reasonCode: 'INSUFFICIENT_VOLUME',
       });
       expect(specimen.update).toHaveBeenCalledTimes(1);
     });
 
-    it('includes free_text_note in the API payload when note is provided', async () => {
+    it('includes freeTextNote in the API payload when note is provided', async () => {
       const specimen = makeSpecimen();
       setupDb(specimen);
       const { result } = renderHook(() => useRejectSpecimen('local-1'));
@@ -121,12 +121,12 @@ describe('useRejectSpecimen', () => {
       });
 
       expect(apiClient.post).toHaveBeenCalledWith('/specimens/srv-1/reject', {
-        reason_code: 'OTHER',
-        free_text_note: 'Cracked tube',
+        reasonCode: 'OTHER',
+        freeTextNote: 'Cracked tube',
       });
     });
 
-    it('omits free_text_note when note is blank whitespace', async () => {
+    it('omits freeTextNote when note is blank whitespace', async () => {
       const specimen = makeSpecimen();
       setupDb(specimen);
       const { result } = renderHook(() => useRejectSpecimen('local-1'));
@@ -136,7 +136,7 @@ describe('useRejectSpecimen', () => {
       });
 
       expect(apiClient.post).toHaveBeenCalledWith('/specimens/srv-1/reject', {
-        reason_code: 'UNLABELED',
+        reasonCode: 'UNLABELED',
       });
     });
 
@@ -188,8 +188,8 @@ describe('useRejectSpecimen', () => {
       expect(record.action).toBe('REJECT_SPECIMEN');
       expect(record.status).toBe('PENDING');
       expect(JSON.parse(record.payloadJson as string)).toEqual({
-        reason_code: 'WRONG_CONTAINER',
-        free_text_note: 'EDTA tube used',
+        reasonCode: 'WRONG_CONTAINER',
+        freeTextNote: 'EDTA tube used',
       });
       expect(typeof record.createdAt).toBe('number');
     });
