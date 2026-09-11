@@ -148,16 +148,16 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
         setUploadProgress(progress);
       });
 
-      // Backend: both `id` and `result_id` equal the analysis result UUID; `image_id` is the image UUID.
-      const { id: serverResultId, image_id: uploadedImageId, status, ai_findings, smart_diagnosis } = data;
+      // Backend: both `id` and `resultId` equal the analysis result UUID; `imageId` is the image UUID.
+      const { id: serverResultId, imageId: uploadedImageId, status, aiFindings, smartDiagnosis } = data;
 
       // Write result into WatermelonDB immediately so Sample Detail shows it
       // without waiting for the next background sync.
       await database.write(async () => {
         const collection = database.get<AnalysisResult>('analysis_results');
         const existing = await collection.query(Q.where('specimen_id', specimenId)).fetch();
-        const findings = JSON.stringify(ai_findings ?? {});
-        const diagnosisJson = smart_diagnosis ? JSON.stringify(smart_diagnosis) : null;
+        const findings = JSON.stringify(aiFindings ?? {});
+        const diagnosisJson = smartDiagnosis ? JSON.stringify(smartDiagnosis) : null;
 
         if (existing.length > 0) {
           // Backend reuses the same result_id on retake (UPDATE, not INSERT),

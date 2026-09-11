@@ -288,9 +288,9 @@ describe('useImageRetake', () => {
       expect(response).toEqual(makeUploadResponse());
     });
 
-    it('surfaces ai_findings from the server response', async () => {
+    it('surfaces aiFindings from the server response', async () => {
       (uploadImageViaXhr as jest.Mock).mockResolvedValue(
-        makeUploadResponse({ ai_findings: { RBC: 3, WBC: 1 } }),
+        makeUploadResponse({ aiFindings: { RBC: 3, WBC: 1 } }),
       );
       const { result } = renderHook(() => useImageRetake());
 
@@ -305,7 +305,7 @@ describe('useImageRetake', () => {
 
       expect(response).toEqual(
         expect.objectContaining({
-          data: expect.objectContaining({ ai_findings: { RBC: 3, WBC: 1 } }),
+          data: expect.objectContaining({ aiFindings: { RBC: 3, WBC: 1 } }),
         }),
       );
     });
