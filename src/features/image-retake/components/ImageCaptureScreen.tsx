@@ -57,7 +57,6 @@ interface Props {
 }
 
 export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageId }: Props) {
-
   // ── State ─────────────────────────────────────────────────────────────────
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<ScreenPhase>('idle');
@@ -97,10 +96,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'Photo library access is needed to upload images.',
-        );
+        Alert.alert('Permission Required', 'Photo library access is needed to upload images.');
         return;
       }
 
@@ -204,9 +200,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
     } catch (err: any) {
       // apiClient interceptor rejects with a plain ApiError { code, message },
       // not an Axios error, so read .message directly.
-      const msg =
-        err?.message ??
-        'Upload failed. Please check your connection and try again.';
+      const msg = err?.message ?? 'Upload failed. Please check your connection and try again.';
       Alert.alert('Upload Failed', msg);
       setValidationError(msg);
       setPhase('previewing');
@@ -296,11 +290,19 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
         {/* Action bar */}
         <View style={styles.previewActions}>
-          <TouchableOpacity style={[styles.previewBtn, styles.retakeBtn]} onPress={handleRetapTap} testID="retake-button">
+          <TouchableOpacity
+            style={[styles.previewBtn, styles.retakeBtn]}
+            onPress={handleRetapTap}
+            testID="retake-button"
+          >
             <Ionicons name="camera-reverse-outline" size={18} color="#D1D5DB" />
             <Text style={styles.retakeLabel}>Retake</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.previewBtn, styles.useBtn]} onPress={handleUseImage} testID="use-image-button">
+          <TouchableOpacity
+            style={[styles.previewBtn, styles.useBtn]}
+            onPress={handleUseImage}
+            testID="use-image-button"
+          >
             <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
             <Text style={styles.useLabel}>Use This Image</Text>
           </TouchableOpacity>
@@ -353,7 +355,9 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
           facing="back"
           ref={cameraRef}
           onMountError={() =>
-            setCameraError('The camera could not be started on this device. You can still upload an image from the gallery.')
+            setCameraError(
+              'The camera could not be started on this device. You can still upload an image from the gallery.',
+            )
           }
         />
 
@@ -389,7 +393,11 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
             <Text style={styles.galleryLabel}>Gallery</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.captureRing} onPress={handleCapture} testID="capture-button">
+          <TouchableOpacity
+            style={styles.captureRing}
+            onPress={handleCapture}
+            testID="capture-button"
+          >
             <View style={styles.captureButton} />
           </TouchableOpacity>
 
