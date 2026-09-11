@@ -14,13 +14,13 @@ import { ResultStatus } from '@db/models/AnalysisResult';
 
 export interface UploadImageResponse {
   id: string;
-  result_id: string;
-  specimen_id: string;
-  image_id: string | null;
+  resultId: string;
+  specimenId: string;
+  imageId: string | null;
   status: ResultStatus;
-  ai_findings: Record<string, number> | null;
-  flagged_anomalies: Record<string, unknown> | null;
-  smart_diagnosis: Record<string, unknown> | null;
+  aiFindings: Record<string, number> | null;
+  flaggedAnomalies: Record<string, unknown> | null;
+  smartDiagnosis: Record<string, unknown> | null;
 }
 
 export function uploadImageViaXhr(
