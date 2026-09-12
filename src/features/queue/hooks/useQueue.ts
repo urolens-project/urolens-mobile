@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
+import { observeQuery } from '@db/observeQuery';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
@@ -33,6 +34,17 @@ function specimenToQueueItem(s: Specimen, returnedServerIds: Set<string>): Queue
     syncedAt: s.syncedAt,
     isReturnedForCorrection: !!s.serverId && returnedServerIds.has(s.serverId),
   };
+}
+
+// `results.map(...)` builds a fresh array on every reactive emission, even
+// when the underlying set of returned-for-correction ids hasn't changed —
+// setting state to that new-but-equal array would re-trigger the two
+// effects below (and their DB re-subscribes) on every single tick.
+function sameIds(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((id, i) => id === sortedB[i]);
 }
 
 function todayRange(): { start: string; end: string } {
@@ -138,14 +150,13 @@ export function useQueue(): UseQueueResult {
   useEffect(() => {
     const clauses = buildQuery(filter, returnedServerIds);
     const returnedSet = new Set(returnedServerIds);
-    const subscription = database
-      .get<Specimen>('specimens')
-      .query(...clauses)
-      .observe()
-      .subscribe((specimens) => {
+    const subscription = observeQuery(
+      database.get<Specimen>('specimens').query(...clauses),
+      (specimens) => {
         setItems(specimens.map((s) => specimenToQueueItem(s, returnedSet)));
         setIsLoading(false);
-      });
+      },
+    );
 
     return () => subscription.unsubscribe();
   }, [filter, returnedServerIds]);
@@ -153,13 +164,12 @@ export function useQueue(): UseQueueResult {
   // Unfiltered totals — always the full active queue for stats card
   useEffect(() => {
     const returnedSet = new Set(returnedServerIds);
-    const subscription = database
-      .get<Specimen>('specimens')
-      .query(baseClause(returnedServerIds))
-      .observe()
-      .subscribe((specimens) => {
+    const subscription = observeQuery(
+      database.get<Specimen>('specimens').query(baseClause(returnedServerIds)),
+      (specimens) => {
         setAllItems(specimens.map((s) => specimenToQueueItem(s, returnedSet)));
-      });
+      },
+    );
 
     return () => subscription.unsubscribe();
   }, [returnedServerIds]);
@@ -167,13 +177,15 @@ export function useQueue(): UseQueueResult {
   // Tracks which specimens (by server_id) have a result returned for
   // correction (SRS UC 3.4) — feeds the two subscriptions above.
   useEffect(() => {
-    const subscription = database
-      .get<AnalysisResult>('analysis_results')
-      .query(Q.where('status', RETURNED_RESULT_STATUS))
-      .observe()
-      .subscribe((results) => {
-        setReturnedServerIds(results.map((r) => r.specimenId));
-      });
+    const subscription = observeQuery(
+      database
+        .get<AnalysisResult>('analysis_results')
+        .query(Q.where('status', RETURNED_RESULT_STATUS)),
+      (results) => {
+        const next = results.map((r) => r.specimenId);
+        setReturnedServerIds((prev) => (sameIds(prev, next) ? prev : next));
+      },
+    );
 
     return () => subscription.unsubscribe();
   }, []);
