@@ -112,7 +112,7 @@ export default function ReportsScreen() {
     );
   }
 
-  // ── Landing grid ────────────────────────────────────────────────────────
+  // ── Landing (category cards) ───────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -130,7 +130,7 @@ export default function ReportsScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.gridScroll}
+        contentContainerStyle={styles.categoryScroll}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -141,7 +141,7 @@ export default function ReportsScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.grid}>
+        <View style={styles.categoryList}>
           {sections.map((section) => (
             <ReportCategoryCard
               key={section.category}
@@ -203,16 +203,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Grid
-  gridScroll: {
+  // Category list (full-width stacked cards)
+  categoryScroll: {
     padding: 16,
     paddingBottom: 32,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 14,
+  categoryList: {
+    flexDirection: 'column',
+    gap: 12,
   },
   offlineNote: {
     flexDirection: 'row',
