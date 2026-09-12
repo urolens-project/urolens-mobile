@@ -21,6 +21,8 @@ jest.mock('@nozbe/watermelondb', () => ({
     lte: jest.fn((v: unknown) => ({ _type: 'lte', v })),
     sortBy: jest.fn((field: string, dir: string) => ({ _type: 'sortBy', field, dir })),
     or: jest.fn((...clauses: unknown[]) => ({ _type: 'or', clauses })),
+    and: jest.fn((...clauses: unknown[]) => ({ _type: 'and', clauses })),
+    notIn: jest.fn((vals: unknown[]) => ({ _type: 'notIn', vals })),
     asc: 'asc',
     desc: 'desc',
   },
@@ -591,6 +593,75 @@ describe('useQueue', () => {
       });
 
       expect(capturedQuery.mock.calls.length).toBe(callsAfterFirst);
+    });
+  });
+
+  // Regression: the backend only ever moves specimen.status to COMPLETED
+  // once a Supervisor approves/releases — it stays ASSIGNED for the entire
+  // window from MedTech confirmation through Supervisor review. A specimen
+  // the MedTech already confirmed (nothing left for them to do) must not
+  // keep showing in their Queue just because specimen.status still says
+  // ASSIGNED.
+  describe('finished-result exclusion (confirmed-but-not-yet-approved specimens)', () => {
+    it.each(['PENDING_SUPERVISOR_APPROVAL', 'APPROVED', 'RELEASED'])(
+      'ALL/default query excludes server_id via notIn once a result is %s',
+      (status) => {
+        renderHook(() => useQueue());
+
+        act(() => {
+          emitReturnedResults([{ specimenId: 'srv-9', status }]);
+        });
+
+        const calls = capturedQuery.mock.calls;
+        const filterClauses = calls[calls.length - 2] as unknown as Array<Record<string, unknown>>;
+        expect(filterClauses).toHaveLength(1);
+        expect(filterClauses[0]).toMatchObject({ _type: 'and' });
+        const andClauses = (filterClauses[0] as any).clauses;
+        expect(andClauses[1]).toMatchObject({ _type: 'where', field: 'server_id' });
+        expect(andClauses[1].value).toMatchObject({ _type: 'notIn', vals: ['srv-9'] });
+      },
+    );
+
+    it('the ASSIGNED status filter also excludes a finished specimen', () => {
+      const { result } = renderHook(() => useQueue());
+
+      act(() => {
+        emitReturnedResults([{ specimenId: 'srv-9', status: 'APPROVED' }]);
+      });
+
+      act(() => {
+        result.current.setFilter('ASSIGNED');
+      });
+
+      const clauses = lastFilterQueryClauses();
+      expect(clauses).toHaveLength(2);
+      expect(clauses[1]).toMatchObject({ _type: 'where', field: 'server_id' });
+      expect((clauses[1] as any).value).toMatchObject({ _type: 'notIn', vals: ['srv-9'] });
+    });
+
+    it('does not exclude anything before any result has been tracked', () => {
+      renderHook(() => useQueue());
+
+      // Fresh mount: the filter subscription is always the very first
+      // .query(...) call, before allItems and returned-tracking follow.
+      const clauses = capturedQuery.mock.calls[0] as unknown as Array<Record<string, unknown>>;
+      expect(clauses).toHaveLength(1);
+      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status' });
+    });
+
+    it('a specimen flagged both finished and returned-for-correction is not silently dropped (OR wins)', () => {
+      renderHook(() => useQueue());
+
+      // Not a realistic combination (a result can't be both statuses at
+      // once) — this only proves the OR-with-returned safety net still
+      // applies on top of the AND-with-finished exclusion.
+      act(() => {
+        emitReturnedResults([{ specimenId: 'srv-9', status: 'RETURNED_FOR_CORRECTION' }]);
+      });
+
+      const calls = capturedQuery.mock.calls;
+      const filterClauses = calls[calls.length - 2] as unknown as Array<Record<string, unknown>>;
+      expect(filterClauses[0]).toMatchObject({ _type: 'or' });
     });
   });
 

@@ -15,6 +15,12 @@ import type { QueueItem, FilterOption, PriorityLevel, SpecimenStatus } from '../
 // that's a property of its analysis_results row, not the specimen's status.
 const QUEUE_STATUSES: SpecimenStatus[] = ['ASSIGNED', 'PROCESSING'];
 const RETURNED_RESULT_STATUS = 'RETURNED_FOR_CORRECTION';
+// Backend only ever advances specimen.status to COMPLETED once a Supervisor
+// approves/releases — it stays ASSIGNED for the entire window from MedTech
+// confirmation through Supervisor review. Without this, a specimen the
+// MedTech already confirmed (nothing left for them to do) keeps showing in
+// their Queue until a Supervisor finally acts on it.
+const FINISHED_RESULT_STATUSES = ['PENDING_SUPERVISOR_APPROVAL', 'APPROVED', 'RELEASED'];
 const NO_RETURNED_SENTINEL = ['__none__'];
 
 function specimenToQueueItem(s: Specimen, returnedServerIds: Set<string>): QueueItem {
@@ -78,53 +84,72 @@ function todayRange(): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-// Samples in scope for "the Queue": ASSIGNED/PROCESSING by status, OR
-// returned-for-correction by server_id (their specimen status may be
-// anything — e.g. COMPLETED — since the correction flag lives on the result).
-function baseClause(returnedServerIds: string[]): Q.Clause {
-  if (returnedServerIds.length === 0) {
-    return Q.where('status', Q.oneOf(QUEUE_STATUSES));
-  }
-  return Q.or(
-    Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-    Q.where('server_id', Q.oneOf(returnedServerIds)),
-  );
+// Samples in scope for "the Queue": ASSIGNED/PROCESSING by status — minus
+// anything whose latest result means the MedTech has nothing left to do
+// (finishedServerIds) — OR returned-for-correction by server_id regardless
+// of specimen status (it may already be COMPLETED — the correction flag
+// lives on the result, not the specimen).
+function baseClause(returnedServerIds: string[], finishedServerIds: string[]): Q.Clause {
+  const statusClause =
+    finishedServerIds.length === 0
+      ? Q.where('status', Q.oneOf(QUEUE_STATUSES))
+      : Q.and(
+          Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+          Q.where('server_id', Q.notIn(finishedServerIds)),
+        );
+
+  if (returnedServerIds.length === 0) return statusClause;
+  return Q.or(statusClause, Q.where('server_id', Q.oneOf(returnedServerIds)));
 }
 
-function buildQuery(filter: FilterOption, returnedServerIds: string[]): Q.Clause[] {
+function buildQuery(
+  filter: FilterOption,
+  returnedServerIds: string[],
+  finishedServerIds: string[],
+): Q.Clause[] {
   switch (filter) {
     case 'DATE': {
       const { start, end } = todayRange();
       return [
-        baseClause(returnedServerIds),
+        baseClause(returnedServerIds, finishedServerIds),
         Q.where('received_at', Q.gte(start)),
         Q.where('received_at', Q.lte(end)),
         Q.sortBy('received_at', Q.desc),
       ];
     }
     case 'LATEST':
-      return [baseClause(returnedServerIds), Q.sortBy('received_at', Q.desc)];
+      return [baseClause(returnedServerIds, finishedServerIds), Q.sortBy('received_at', Q.desc)];
     case 'EARLIEST':
-      return [baseClause(returnedServerIds), Q.sortBy('received_at', Q.asc)];
+      return [baseClause(returnedServerIds, finishedServerIds), Q.sortBy('received_at', Q.asc)];
     case 'PRIORITY':
       return [
-        baseClause(returnedServerIds),
+        baseClause(returnedServerIds, finishedServerIds),
         Q.where('priority_level', Q.oneOf(['HIGH', 'NORMAL', 'LOW', 'ROUTINE'])),
       ];
     case 'HIGH':
-      return [baseClause(returnedServerIds), Q.where('priority_level', 'HIGH')];
+      return [baseClause(returnedServerIds, finishedServerIds), Q.where('priority_level', 'HIGH')];
     case 'NORMAL':
-      return [baseClause(returnedServerIds), Q.where('priority_level', 'NORMAL')];
+      return [
+        baseClause(returnedServerIds, finishedServerIds),
+        Q.where('priority_level', 'NORMAL'),
+      ];
     case 'LOW':
-      return [baseClause(returnedServerIds), Q.where('priority_level', 'LOW')];
+      return [baseClause(returnedServerIds, finishedServerIds), Q.where('priority_level', 'LOW')];
     case 'ROUTINE':
-      return [baseClause(returnedServerIds), Q.where('priority_level', 'ROUTINE')];
+      return [
+        baseClause(returnedServerIds, finishedServerIds),
+        Q.where('priority_level', 'ROUTINE'),
+      ];
     case 'STATUS':
-      return [baseClause(returnedServerIds)];
+      return [baseClause(returnedServerIds, finishedServerIds)];
     case 'ASSIGNED':
-      return [Q.where('status', 'ASSIGNED')];
+      return finishedServerIds.length === 0
+        ? [Q.where('status', 'ASSIGNED')]
+        : [Q.where('status', 'ASSIGNED'), Q.where('server_id', Q.notIn(finishedServerIds))];
     case 'PROCESSING':
-      return [Q.where('status', 'PROCESSING')];
+      return finishedServerIds.length === 0
+        ? [Q.where('status', 'PROCESSING')]
+        : [Q.where('status', 'PROCESSING'), Q.where('server_id', Q.notIn(finishedServerIds))];
     case 'RETURNED':
       return [
         Q.where(
@@ -134,7 +159,7 @@ function buildQuery(filter: FilterOption, returnedServerIds: string[]): Q.Clause
       ];
     case 'ALL':
     default:
-      return [baseClause(returnedServerIds)];
+      return [baseClause(returnedServerIds, finishedServerIds)];
   }
 }
 
@@ -157,6 +182,7 @@ export function useQueue(): UseQueueResult {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [returnedServerIds, setReturnedServerIds] = useState<string[]>([]);
+  const [finishedServerIds, setFinishedServerIds] = useState<string[]>([]);
   const { isOnline } = useNetworkStatus();
 
   const loadLastSyncAt = useCallback(async () => {
@@ -169,9 +195,9 @@ export function useQueue(): UseQueueResult {
   }, [loadLastSyncAt]);
 
   // Filtered list — changes with the active filter and with which specimens
-  // are currently flagged returned-for-correction.
+  // are currently flagged returned-for-correction or finished.
   useEffect(() => {
-    const clauses = buildQuery(filter, returnedServerIds);
+    const clauses = buildQuery(filter, returnedServerIds, finishedServerIds);
     const returnedSet = new Set(returnedServerIds);
     const subscription = observeQuery(
       database.get<Specimen>('specimens').query(...clauses),
@@ -182,37 +208,48 @@ export function useQueue(): UseQueueResult {
     );
 
     return () => subscription.unsubscribe();
-  }, [filter, returnedServerIds]);
+  }, [filter, returnedServerIds, finishedServerIds]);
 
   // Unfiltered totals — always the full active queue for stats card
   useEffect(() => {
     const returnedSet = new Set(returnedServerIds);
     const subscription = observeQuery(
-      database.get<Specimen>('specimens').query(baseClause(returnedServerIds)),
+      database.get<Specimen>('specimens').query(baseClause(returnedServerIds, finishedServerIds)),
       (specimens) => {
         setAllItems(dedupeQueueItems(specimens.map((s) => specimenToQueueItem(s, returnedSet))));
       },
     );
 
     return () => subscription.unsubscribe();
-  }, [returnedServerIds]);
+  }, [returnedServerIds, finishedServerIds]);
 
-  // Tracks which specimens (by server_id) have a result returned for
-  // correction (SRS UC 3.4) — feeds the two subscriptions above. Fetches
-  // every result (not pre-filtered by status) because a specimen can have
-  // more than one analysis_results row (e.g. a retake after being returned
-  // creates a new row) — only its LATEST result should count, or a
-  // superseded "returned" row keeps a since-Approved/Released specimen
-  // stuck in the Queue forever.
+  // Tracks each specimen's LATEST result (by server_id) — feeds the two
+  // subscriptions above with two derived sets:
+  //  - returnedServerIds: latest result is RETURNED_FOR_CORRECTION — stays
+  //    in the Queue (SRS UC 3.4) no matter what specimen.status says.
+  //  - finishedServerIds: latest result means the MedTech's part is done
+  //    (confirmed and awaiting/through Supervisor review) — excluded from
+  //    the Queue even though the backend leaves specimen.status at ASSIGNED
+  //    all the way through Supervisor approval; only COMPLETED/REJECTED
+  //    ever move it out, and COMPLETED only lands once approved/released.
+  // Fetches every result (not pre-filtered by status): although the backend
+  // enforces exactly one analysis_results row per specimen, a past sync bug
+  // could still leave more than one *locally* (dedupeByServerId cleans this
+  // up on sync, but this local computation is a second, immediate line of
+  // defense) — only the latest one should ever decide a specimen's state.
   useEffect(() => {
     const subscription = observeQuery(
       database.get<AnalysisResult>('analysis_results').query(),
       (results) => {
-        const latest = latestAnalysisResultsBySpecimen(results);
-        const next = Array.from(latest.values())
+        const latest = Array.from(latestAnalysisResultsBySpecimen(results).values());
+        const nextReturned = latest
           .filter((r) => r.status === RETURNED_RESULT_STATUS)
           .map((r) => r.specimenId);
-        setReturnedServerIds((prev) => (sameIds(prev, next) ? prev : next));
+        const nextFinished = latest
+          .filter((r) => FINISHED_RESULT_STATUSES.includes(r.status))
+          .map((r) => r.specimenId);
+        setReturnedServerIds((prev) => (sameIds(prev, nextReturned) ? prev : nextReturned));
+        setFinishedServerIds((prev) => (sameIds(prev, nextFinished) ? prev : nextFinished));
       },
     );
 

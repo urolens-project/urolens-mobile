@@ -10,16 +10,22 @@ function recencyOf(r: AnalysisResult): number {
 }
 
 /**
- * A specimen can accumulate more than one analysis_results row over its
- * lifecycle — an image retake after a Supervisor "returned for correction"
- * decision creates a new row rather than replacing the old one (see
- * sample/[id].tsx, which already has to pick `results[0]` out of an array
- * for the same reason). Any code that cares about a specimen's CURRENT
- * result state must only look at its most recent row: otherwise a stale
- * "Returned for Correction" or "Pending Supervisor Approval" row keeps
- * flagging a specimen that has since moved on to Approved or Released —
- * which is why samples showing "Released"/"Approved by Supervisor" could
- * still appear in the Queue, and why they didn't move to Reports.
+ * The backend enforces exactly one analysis_results row per specimen
+ * (specimen_id is unique) — a retake updates that row in place rather than
+ * creating a second one (image_retake_service.py says so explicitly: "The
+ * AnalysisResult row remains intact — it will be updated"). So in the
+ * *correct* steady state there's nothing to pick a "latest" from.
+ *
+ * This exists as a second line of defense against a *bug*, not a real
+ * multi-row lifecycle: a past sync issue could leave more than one local
+ * copy of that single server row sitting in WatermelonDB (dedupeByServerId
+ * cleans this up on every sync, but a gap between syncs — or a future,
+ * unforeseen duplication bug — could still let one slip through). If that
+ * ever happens, only the most recently-confirmed copy should count:
+ * otherwise a stale local "Returned for Correction" or "Pending Supervisor
+ * Approval" duplicate keeps flagging a specimen that has since moved on to
+ * Approved or Released — which is what actually caused samples showing
+ * "Released"/"Approved by Supervisor" to still appear in the Queue.
  *
  * Recency is judged by confirmedAt first (a real domain timestamp set when
  * the MedTech/Supervisor actually acted) and falls back to syncedAt, then

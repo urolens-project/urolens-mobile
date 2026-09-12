@@ -269,10 +269,11 @@ describe('useReports', () => {
   });
 
   // Regression: PAT-00004/00006 ("Approved by Supervisor") and
-  // PAT-000015/000016 ("Released") — a specimen can have more than one
-  // analysis_results row (e.g. a retake after being returned for
-  // correction creates a new row instead of replacing the old one). Only
-  // the LATEST result should decide the specimen's category.
+  // PAT-000015/000016 ("Released") — the backend enforces one
+  // analysis_results row per specimen (retakes update it in place), but a
+  // past local sync bug could leave a stale duplicate copy behind. Only the
+  // LATEST result should decide the specimen's category, or a superseded
+  // duplicate can keep it filed under an old state.
   describe('multiple analysis_results per specimen — only the latest counts', () => {
     it('files a specimen under Approved, not omitted or duplicated, when an older result was Returned for Correction', async () => {
       const { result } = renderHook(() => useReports());
