@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportCategory } from '../types';
 
@@ -10,6 +9,12 @@ interface Props {
   count: number;
   onPress: (category: ReportCategory) => void;
 }
+
+// Full-width "stat row" card: a huge count on the left, the category name
+// on the right. No icon, no color heading — the number's own color is the
+// only category cue left, so it has to carry the card.
+const CARD_HEIGHT = 96;
+const NUMBER_FONT_SIZE = Math.round(CARD_HEIGHT * 0.9);
 
 function ReportCategoryCardComponent({ category, title, count, onPress }: Props) {
   const style = REPORT_CATEGORY_STYLES[category];
@@ -23,24 +28,18 @@ function ReportCategoryCardComponent({ category, title, count, onPress }: Props)
       accessibilityRole="button"
       accessibilityLabel={`${title}, ${count} sample${count === 1 ? '' : 's'}`}
     >
-      {/* Top accent edge — the card's "identity" stripe */}
-      <View style={[styles.accent, { backgroundColor: style.color }]} />
-
-      <View style={styles.body}>
-        <View style={styles.topRow}>
-          <View style={[styles.iconBadge, { backgroundColor: style.tint }]}>
-            <Ionicons name={style.icon} size={18} color={style.color} />
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
-        </View>
-
+      <View style={styles.numberCol}>
         <Text
-          style={[styles.count, { color: isEmpty ? '#D1D5DB' : style.color }]}
-          accessibilityElementsHidden
+          style={[styles.number, { color: isEmpty ? '#D1D5DB' : style.color }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
         >
           {count}
         </Text>
-        <Text style={styles.title} numberOfLines={2}>
+      </View>
+      <View style={styles.textCol}>
+        <Text style={styles.title} numberOfLines={3}>
           {title}
         </Text>
       </View>
@@ -50,50 +49,46 @@ function ReportCategoryCardComponent({ category, title, count, onPress }: Props)
 
 const styles = StyleSheet.create({
   card: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    // Deeper "edge" than the flat list rows — these are dashboard tiles,
-    // meant to read as raised, tappable landing points.
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(17, 24, 39, 0.04)',
-  },
-  accent: {
-    height: 4,
     width: '100%',
-  },
-  body: {
-    padding: 14,
-    gap: 6,
-  },
-  topRow: {
+    height: CARD_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    gap: 14,
+    // Shadow/border stand in for the removed color heading — the card still
+    // needs to read as a raised, tappable tile against the screen background.
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(17, 24, 39, 0.06)',
   },
-  iconBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+  numberCol: {
+    height: '100%',
+    minWidth: CARD_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  count: {
-    fontSize: 28,
+  number: {
+    fontSize: NUMBER_FONT_SIZE,
+    lineHeight: NUMBER_FONT_SIZE,
     fontWeight: '800',
-    marginTop: 2,
+  },
+  textCol: {
+    flex: 1,
+    borderLeftWidth: 1,
+    borderLeftColor: '#F3F4F6',
+    paddingLeft: 14,
   },
   title: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    lineHeight: 16,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
+    lineHeight: 20,
   },
 });
 
