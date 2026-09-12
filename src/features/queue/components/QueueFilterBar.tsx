@@ -155,7 +155,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
               { key: 'ASSIGNED' as FilterOption, label: 'Assigned', color: TEAL, bg: '#E0F2F1' },
               {
                 key: 'PROCESSING' as FilterOption,
-                label: 'Processing',
+                label: 'In Progress',
                 color: '#7C3AED',
                 bg: '#EDE9FE',
               },
