@@ -18,23 +18,20 @@ interface BadgeConfig {
   text: string;
 }
 
-function getBadge(item: QueueItem): BadgeConfig {
+// Status-based, not priority-based: priorityLevel is hardcoded to ROUTINE
+// on the backend today (no code path there ever sets HIGH/NORMAL/LOW), so a
+// priority badge would show the same label on every card forever — worse
+// than uninformative, it implies a triage signal the system doesn't
+// actually compute. "Assigned" (the default, nothing notable) intentionally
+// gets no badge at all rather than a decorative one.
+function getBadge(item: QueueItem): BadgeConfig | null {
   if (item.isReturnedForCorrection) {
-    return { label: 'RETURNED FOR CORRECTION', bg: '#FFFBEB', text: '#92400E' };
-  }
-  if (item.priorityLevel === 'HIGH') {
-    return { label: 'STAT / HIGH PRIORITY', bg: '#FEE2E2', text: '#DC2626' };
-  }
-  if (item.priorityLevel === 'NORMAL') {
-    return { label: 'NORMAL', bg: '#DBEAFE', text: '#2563EB' };
-  }
-  if (item.priorityLevel === 'LOW') {
-    return { label: 'LOW', bg: '#F3F4F6', text: '#6B7280' };
+    return { label: 'RETURNED', bg: '#FFFBEB', text: '#92400E' };
   }
   if (item.status === 'PROCESSING') {
     return { label: 'IN PROGRESS', bg: '#EDE9FE', text: '#7C3AED' };
   }
-  return { label: 'ROUTINE', bg: '#D1FAE5', text: '#059669' };
+  return null;
 }
 
 function formatTime(iso: string): string {
@@ -82,9 +79,11 @@ function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
           <Text style={styles.patientUid} numberOfLines={1}>
             {item.patientUid}
           </Text>
-          <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-            <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
-          </View>
+          {badge && (
+            <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+              <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.row}>
