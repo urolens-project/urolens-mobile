@@ -85,6 +85,12 @@ export default function MedTechLayout() {
     <>
       <SessionTimeoutHandler />
       <Tabs
+        // Detail screens (sample/[id], capture, reject, override) are hidden
+        // tab routes reachable from more than one tab (Queue, Reports, Alerts).
+        // The default backBehavior resolves "back" to the initial tab (Queue)
+        // regardless of where the screen was actually opened from — "history"
+        // makes back return to whichever tab you really came from.
+        backBehavior="history"
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: TEAL,
