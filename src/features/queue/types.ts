@@ -1,6 +1,10 @@
-export type PriorityLevel = 'HIGH' | 'NORMAL' | 'LOW' | 'ROUTINE';
+// Re-exported from the canonical definition (matches the backend's native
+// Postgres enum exactly) rather than declared here — this file used to have
+// its own copy that had quietly drifted out of sync (missing RECEIVED/LABELED).
+import type { SpecimenStatus } from '@app-types/enums';
+export type { SpecimenStatus };
 
-export type SpecimenStatus = 'IN_QUEUE' | 'ASSIGNED' | 'PROCESSING' | 'COMPLETED' | 'REJECTED';
+export type PriorityLevel = 'HIGH' | 'NORMAL' | 'LOW' | 'ROUTINE';
 
 // Per SDD/SRS & Mobile Developer Guide (STORY-MOB-05):
 // Filter chips — All · High (priority) · Normal (priority) · Assigned (status) · Processing (status)

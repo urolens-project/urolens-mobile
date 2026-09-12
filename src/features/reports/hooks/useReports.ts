@@ -50,10 +50,12 @@ function buildItems(specimens: Specimen[], results: AnalysisResult[]): ReportIte
     });
   }
 
-  // A specimen can have more than one analysis_results row (e.g. a retake
-  // after being returned for correction creates a new row) — only its
-  // LATEST result determines which category (if any) it belongs in, or a
-  // superseded "Pending Approval" row could keep showing a specimen that
+  // The backend enforces one analysis_results row per specimen (retakes
+  // update it in place), but a past local sync bug could still leave a
+  // stale duplicate copy behind — latestAnalysisResultsBySpecimen is the
+  // defense against that. Only the latest result should ever determine
+  // which category (if any) a specimen belongs in, or a superseded
+  // duplicate "Pending Approval" copy could keep showing a specimen that
   // has since moved on to Approved or Released.
   const latestResults = latestAnalysisResultsBySpecimen(results);
   for (const r of latestResults.values()) {

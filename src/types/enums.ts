@@ -7,14 +7,20 @@ export enum UserRole {
   ADMINISTRATOR = 'ADMINISTRATOR',
 }
 
-export enum SpecimenStatus {
-  RECEIVED = 'RECEIVED',
-  LABELED = 'LABELED',
-  ASSIGNED = 'ASSIGNED',
-  IN_QUEUE = 'IN_QUEUE',
-  PROCESSING = 'PROCESSING',
-  REJECTED = 'REJECTED',
-}
+// The single source of truth for specimen status, matching the backend's
+// native Postgres enum exactly (specimen.py's _SPECIMEN_STATUS). A plain
+// string union, not an enum object: nothing in the app needs `.ASSIGNED`
+// member-access, only type-level comparisons against WatermelonDB's own
+// plain-string field values — features/queue/types.ts re-exports this
+// rather than declaring its own (formerly out-of-sync) copy.
+export type SpecimenStatus =
+  | 'RECEIVED'
+  | 'LABELED'
+  | 'ASSIGNED'
+  | 'IN_QUEUE'
+  | 'PROCESSING'
+  | 'REJECTED'
+  | 'COMPLETED';
 
 export enum ResultStatus {
   PENDING_CONFIRM = 'PENDING_CONFIRM',
@@ -36,12 +42,6 @@ export enum ProbabilityLevel {
   LOW = 'LOW',
   MODERATE = 'MODERATE',
   HIGH = 'HIGH',
-}
-
-export enum AssignmentStatus {
-  ACTIVE = 'ACTIVE',
-  RETURNED = 'RETURNED',
-  COMPLETED = 'COMPLETED',
 }
 
 export enum PendingSyncAction {

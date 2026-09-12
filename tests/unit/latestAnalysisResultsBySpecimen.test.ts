@@ -1,15 +1,15 @@
 /**
  * Unit tests for latestAnalysisResultsBySpecimen.
  *
- * Regression coverage for a real bug: a specimen can accumulate more than
- * one analysis_results row (an image retake after a Supervisor "returned
- * for correction" decision creates a new row instead of replacing the old
- * one). Code that only looked at "does ANY result for this specimen have
- * status X" kept treating specimens as stuck in an old state (e.g. Returned
- * for Correction, or Pending Supervisor Approval) even after a newer result
- * moved them on to Approved or Released — which is why those specimens
- * stayed visible in the Queue, and never showed up under the right
- * category in Reports.
+ * The backend enforces exactly one analysis_results row per specimen —
+ * retakes update it in place. This function is a defense against a *local
+ * sync bug* that could still leave a stale duplicate copy of that row
+ * sitting in WatermelonDB, not against a real multi-row lifecycle. Code
+ * that only looked at "does ANY result for this specimen have status X"
+ * kept treating specimens as stuck in an old state (e.g. Returned for
+ * Correction, or Pending Supervisor Approval) whenever such a duplicate
+ * existed — which is why those specimens stayed visible in the Queue, and
+ * never showed up under the right category in Reports.
  */
 
 import { latestAnalysisResultsBySpecimen } from '../../src/db/latestAnalysisResultsBySpecimen';

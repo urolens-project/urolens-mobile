@@ -1,16 +1,16 @@
 // Path: urolens-mobile/src/db/models/AnalysisResult.ts
 import { Model } from '@nozbe/watermelondb';
 import { field } from '@nozbe/watermelondb/decorators';
+import type { ResultStatus as ResultStatusEnum } from '@app-types/enums';
 
-export type ResultStatus =
-  | 'PENDING_CONFIRM'
-  | 'PENDING_SUPERVISOR_APPROVAL'
-  | 'APPROVED'
-  | 'RELEASED'
-  | 'RETURNED_FOR_CORRECTION'
-  | 'CRITICAL_ESCALATED'
-  | 'IMAGE_RETAKE_REQUESTED'
-  | 'FAILED';
+// Derived from the canonical enum (@app-types/enums), which matches the
+// backend's ResultStatus exactly (analysis_result.py's ResultStatus). This
+// used to declare two extra values here — IMAGE_RETAKE_REQUESTED and
+// FAILED — that were never read, written, or synced anywhere, and that the
+// backend enum doesn't have (writing either would be rejected by its
+// Postgres enum constraint). Removed rather than documented as
+// intentionally-local, since nothing ever used them either way.
+export type ResultStatus = `${ResultStatusEnum}`;
 
 export interface AIFindings {
   [particle: string]: number;
