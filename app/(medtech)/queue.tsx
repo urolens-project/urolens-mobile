@@ -148,8 +148,8 @@ export default function QueueScreen() {
             <Ionicons name="flask" size={16} color="#FFFFFF" />
           </View>
           <View>
-            <Text style={styles.appName}>LabFlow LIS</Text>
-            <Text style={styles.appSub}>UroLens Diagnostics</Text>
+            <Text style={styles.appName}>UroLens</Text>
+            <Text style={styles.appSub}>Laboratory Diagnostics</Text>
           </View>
         </View>
         <View style={styles.headerRight}>
