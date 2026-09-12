@@ -1,44 +1,16 @@
-import { RejectionReason, ProbabilityLevel, SpecimenStatus, ResultStatus } from './enums';
+import { ProbabilityLevel, ResultStatus } from './enums';
 
-export interface AuthUser {
-  user_id: string;
-  username: string;
-  role: string;
-  exp: number;
-}
+// Backend wire contract intentionally mixes casing: JSON envelope/wrapper
+// keys are camelCase, but per-row/nested payload fields mirror raw snake_case
+// DB columns (see urolens-backend's sync_service.py and smart_diagnosis_service.py).
+// The snake_case fields below are not a leftover to "fix" — they document
+// the real wire shape of AnalysisResultDTO/SmartDiagnosisDTO's nested data.
 
 export interface TokenResponse {
   accessToken: string;
   tokenType: string;
   role: string;
   userId: string;
-}
-
-export interface QueueItem {
-  specimen_id: string;
-  sample_uid: string;
-  patient_name: string;
-  time_received: string;
-  priority_level: string;
-  status: SpecimenStatus;
-}
-
-export interface SpecimenDetail extends QueueItem {
-  patient_uid: string;
-  test_type: string;
-  lab_request_id: string;
-  medtech_id: string;
-}
-
-export interface RejectionPayload {
-  specimen_id: string;
-  reason_code: RejectionReason;
-  free_text_note?: string;
-}
-
-export interface ImageUploadResponse {
-  image_id: string;
-  status: string;
 }
 
 export interface AnalysisResultDTO {
@@ -70,13 +42,6 @@ export interface EvidenceItem {
   detected_count: number;
   contribution_weight: number;
   contribution_role: 'primary' | 'supporting';
-}
-
-export interface OverridePayload {
-  result_id: string;
-  parameter_name: string;
-  corrected_value: string;
-  rationale: string;
 }
 
 export interface ApiError {

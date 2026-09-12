@@ -1,6 +1,7 @@
 import { database } from '../database';
 import apiClient from '@lib/apiClient';
 import { resolveConflict, applyResolution } from './conflictResolver';
+import { dedupeByServerId } from './dedupeByServerId';
 
 interface ServerRecord {
   id: string;
@@ -9,9 +10,9 @@ interface ServerRecord {
 
 interface SyncChanges {
   changes: {
-    specimens?:        { created: ServerRecord[]; updated: ServerRecord[] };
+    specimens?: { created: ServerRecord[]; updated: ServerRecord[] };
     queueAssignments?: { created: ServerRecord[]; updated: ServerRecord[] };
-    analysisResults?:  { created: ServerRecord[]; updated: ServerRecord[] };
+    analysisResults?: { created: ServerRecord[]; updated: ServerRecord[] };
   };
   timestamp: string;
 }
@@ -34,6 +35,13 @@ export async function pullChanges(lastSyncedAt: string | null): Promise<string> 
       await processCreates('analysis_results', changes.analysisResults.created);
       await processUpdates('analysis_results', changes.analysisResults.updated);
     }
+
+    // Defensive cleanup, every sync: collapses any duplicate local rows a
+    // past (or future, unforeseen) sync bug may have left behind. No-op
+    // once a table is clean.
+    await dedupeByServerId('specimens');
+    await dedupeByServerId('queue_assignments');
+    await dedupeByServerId('analysis_results');
   });
 
   return timestamp;
@@ -42,10 +50,37 @@ export async function pullChanges(lastSyncedAt: string | null): Promise<string> 
 async function processCreates(tableName: string, records: ServerRecord[]): Promise<void> {
   if (!records.length) return;
   const collection = database.get(tableName);
+
+  // The server sent these as newly "created", but a replayed/resent sync
+  // batch could resend a record the client already has locally. Blindly
+  // inserting in that case is what produced duplicate local rows (e.g. two
+  // specimen rows for the same server_id) — surfacing as repeated cards in
+  // the Queue and, once only one copy kept receiving updates, an occasional
+  // "Sample not found" on the stale one. Check first; update in place if a
+  // local copy with the same server_id already exists.
+  const existing = (await collection.query().fetch()) as unknown as Record<string, unknown>[];
+  const existingByServerId = new Map(
+    existing.filter((r) => r['serverId']).map((r) => [r['serverId'] as string, r]),
+  );
+
   for (const record of records) {
-    await collection.create((model) => {
-      Object.assign(model as unknown as Record<string, unknown>, mapServerToLocal(tableName, record));
+    const already = existingByServerId.get(record.id);
+    if (already) {
+      await (
+        already as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> }
+      ).update((r) => {
+        Object.assign(r, mapServerToLocal(tableName, record));
+      });
+      continue;
+    }
+
+    const created = await collection.create((model) => {
+      Object.assign(
+        model as unknown as Record<string, unknown>,
+        mapServerToLocal(tableName, record),
+      );
     });
+    existingByServerId.set(record.id, created as unknown as Record<string, unknown>);
   }
 }
 
@@ -54,7 +89,10 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
   const collection = database.get(tableName);
   for (const serverRecord of records) {
     try {
-      const allLocalRecords = await collection.query().fetch() as unknown as Record<string, unknown>[];
+      const allLocalRecords = (await collection.query().fetch()) as unknown as Record<
+        string,
+        unknown
+      >[];
       const localRecord = allLocalRecords.find((r) => r['serverId'] === serverRecord.id);
 
       // Record not in local DB yet — delta sync sent it as an update but it's new here
@@ -68,36 +106,42 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
         continue;
       }
 
-      await (localRecord as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> })
-        .update((r) => {
-          const mapped = mapServerToLocal(tableName, serverRecord);
-          for (const [key, serverVal] of Object.entries(mapped)) {
-            // Local bookkeeping, not server data — always overwrite, never a real conflict.
-            if (key === 'syncedAt' || key === 'serverId') {
-              r[key] = serverVal;
-              continue;
-            }
-            const clientVal = r[key];
-            if (serverVal !== clientVal) {
-              const strategy = resolveConflict({
-                table: tableName,
-                column: key,
-                serverValue: serverVal,
-                clientValue: clientVal,
-                localRecord: localRecord as Record<string, unknown>,
-              });
-              r[key] = applyResolution(strategy, serverVal, clientVal);
-            } else {
-              r[key] = serverVal;
-            }
+      await (
+        localRecord as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> }
+      ).update((r) => {
+        const mapped = mapServerToLocal(tableName, serverRecord);
+        for (const [key, serverVal] of Object.entries(mapped)) {
+          // Local bookkeeping, not server data — always overwrite, never a real conflict.
+          if (key === 'syncedAt' || key === 'serverId') {
+            r[key] = serverVal;
+            continue;
           }
-        });
+          const clientVal = r[key];
+          if (serverVal !== clientVal) {
+            const strategy = resolveConflict({
+              table: tableName,
+              column: key,
+              serverValue: serverVal,
+              clientValue: clientVal,
+              localRecord: localRecord as Record<string, unknown>,
+            });
+            r[key] = applyResolution(strategy, serverVal, clientVal);
+          } else {
+            r[key] = serverVal;
+          }
+        }
+      });
     } catch (err) {
       console.error(`[pullChanges] Failed to update ${tableName} record ${serverRecord.id}:`, err);
     }
   }
 }
 
+// Envelope keys (changes.specimens/queueAssignments/analysisResults, created/updated)
+// are camelCase; the per-row fields read below are intentionally snake_case,
+// mirroring raw backend DB columns (see sync_service.py). Don't "fix" this split —
+// it broke sync in production once already (see git history on this file).
+// tests/unit/pullChanges.test.ts pins the exact field names on both sides.
 function mapServerToLocal(table: string, record: ServerRecord): Record<string, unknown> {
   const base: Record<string, unknown> = {
     serverId: record.id,
@@ -108,43 +152,43 @@ function mapServerToLocal(table: string, record: ServerRecord): Record<string, u
     case 'specimens':
       return {
         ...base,
-        sampleUid:       record['sample_uid'],
-        patientName:     record['patient_name'],
-        patientUid:      record['patient_uid'],
-        testType:        record['test_type'],
-        status:          record['status'],
-        priorityLevel:   record['priority_level'] ?? null,
-        receivedAt:      record['received_at'],
-        assignedAt:      record['assigned_at'] ?? null,
-        medtechId:       record['medtech_id'] ?? null,
+        sampleUid: record['sample_uid'],
+        patientName: record['patient_name'],
+        patientUid: record['patient_uid'],
+        testType: record['test_type'],
+        status: record['status'],
+        priorityLevel: record['priority_level'] ?? null,
+        receivedAt: record['received_at'],
+        assignedAt: record['assigned_at'] ?? null,
+        medtechId: record['medtech_id'] ?? null,
         rejectionReason: record['rejection_reason'] ?? null,
-        rejectionNote:   record['rejection_note'] ?? null,
-        rejectedAt:      record['rejected_at'] ?? null,
+        rejectionNote: record['rejection_note'] ?? null,
+        rejectedAt: record['rejected_at'] ?? null,
       };
 
     case 'queue_assignments':
       return {
         ...base,
         specimenId: record['specimen_id'],
-        medtechId:  record['medtech_id'],
+        medtechId: record['medtech_id'],
         assignedAt: record['assigned_at'],
-        status:     record['status'],
+        status: record['status'],
       };
 
     case 'analysis_results':
       return {
         ...base,
-        specimenId:                 record['specimen_id'],
-        aiFindingsJson:             JSON.stringify(record['ai_findings'] ?? {}),
-        flaggedAnomaliesJson:       JSON.stringify(record['flagged_anomalies'] ?? {}),
-        smartDiagnosisJson:         record['smart_diagnosis']
+        specimenId: record['specimen_id'],
+        aiFindingsJson: JSON.stringify(record['ai_findings'] ?? {}),
+        flaggedAnomaliesJson: JSON.stringify(record['flagged_anomalies'] ?? {}),
+        smartDiagnosisJson: record['smart_diagnosis']
           ? JSON.stringify(record['smart_diagnosis'])
           : null,
-        smartDiagnosisUnavailable:  record['smart_diagnosis_unavailable'] ?? false,
-        status:                     record['status'],
-        imageId:                    record['image_id'] ?? null,
-        confirmedAt:                record['confirmed_at'] ?? null,
-        confirmedBy:                record['confirmed_by'] ?? null,
+        smartDiagnosisUnavailable: record['smart_diagnosis_unavailable'] ?? false,
+        status: record['status'],
+        imageId: record['image_id'] ?? null,
+        confirmedAt: record['confirmed_at'] ?? null,
+        confirmedBy: record['confirmed_by'] ?? null,
       };
 
     default:
