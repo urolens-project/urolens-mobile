@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 16,
-    gap: 14,
+    gap: 8,
     // Shadow/border stand in for the removed color heading — the card still
     // needs to read as a raised, tappable tile against the screen background.
     shadowColor: '#000',
@@ -77,18 +77,22 @@ const styles = StyleSheet.create({
     fontSize: NUMBER_FONT_SIZE,
     lineHeight: NUMBER_FONT_SIZE,
     fontWeight: '800',
+    // Android pads a text line with extra ascent/descent space by default,
+    // which pushes a single large glyph off-center within its box.
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   textCol: {
     flex: 1,
-    borderLeftWidth: 1,
-    borderLeftColor: '#F3F4F6',
-    paddingLeft: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: '#9CA3AF',
+    paddingLeft: 10,
   },
   title: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
     color: '#374151',
-    lineHeight: 20,
+    lineHeight: 22,
   },
 });
 
