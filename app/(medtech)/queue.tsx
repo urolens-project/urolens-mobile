@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { database } from '@db/database';
+import Specimen from '@db/models/Specimen';
 import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
 import { QueueItemCard } from '../../src/features/queue/components/QueueItemCard';
@@ -23,8 +25,20 @@ const TEAL = '#2E7D7A';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function formatDate(): string {
   return new Date().toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   });
+}
+
+function formatLastSync(lastSyncAt: number | null): string {
+  if (!lastSyncAt) return 'Not yet synced';
+  const diffMin = Math.floor((Date.now() - lastSyncAt) / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
 }
 
 // ─── Empty state ─────────────────────────────────────────────────────────────
@@ -60,7 +74,16 @@ function EmptyState({ isOnline, filter }: { isOnline: boolean; filter: FilterOpt
 export default function QueueScreen() {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
-  const { items: dbItems, allItems: dbAllItems, isLoading, filter, setFilter, refresh, isRefreshing } = useQueue();
+  const {
+    items: dbItems,
+    allItems: dbAllItems,
+    isLoading,
+    filter,
+    setFilter,
+    refresh,
+    isRefreshing,
+    lastSyncAt,
+  } = useQueue();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // allItems: always the full unfiltered queue — used for stats card
@@ -68,12 +91,15 @@ export default function QueueScreen() {
   // items: filtered list shown in the FlatList
   const items: QueueItem[] = dbItems;
 
-  const counts = useMemo(() => ({
-    assigned:   allItems.filter((i) => i.status === 'ASSIGNED').length,
-    priority:   allItems.filter((i) => i.priorityLevel === 'HIGH').length,
-    pending:    allItems.filter((i) => i.status === 'IN_QUEUE').length,
-    inProgress: allItems.filter((i) => i.status === 'PROCESSING').length,
-  }), [allItems]);
+  const counts = useMemo(
+    () => ({
+      assigned: allItems.filter((i) => i.status === 'ASSIGNED').length,
+      priority: allItems.filter((i) => i.priorityLevel === 'HIGH').length,
+      pending: allItems.filter((i) => i.status === 'IN_QUEUE').length,
+      inProgress: allItems.filter((i) => i.status === 'PROCESSING').length,
+    }),
+    [allItems],
+  );
 
   const selectedItem = useMemo(
     () => items.find((i) => i.id === selectedId) ?? null,
@@ -84,8 +110,28 @@ export default function QueueScreen() {
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
 
-  function handleProceed() {
-    if (selectedItem) router.push(`/(medtech)/sample/${selectedItem.id}`);
+  // Per SRS UC 2.2 activity diagram: selecting a sample for processing marks it
+  // IN-PROCESS. If the MedTech leaves the sample screen without running an
+  // analysis, sample/[id].tsx reverts it back to `previousStatus`.
+  async function handleProceed() {
+    if (!selectedItem) return;
+    const previousStatus = selectedItem.status;
+
+    try {
+      await database.write(async () => {
+        const specimen = await database.get<Specimen>('specimens').find(selectedItem.id);
+        await specimen.update((s) => {
+          s.status = 'PROCESSING';
+        });
+      });
+    } catch {
+      // Best-effort local transition — navigation proceeds regardless.
+    }
+
+    router.push({
+      pathname: '/(medtech)/sample/[id]',
+      params: { id: selectedItem.id, previousStatus },
+    });
   }
 
   function handleReject() {
@@ -134,11 +180,7 @@ export default function QueueScreen() {
         data={items}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <QueueItemCard
-            item={item}
-            onPress={handleItemPress}
-            selected={item.id === selectedId}
-          />
+          <QueueItemCard item={item} onPress={handleItemPress} selected={item.id === selectedId} />
         )}
         refreshControl={
           <RefreshControl
@@ -178,10 +220,10 @@ export default function QueueScreen() {
             <View style={styles.statsCard}>
               <View style={styles.statsRow}>
                 {[
-                  { label: 'Assigned',  value: counts.assigned,   color: '#111827' },
-                  { label: 'Priority',  value: counts.priority,   color: '#DC2626' },
-                  { label: 'Pending',   value: counts.pending,    color: '#D97706' },
-                  { label: 'Progress',  value: counts.inProgress, color: '#2563EB' },
+                  { label: 'Assigned', value: counts.assigned, color: '#111827' },
+                  { label: 'Priority', value: counts.priority, color: '#DC2626' },
+                  { label: 'Pending', value: counts.pending, color: '#D97706' },
+                  { label: 'Progress', value: counts.inProgress, color: '#2563EB' },
                 ].map((stat, i) => (
                   <View key={stat.label} style={[styles.statItem, i < 3 && styles.statDivider]}>
                     <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
@@ -190,10 +232,7 @@ export default function QueueScreen() {
                 ))}
               </View>
               <View style={styles.syncRow}>
-                <Text style={styles.syncText}>Last Sync: just now</Text>
-                <TouchableOpacity>
-                  <Text style={styles.analyticsLink}>View Analytics &gt;</Text>
-                </TouchableOpacity>
+                <Text style={styles.syncText}>Last Sync: {formatLastSync(lastSyncAt)}</Text>
               </View>
             </View>
 
@@ -202,20 +241,18 @@ export default function QueueScreen() {
               selected={filter}
               onChange={setFilter}
               counts={{
-                ALL:        allItems.length,
-                HIGH:       counts.priority,
-                NORMAL:     allItems.filter((i) => i.priorityLevel === 'NORMAL' || i.priorityLevel === 'LOW').length,
-                ASSIGNED:   counts.assigned,
+                ALL: allItems.length,
+                HIGH: counts.priority,
+                NORMAL: allItems.filter(
+                  (i) => i.priorityLevel === 'NORMAL' || i.priorityLevel === 'LOW',
+                ).length,
+                ASSIGNED: counts.assigned,
                 PROCESSING: counts.inProgress,
               }}
             />
           </View>
         }
-        ListEmptyComponent={
-          isLoading ? null : (
-            <EmptyState isOnline={isOnline} filter={filter} />
-          )
-        }
+        ListEmptyComponent={isLoading ? null : <EmptyState isOnline={isOnline} filter={filter} />}
         contentContainerStyle={[styles.list, items.length === 0 && styles.listEmpty]}
         showsVerticalScrollIndicator={false}
       />
@@ -438,7 +475,6 @@ const styles = StyleSheet.create({
   },
   syncRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
@@ -447,11 +483,6 @@ const styles = StyleSheet.create({
   syncText: {
     fontSize: 12,
     color: '#9CA3AF',
-  },
-  analyticsLink: {
-    fontSize: 12,
-    color: TEAL,
-    fontWeight: '600',
   },
 
   // Empty state

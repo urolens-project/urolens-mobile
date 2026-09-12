@@ -46,8 +46,8 @@ function formatTime(iso: string): string {
 
 function getTestTypeIcon(testType: string): React.ComponentProps<typeof Ionicons>['name'] {
   const t = testType?.toLowerCase() ?? '';
-  if (t.includes('urin'))   return 'water-outline';
-  if (t.includes('blood'))  return 'pulse-outline';
+  if (t.includes('urin')) return 'water-outline';
+  if (t.includes('blood')) return 'pulse-outline';
   if (t.includes('semen') || t.includes('sperm')) return 'cellular-outline';
   if (t.includes('stool') || t.includes('fecal')) return 'flask-outline';
   return 'flask-outline';
@@ -68,9 +68,12 @@ function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
       <View style={[styles.bar, { backgroundColor: badge.barColor }]} />
 
       <View style={styles.content}>
-        {/* Row 1 — patient UID + badge */}
+        {/* Row 1 — patient UID + badge. Shows patientUid, not patientName:
+            intentional privacy decision so PHI isn't visible on a shared queue list. */}
         <View style={styles.row}>
-          <Text style={styles.patientUid} numberOfLines={1}>{item.patientUid}</Text>
+          <Text style={styles.patientUid} numberOfLines={1}>
+            {item.patientUid}
+          </Text>
           <View style={[styles.badge, { backgroundColor: badge.bg }]}>
             <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
           </View>
