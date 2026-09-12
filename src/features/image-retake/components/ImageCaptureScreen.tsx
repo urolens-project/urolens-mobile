@@ -144,14 +144,8 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
         setUploadProgress(progress);
       });
 
-      // Backend: both `id` and `result_id` equal the analysis result UUID; `image_id` is the image UUID.
-      const {
-        id: serverResultId,
-        image_id: uploadedImageId,
-        status,
-        ai_findings: aiFindings,
-        smart_diagnosis: smartDiagnosis,
-      } = data;
+      // Backend: both `id` and `resultId` equal the analysis result UUID; `imageId` is the image UUID.
+      const { id: serverResultId, imageId: uploadedImageId, status, aiFindings, smartDiagnosis } = data;
 
       // Write result into WatermelonDB immediately so Sample Detail shows it
       // without waiting for the next background sync.

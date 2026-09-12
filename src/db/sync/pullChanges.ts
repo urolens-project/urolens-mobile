@@ -72,6 +72,11 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
         .update((r) => {
           const mapped = mapServerToLocal(tableName, serverRecord);
           for (const [key, serverVal] of Object.entries(mapped)) {
+            // Local bookkeeping, not server data — always overwrite, never a real conflict.
+            if (key === 'syncedAt' || key === 'serverId') {
+              r[key] = serverVal;
+              continue;
+            }
             const clientVal = r[key];
             if (serverVal !== clientVal) {
               const strategy = resolveConflict({
