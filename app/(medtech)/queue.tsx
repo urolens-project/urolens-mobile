@@ -94,7 +94,6 @@ export default function QueueScreen() {
   const counts = useMemo(
     () => ({
       assigned: allItems.filter((i) => i.status === 'ASSIGNED').length,
-      priority: allItems.filter((i) => i.priorityLevel === 'HIGH').length,
       returned: allItems.filter((i) => i.isReturnedForCorrection).length,
       inProgress: allItems.filter((i) => i.status === 'PROCESSING').length,
     }),
@@ -221,11 +220,10 @@ export default function QueueScreen() {
               <View style={styles.statsRow}>
                 {[
                   { label: 'Assigned', value: counts.assigned, color: '#111827' },
-                  { label: 'Priority', value: counts.priority, color: '#DC2626' },
+                  { label: 'In Progress', value: counts.inProgress, color: '#2563EB' },
                   { label: 'Returned', value: counts.returned, color: '#D97706' },
-                  { label: 'Progress', value: counts.inProgress, color: '#2563EB' },
                 ].map((stat, i) => (
-                  <View key={stat.label} style={[styles.statItem, i < 3 && styles.statDivider]}>
+                  <View key={stat.label} style={[styles.statItem, i < 2 && styles.statDivider]}>
                     <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
                     <Text style={styles.statLabel}>{stat.label}</Text>
                   </View>
