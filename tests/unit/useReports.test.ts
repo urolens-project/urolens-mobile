@@ -142,6 +142,37 @@ describe('useReports', () => {
     expect(result.current.sections).toHaveLength(4);
   });
 
+  // Named after the actual user action, per the "must reflect fast"
+  // requirement: rejecting a specimen (useRejectSpecimen writes
+  // status='REJECTED' straight to WatermelonDB, synchronously and purely
+  // locally) must make it show up under Rejected in the very same reactive
+  // tick — the same local write the Queue test observes leaving the Queue.
+  it('reflects a rejection immediately: the specimen appears under Rejected in the same tick, no sync involved', async () => {
+    const { result } = renderHook(() => useReports());
+
+    await act(async () => {
+      emitSpecimens([makeSpecimen({ id: 'spec-1', status: 'ASSIGNED' })]);
+      emitResults([]);
+    });
+    expect(result.current.sections.every((s) => s.data.length === 0)).toBe(true);
+
+    // Simulates exactly what useRejectSpecimen's local specimen.update()
+    // does — WatermelonDB's reactive query re-emits immediately.
+    await act(async () => {
+      emitSpecimens([
+        makeSpecimen({
+          id: 'spec-1',
+          status: 'REJECTED',
+          rejectionReason: 'WRONG_CONTAINER',
+          rejectedAt: '2026-05-22T09:05:00Z',
+        }),
+      ]);
+    });
+
+    const rejected = findSection(result.current.sections, 'REJECTED');
+    expect(rejected.data.map((i) => i.id)).toEqual(['spec-1']);
+  });
+
   it('does not surface a non-rejected, non-finished specimen anywhere', async () => {
     const { result } = renderHook(() => useReports());
 
@@ -235,6 +266,86 @@ describe('useReports', () => {
     });
 
     expect(result.current.totalCount).toBe(2);
+  });
+
+  // Regression: PAT-00004/00006 ("Approved by Supervisor") and
+  // PAT-000015/000016 ("Released") — a specimen can have more than one
+  // analysis_results row (e.g. a retake after being returned for
+  // correction creates a new row instead of replacing the old one). Only
+  // the LATEST result should decide the specimen's category.
+  describe('multiple analysis_results per specimen — only the latest counts', () => {
+    it('files a specimen under Approved, not omitted or duplicated, when an older result was Returned for Correction', async () => {
+      const { result } = renderHook(() => useReports());
+
+      await act(async () => {
+        emitSpecimens([makeSpecimen({ serverId: 'srv-4' })]);
+        emitResults([
+          makeResult({
+            specimenId: 'srv-4',
+            status: 'RETURNED_FOR_CORRECTION',
+            confirmedAt: '2026-01-01T00:00:00Z',
+          }),
+          makeResult({
+            specimenId: 'srv-4',
+            status: 'APPROVED',
+            confirmedAt: '2026-01-05T00:00:00Z',
+          }),
+        ]);
+      });
+
+      const approved = findSection(result.current.sections, 'APPROVED');
+      expect(approved.data).toHaveLength(1);
+      expect(approved.data[0].id).toBe('spec-1');
+      // Not filed anywhere else
+      expect(result.current.sections.filter((s) => s.data.length > 0)).toHaveLength(1);
+    });
+
+    it('files a specimen under Released, not under its earlier Pending Approval state', async () => {
+      const { result } = renderHook(() => useReports());
+
+      await act(async () => {
+        emitSpecimens([makeSpecimen({ serverId: 'srv-15' })]);
+        emitResults([
+          makeResult({
+            specimenId: 'srv-15',
+            status: 'PENDING_SUPERVISOR_APPROVAL',
+            confirmedAt: '2026-01-01T00:00:00Z',
+          }),
+          makeResult({
+            specimenId: 'srv-15',
+            status: 'RELEASED',
+            confirmedAt: '2026-01-05T00:00:00Z',
+          }),
+        ]);
+      });
+
+      const released = findSection(result.current.sections, 'RELEASED');
+      expect(released.data).toHaveLength(1);
+      const pendingApproval = findSection(result.current.sections, 'PENDING_APPROVAL');
+      expect(pendingApproval.data).toHaveLength(0);
+    });
+
+    it('order of the two results in the emission does not change which one wins', async () => {
+      const { result } = renderHook(() => useReports());
+
+      await act(async () => {
+        emitSpecimens([makeSpecimen({ serverId: 'srv-4' })]);
+        emitResults([
+          makeResult({
+            specimenId: 'srv-4',
+            status: 'APPROVED',
+            confirmedAt: '2026-01-05T00:00:00Z',
+          }),
+          makeResult({
+            specimenId: 'srv-4',
+            status: 'RETURNED_FOR_CORRECTION',
+            confirmedAt: '2026-01-01T00:00:00Z',
+          }),
+        ]);
+      });
+
+      expect(findSection(result.current.sections, 'APPROVED').data).toHaveLength(1);
+    });
   });
 
   it('unsubscribes both subscriptions on unmount', () => {
