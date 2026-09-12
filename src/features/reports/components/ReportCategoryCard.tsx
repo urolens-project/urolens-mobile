@@ -40,7 +40,7 @@ function ReportCategoryCardComponent({ category, title, count, onPress }: Props)
     >
       <View style={styles.numberCol}>
         <Text
-          style={[styles.number, { color: isEmpty ? '#D1D5DB' : style.color }]}
+          style={[styles.number, { color: isEmpty ? '#9CA3AF' : style.color }]}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.5}
