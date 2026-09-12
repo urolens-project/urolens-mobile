@@ -220,7 +220,7 @@ export default function QueueScreen() {
               <View style={styles.statsRow}>
                 {[
                   { label: 'Assigned', value: counts.assigned, color: '#111827' },
-                  { label: 'In Progress', value: counts.inProgress, color: '#2563EB' },
+                  { label: 'In Progress', value: counts.inProgress, color: '#7C3AED' },
                   { label: 'Returned', value: counts.returned, color: '#D97706' },
                 ].map((stat, i) => (
                   <View key={stat.label} style={[styles.statItem, i < 2 && styles.statDivider]}>
