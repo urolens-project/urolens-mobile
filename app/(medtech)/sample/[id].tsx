@@ -1,5 +1,5 @@
 // Path: urolens-mobile/app/(medtech)/sample/[id].tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -30,8 +30,11 @@ const TEAL = '#2E7D7A';
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-PH', {
     timeZone: 'Asia/Manila',
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -51,9 +54,9 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 const LEVEL_COLORS: Record<string, { bg: string; text: string }> = {
-  HIGH:     { bg: '#FEE2E2', text: '#B91C1C' },
+  HIGH: { bg: '#FEE2E2', text: '#B91C1C' },
   MODERATE: { bg: '#FEF3C7', text: '#92400E' },
-  LOW:      { bg: '#D1FAE5', text: '#065F46' },
+  LOW: { bg: '#D1FAE5', text: '#065F46' },
 };
 
 function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson }) {
@@ -67,9 +70,9 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson })
   }
 
   const conditions = [
-    { label: 'Gout',               level: diagnosis.gout?.level },
+    { label: 'Gout', level: diagnosis.gout?.level },
     { label: 'Glomerulonephritis', level: diagnosis.glomerulonephritis?.level },
-    { label: 'Nephrolithiasis',    level: diagnosis.nephrolithiasis?.level },
+    { label: 'Nephrolithiasis', level: diagnosis.nephrolithiasis?.level },
   ];
 
   const LEVEL_LABELS: Record<string, string> = { HIGH: 'High', MODERATE: 'Moderate', LOW: 'Low' };
@@ -113,9 +116,14 @@ function AIFindingsSection({ findings }: { findings: Record<string, number> }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SampleDetailScreen(): React.JSX.Element {
-  const { id: specimenId, resultId } = useLocalSearchParams<{
+  const {
+    id: specimenId,
+    resultId,
+    previousStatus,
+  } = useLocalSearchParams<{
     id: string;
     resultId?: string;
+    previousStatus?: string;
   }>();
   const router = useRouter();
 
@@ -126,6 +134,40 @@ export default function SampleDetailScreen(): React.JSX.Element {
   const [notFound, setNotFound] = useState(false);
 
   const { confirmResult: confirmAction, isConfirming, error: confirmError } = useConfirmAction();
+
+  // Mirrors latest analysisResult/isContinuing into the unmount cleanup below,
+  // which otherwise closes over stale values from the render that scheduled it.
+  const analysisResultRef = useRef<AnalysisResult | null>(null);
+  useEffect(() => {
+    analysisResultRef.current = analysisResult;
+  }, [analysisResult]);
+
+  // Set true by any action that carries the MedTech forward into the analysis
+  // flow (begin/retake/reject). Stays false when they just navigate away —
+  // that's the "went back without doing the analysis" case from UC 2.2.
+  const isContinuingRef = useRef(false);
+
+  // Per SRS UC 2.2: Queue marks the specimen IN-PROCESS when the MedTech taps
+  // "Proceed to Analysis". If they leave this screen without starting/continuing
+  // the analysis, revert the specimen back to its status before that transition.
+  useEffect(() => {
+    if (!specimenId || !previousStatus) return;
+
+    return () => {
+      if (isContinuingRef.current || analysisResultRef.current) return;
+
+      database
+        .write(async () => {
+          const s = await database.get<Specimen>('specimens').find(specimenId);
+          if (s.status === 'PROCESSING') {
+            await s.update((rec) => {
+              rec.status = previousStatus;
+            });
+          }
+        })
+        .catch(() => {});
+    };
+  }, [specimenId, previousStatus]);
 
   // Both useEffect hooks must remain unconditional (Rules of Hooks).
   // Internal guards make them no-ops when specimenId/serverId are absent.
@@ -206,10 +248,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
             headerBackTitle: 'Queue',
           }}
         />
-        <ResultReviewScreen
-          resultId={resultId}
-          specimenId={specimenId}
-        />
+        <ResultReviewScreen resultId={resultId} specimenId={specimenId} />
       </>
     );
   }
@@ -230,6 +269,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
       );
       return;
     }
+    isContinuingRef.current = true;
     router.push({
       pathname: '/(medtech)/capture',
       params: { specimenId: specimen.serverId, localSpecimenId: specimenId },
@@ -242,7 +282,8 @@ export default function SampleDetailScreen(): React.JSX.Element {
       return;
     }
 
-    const doRetake = () =>
+    const doRetake = () => {
+      isContinuingRef.current = true;
       router.push({
         pathname: '/(medtech)/capture',
         params: {
@@ -251,6 +292,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
           existingImageId: analysisResult?.imageId ?? undefined,
         },
       });
+    };
 
     if (Object.keys(overrides).length > 0) {
       Alert.alert(
@@ -268,6 +310,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
   }
 
   function handleRejectSpecimen() {
+    isContinuingRef.current = true;
     router.push(`/(medtech)/sample/reject/${specimenId}`);
   }
 
@@ -291,28 +334,32 @@ export default function SampleDetailScreen(): React.JSX.Element {
   }
 
   const priorityColors: Record<string, { bg: string; text: string }> = {
-    HIGH:    { bg: '#FCEBEB', text: '#A32D2D' },
-    NORMAL:  { bg: '#EAF3DE', text: '#3B6D11' },
-    LOW:     { bg: '#F1EFE8', text: '#5F5E5A' },
+    HIGH: { bg: '#FCEBEB', text: '#A32D2D' },
+    NORMAL: { bg: '#EAF3DE', text: '#3B6D11' },
+    LOW: { bg: '#F1EFE8', text: '#5F5E5A' },
     ROUTINE: { bg: '#E8F5E9', text: '#2E7D32' },
   };
   const pColor = priorityColors[specimen.priorityLevel ?? 'NORMAL'] ?? priorityColors.NORMAL;
 
-  const isRejected              = specimen.status === 'REJECTED';
-  const smartDiagnosis          = analysisResult?.smartDiagnosis ?? null;
-  const aiFindings              = { ...(analysisResult?.aiFindings ?? {}), ...overrides };
-  const resultStatus            = analysisResult?.status;
-  const isPendingConfirm        = resultStatus === 'PENDING_CONFIRM';
-  const isPendingApproval       = resultStatus === 'PENDING_SUPERVISOR_APPROVAL';
-  const isApproved              = resultStatus === 'APPROVED';
-  const isReleased              = resultStatus === 'RELEASED';
+  const isRejected = specimen.status === 'REJECTED';
+  const smartDiagnosis = analysisResult?.smartDiagnosis ?? null;
+  const aiFindings = { ...(analysisResult?.aiFindings ?? {}), ...overrides };
+  const resultStatus = analysisResult?.status;
+  const isPendingConfirm = resultStatus === 'PENDING_CONFIRM';
+  const isPendingApproval = resultStatus === 'PENDING_SUPERVISOR_APPROVAL';
+  const isApproved = resultStatus === 'APPROVED';
+  const isReleased = resultStatus === 'RELEASED';
   const isReturnedForCorrection = resultStatus === 'RETURNED_FOR_CORRECTION';
 
   return (
     <SafeAreaView style={styles.safe}>
       {/* Top bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.topBackBtn} onPress={() => router.back()} accessibilityRole="button">
+        <TouchableOpacity
+          style={styles.topBackBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+        >
           <Ionicons name="chevron-back" size={24} color="#374151" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Sample Detail</Text>
@@ -330,18 +377,19 @@ export default function SampleDetailScreen(): React.JSX.Element {
               </Text>
             </View>
           </View>
+          {/* Intentional privacy decision: shows patientUid, not patientName. */}
           <Text style={styles.patientName}>{specimen.patientUid}</Text>
         </View>
 
         {/* Details card */}
         <View style={styles.card}>
-          <DetailRow label="Patient UID"  value={specimen.patientUid} />
+          <DetailRow label="Patient UID" value={specimen.patientUid} />
           <View style={styles.divider} />
-          <DetailRow label="Test Type"   value={specimen.testType} />
+          <DetailRow label="Test Type" value={specimen.testType} />
           <View style={styles.divider} />
-          <DetailRow label="Status"      value={specimen.status.replace('_', ' ')} />
+          <DetailRow label="Status" value={specimen.status.replace('_', ' ')} />
           <View style={styles.divider} />
-          <DetailRow label="Received"    value={formatDateTime(specimen.receivedAt)} />
+          <DetailRow label="Received" value={formatDateTime(specimen.receivedAt)} />
         </View>
 
         {/* Rejection details */}
@@ -380,10 +428,11 @@ export default function SampleDetailScreen(): React.JSX.Element {
                 <Ionicons name="analytics-outline" size={16} color={TEAL} />
                 <Text style={styles.sectionSubTitle}>Smart Diagnosis</Text>
               </View>
-              {smartDiagnosis
-                ? <SmartDiagnosisSection diagnosis={smartDiagnosis} />
-                : <Text style={styles.emptyResultText}>Diagnosis not available.</Text>
-              }
+              {smartDiagnosis ? (
+                <SmartDiagnosisSection diagnosis={smartDiagnosis} />
+              ) : (
+                <Text style={styles.emptyResultText}>Diagnosis not available.</Text>
+              )}
             </View>
 
             {/* AI Findings */}
@@ -392,10 +441,11 @@ export default function SampleDetailScreen(): React.JSX.Element {
                 <Ionicons name="eye-outline" size={16} color={TEAL} />
                 <Text style={styles.sectionSubTitle}>AI Findings</Text>
               </View>
-              {Object.keys(aiFindings).length > 0
-                ? <AIFindingsSection findings={aiFindings} />
-                : <Text style={styles.emptyResultText}>No particles detected.</Text>
-              }
+              {Object.keys(aiFindings).length > 0 ? (
+                <AIFindingsSection findings={aiFindings} />
+              ) : (
+                <Text style={styles.emptyResultText}>No particles detected.</Text>
+              )}
             </View>
 
             <AIDisclaimer />
@@ -410,10 +460,11 @@ export default function SampleDetailScreen(): React.JSX.Element {
                   accessibilityRole="button"
                   accessibilityLabel="Confirm analysis result"
                 >
-                  {isConfirming
-                    ? <ActivityIndicator size="small" color="#FFFFFF" />
-                    : <Text style={styles.confirmBtnText}>Confirm Result</Text>
-                  }
+                  {isConfirming ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.confirmBtnText}>Confirm Result</Text>
+                  )}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.retakeBtn}
@@ -515,7 +566,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: '#F7F6F3' },
+  safe: { flex: 1, backgroundColor: '#F7F6F3' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F6F3' },
   scroll: { padding: 16, paddingBottom: 40 },
 
@@ -556,8 +607,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   priorityBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  priorityText:  { fontSize: 12, fontWeight: '500' },
-  patientName:   { fontSize: 24, fontWeight: '600', color: '#1A1A1A', marginTop: 2 },
+  priorityText: { fontSize: 12, fontWeight: '500' },
+  patientName: { fontSize: 24, fontWeight: '600', color: '#1A1A1A', marginTop: 2 },
 
   // Cards
   card: {
@@ -629,8 +680,14 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
   },
-  levelText:        { fontSize: 11, fontWeight: '700' },
-  diagnosisScore:   { fontSize: 13, fontWeight: '600', color: '#6B7280', width: 36, textAlign: 'right' },
+  levelText: { fontSize: 11, fontWeight: '700' },
+  diagnosisScore: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    width: 36,
+    textAlign: 'right',
+  },
   noIndicators: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -651,7 +708,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: TEAL,
   },
-  findingName:  { flex: 1, fontSize: 13, color: '#374151' },
+  findingName: { flex: 1, fontSize: 13, color: '#374151' },
   findingCount: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
 
   // Retake + Confirm row
@@ -715,7 +772,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   approvedTitle: { fontSize: 13, fontWeight: '700', color: '#065F46' },
-  approvedBody:  { fontSize: 12, color: '#047857', lineHeight: 17 },
+  approvedBody: { fontSize: 12, color: '#047857', lineHeight: 17 },
 
   // Released to patient
   releasedBanner: {
@@ -743,7 +800,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   correctionTitle: { fontSize: 13, fontWeight: '700', color: '#92400E' },
-  correctionBody:  { fontSize: 12, color: '#B45309', lineHeight: 17 },
+  correctionBody: { fontSize: 12, color: '#B45309', lineHeight: 17 },
 
   // Action buttons
   actions: { gap: 10, marginTop: 4 },
@@ -753,10 +810,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  actionBtnPrimary:      { backgroundColor: TEAL, borderColor: TEAL },
-  actionBtnPrimaryText:  { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  actionBtnDanger:       { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
-  actionBtnDangerText:   { color: '#B91C1C', fontSize: 16, fontWeight: '600' },
+  actionBtnPrimary: { backgroundColor: TEAL, borderColor: TEAL },
+  actionBtnPrimaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  actionBtnDanger: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+  actionBtnDangerText: { color: '#B91C1C', fontSize: 16, fontWeight: '600' },
 
   // Rejection card
   rejectionCard: {

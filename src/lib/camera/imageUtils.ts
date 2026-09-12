@@ -93,6 +93,9 @@ export async function buildUploadFormData(
   specimenId: string,
 ): Promise<FormData> {
   const form = new FormData();
+  // Backend's POST /images/upload multipart field is snake_case (src/api/image.py),
+  // the one deviation from camelCase in the whole API. This has flip-flopped across
+  // several commits already — tests/unit/imageUtils.test.ts pins the correct name.
   form.append('specimen_id', specimenId);
 
   if (Platform.OS === 'web') {
