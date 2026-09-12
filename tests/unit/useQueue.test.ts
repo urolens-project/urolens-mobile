@@ -27,15 +27,19 @@ jest.mock('@nozbe/watermelondb', () => ({
 }));
 
 jest.mock('@db/database', () => ({ database: { get: jest.fn() } }));
-jest.mock('@db/sync/syncManager', () => ({ synchronize: jest.fn() }));
+jest.mock('@db/sync/syncManager', () => ({
+  synchronize: jest.fn(),
+  LAST_SYNC_KEY: 'urolens_last_sync_at',
+}));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
 import { renderHook, act } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { database } from '../../src/db/database';
-import { synchronize } from '../../src/db/sync/syncManager';
+import { synchronize, LAST_SYNC_KEY } from '../../src/db/sync/syncManager';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
 import type { FilterOption } from '../../src/features/queue/types';
 
@@ -75,14 +79,14 @@ let capturedQuery: jest.Mock;
 
 function buildDbChain() {
   subscribeCallCount = 0;
-  const mockSubscribe = jest.fn().mockImplementation(
-    (cb: (s: ReturnType<typeof makeSpecimen>[]) => void) => {
+  const mockSubscribe = jest
+    .fn()
+    .mockImplementation((cb: (s: ReturnType<typeof makeSpecimen>[]) => void) => {
       subscribeCallCount += 1;
       if (subscribeCallCount === 1) emitItems = cb; // filter subscription
       // 2nd call is allItems — no need to emit to it in these tests
       return { unsubscribe: mockUnsubscribe };
-    },
-  );
+    });
   const mockObserve = jest.fn(() => ({ subscribe: mockSubscribe }));
   const mockQuery = jest.fn(() => ({ observe: mockObserve }));
   const mockGet = jest.fn(() => ({ query: mockQuery }));
@@ -305,7 +309,11 @@ describe('useQueue', () => {
       const clauses = lastFilterQueryClauses();
       expect(clauses).toHaveLength(2);
       expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status' });
-      expect(clauses[1]).toMatchObject({ _type: 'where', field: 'priority_level', value: expected });
+      expect(clauses[1]).toMatchObject({
+        _type: 'where',
+        field: 'priority_level',
+        value: expected,
+      });
     });
 
     it('QUEUE-05: LATEST sorts received_at desc, EARLIEST sorts asc — same base filter otherwise', () => {
@@ -381,6 +389,41 @@ describe('useQueue', () => {
       });
 
       expect(result.current.isRefreshing).toBe(false);
+    });
+  });
+
+  describe('lastSyncAt', () => {
+    it('starts null before the persisted timestamp is read', () => {
+      const { result } = renderHook(() => useQueue());
+      expect(result.current.lastSyncAt).toBeNull();
+    });
+
+    it('loads the persisted timestamp from AsyncStorage on mount', async () => {
+      const persisted = '2026-05-22T10:00:00.000Z';
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(persisted);
+
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {});
+
+      expect(AsyncStorage.getItem).toHaveBeenCalledWith(LAST_SYNC_KEY);
+      expect(result.current.lastSyncAt).toBe(new Date(persisted).getTime());
+    });
+
+    it('refreshes lastSyncAt after a successful refresh()', async () => {
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+      const { result } = renderHook(() => useQueue());
+      await act(async () => {});
+      expect(result.current.lastSyncAt).toBeNull();
+
+      const persisted = '2026-05-22T11:30:00.000Z';
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(persisted);
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      expect(result.current.lastSyncAt).toBe(new Date(persisted).getTime());
     });
   });
 });
