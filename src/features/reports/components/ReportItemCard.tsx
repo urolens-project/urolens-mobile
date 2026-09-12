@@ -1,33 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { ReportCategory, ReportItem } from '../types';
+import { REPORT_CATEGORY_STYLES } from '../constants';
+import type { ReportItem } from '../types';
 
 interface Props {
   item: ReportItem;
   onPress: (id: string) => void;
 }
-
-interface CategoryStyle {
-  barColor: string;
-  bg: string;
-  text: string;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-}
-
-// Same palette family as sample/[id].tsx's read-only status banners, so a
-// report card reads consistently with the detail screen it opens into.
-const CATEGORY_STYLES: Record<ReportCategory, CategoryStyle> = {
-  PENDING_APPROVAL: { barColor: '#2563EB', bg: '#EFF6FF', text: '#1E40AF', icon: 'time-outline' },
-  APPROVED: {
-    barColor: '#059669',
-    bg: '#ECFDF5',
-    text: '#065F46',
-    icon: 'checkmark-circle-outline',
-  },
-  RELEASED: { barColor: '#059669', bg: '#F0FDF4', text: '#065F46', icon: 'send-outline' },
-  REJECTED: { barColor: '#DC2626', bg: '#FEF2F2', text: '#B91C1C', icon: 'close-circle-outline' },
-};
 
 function formatDate(iso: string): string {
   try {
@@ -43,7 +23,7 @@ function formatDate(iso: string): string {
 }
 
 function ReportItemCardComponent({ item, onPress }: Props) {
-  const style = CATEGORY_STYLES[item.category];
+  const style = REPORT_CATEGORY_STYLES[item.category];
 
   return (
     <TouchableOpacity
@@ -53,7 +33,7 @@ function ReportItemCardComponent({ item, onPress }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}`}
     >
-      <View style={[styles.bar, { backgroundColor: style.barColor }]} />
+      <View style={[styles.bar, { backgroundColor: style.color }]} />
 
       <View style={styles.content}>
         <View style={styles.row}>
