@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportItem } from '../types';
+
+const TEAL = '#2E7D7A';
+const TEAL_TINT = '#E0F2F1';
 
 interface Props {
   item: ReportItem;
@@ -22,9 +24,10 @@ function formatDate(iso: string): string {
   }
 }
 
+// Same layout as the Queue's sample cards (QueueItemCard) — droplet mark,
+// shadow, date-then-arrow trailing edge — so a sample reads the same
+// whether it's still active or already filed away in Reports.
 function ReportItemCardComponent({ item, onPress }: Props) {
-  const style = REPORT_CATEGORY_STYLES[item.category];
-
   return (
     <TouchableOpacity
       style={styles.card}
@@ -33,29 +36,27 @@ function ReportItemCardComponent({ item, onPress }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}`}
     >
-      <View style={[styles.bar, { backgroundColor: style.color }]} />
+      <View style={styles.dropletBadge}>
+        <Ionicons name="water" size={18} color={TEAL} />
+      </View>
 
       <View style={styles.content}>
-        <View style={styles.row}>
-          <Text style={styles.patientUid} numberOfLines={1}>
-            {item.patientUid}
+        <Text style={styles.patientUid} numberOfLines={1}>
+          {item.patientUid}
+        </Text>
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {item.sampleUid} · {item.testType ?? '—'}
+        </Text>
+        {item.category === 'REJECTED' && item.rejectionReason && (
+          <Text style={styles.rejectionReason} numberOfLines={1}>
+            {item.rejectionReason.replace(/_/g, ' ')}
           </Text>
-          <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
-        </View>
+        )}
+      </View>
 
-        <View style={styles.row}>
-          <Text style={styles.uid}>{item.sampleUid}</Text>
-          <Text style={styles.time}>{formatDate(item.finalizedAt)}</Text>
-        </View>
-
-        <View style={[styles.row, styles.bottomRow]}>
-          <Text style={styles.testType}>{item.testType ?? '—'}</Text>
-          {item.category === 'REJECTED' && item.rejectionReason && (
-            <Text style={styles.rejectionReason} numberOfLines={1}>
-              {item.rejectionReason.replace(/_/g, ' ')}
-            </Text>
-          )}
-        </View>
+      <Text style={styles.time}>{formatDate(item.finalizedAt)}</Text>
+      <View style={styles.arrowBadge}>
+        <Ionicons name="chevron-forward" size={22} color={TEAL} />
       </View>
     </TouchableOpacity>
   );
@@ -64,61 +65,56 @@ function ReportItemCardComponent({ item, onPress }: Props) {
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     marginBottom: 10,
-    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  bar: {
-    width: 5,
+  dropletBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: TEAL_TINT,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    gap: 6,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  bottomRow: {
-    marginTop: 2,
+    gap: 4,
   },
   patientUid: {
-    flex: 1,
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
     fontVariant: ['tabular-nums'],
-    marginRight: 8,
   },
-  uid: {
+  subtitle: {
     fontSize: 13,
     color: '#6B7280',
-    fontWeight: '500',
   },
   time: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
-  },
-  testType: {
-    fontSize: 13,
-    color: '#9CA3AF',
+    fontWeight: '500',
   },
   rejectionReason: {
     fontSize: 12,
     color: '#B91C1C',
     fontWeight: '500',
-    flex: 1,
-    textAlign: 'right',
-    marginLeft: 8,
+  },
+  arrowBadge: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
