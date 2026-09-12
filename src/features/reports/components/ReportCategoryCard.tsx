@@ -15,16 +15,22 @@ interface Props {
 // only category cue left, so it has to carry the card.
 const CARD_HEIGHT = 96;
 const NUMBER_FONT_SIZE = Math.round(CARD_HEIGHT * 0.9);
-// A tight lineHeight leaves a digit's glyph sitting slightly above true
-// center (fonts reserve more descender space than a numeral needs) — nudge
-// it down instead of trusting flexbox centering alone.
-const NUMBER_TOP_NUDGE = Math.round(NUMBER_FONT_SIZE * 0.16);
-// Fixed (not min) width, sized to fit two bold digits at NUMBER_FONT_SIZE
-// comfortably. This is what keeps the divider at a constant x position
-// regardless of whether the count is 1 or 2 digits — a *minWidth* would let
-// a wider two-digit count grow the column and shift the divider along with
-// it; adjustsFontSizeToFit below is the safety valve for 3+ digit counts.
-const NUMBER_COL_WIDTH = Math.round(NUMBER_FONT_SIZE * 1.3);
+// A lineHeight tight against fontSize, combined with adjustsFontSizeToFit
+// and a marginTop that pushed the line past the remaining container height,
+// was making iOS collapse the whole number to nothing instead of just
+// clipping it — this is why the count wasn't rendering at all. lineHeight
+// now has real headroom above fontSize, and the top nudge is small enough
+// that lineHeight + nudge never exceeds CARD_HEIGHT.
+const NUMBER_LINE_HEIGHT = Math.round(NUMBER_FONT_SIZE * 1.05);
+// numberCol centers this Text's outer box (marginTop + lineHeight) via
+// justifyContent — the largest nudge that still keeps the whole box inside
+// CARD_HEIGHT (no overflow either edge) is the leftover headroom itself.
+const NUMBER_TOP_NUDGE = Math.max(0, CARD_HEIGHT - NUMBER_LINE_HEIGHT);
+// Fixed (not min) width, sized to fit three bold digits at NUMBER_FONT_SIZE
+// without needing to shrink the font. This is what keeps the divider at a
+// constant x position regardless of digit count — a *minWidth* would let a
+// wider count grow the column and shift the divider along with it.
+const NUMBER_COL_WIDTH = Math.round(NUMBER_FONT_SIZE * 1.9);
 
 function ReportCategoryCardComponent({ category, title, count, onPress }: Props) {
   const style = REPORT_CATEGORY_STYLES[category];
@@ -42,8 +48,6 @@ function ReportCategoryCardComponent({ category, title, count, onPress }: Props)
         <Text
           style={[styles.number, { color: isEmpty ? '#9CA3AF' : style.color }]}
           numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.5}
         >
           {count}
         </Text>
@@ -85,7 +89,7 @@ const styles = StyleSheet.create({
   },
   number: {
     fontSize: NUMBER_FONT_SIZE,
-    lineHeight: NUMBER_FONT_SIZE,
+    lineHeight: NUMBER_LINE_HEIGHT,
     fontWeight: '800',
     marginTop: NUMBER_TOP_NUDGE,
     // Android pads a text line with extra ascent/descent space by default,
