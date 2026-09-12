@@ -6,23 +6,20 @@ export type { SpecimenStatus };
 
 export type PriorityLevel = 'HIGH' | 'NORMAL' | 'LOW' | 'ROUTINE';
 
-// Per SDD/SRS & Mobile Developer Guide (STORY-MOB-05):
-// Filter chips — All · High (priority) · Normal (priority) · Assigned (status) · Processing (status)
-//
 // The Queue only surfaces samples the MedTech can still act on: ASSIGNED,
 // PROCESSING, and anything a Supervisor returned for correction (SRS UC 3.4).
 // IN_QUEUE (unassigned/general pool) and terminal states (pending approval,
 // approved, released, rejected) live in the Reports screen instead.
+//
+// No priority-based filter (High/Normal/Low/Routine): priorityLevel is
+// hardcoded to ROUTINE on the backend today, so filtering by it would only
+// ever produce an all-or-nothing result — see QueueItemCard's badge, which
+// dropped priority for the same reason.
 export type FilterOption =
   | 'ALL'
   | 'DATE'
   | 'LATEST'
   | 'EARLIEST'
-  | 'PRIORITY'
-  | 'HIGH'
-  | 'NORMAL'
-  | 'LOW'
-  | 'ROUTINE'
   | 'STATUS'
   | 'ASSIGNED'
   | 'PROCESSING'

@@ -11,20 +11,18 @@ interface Props {
   counts?: Partial<Record<FilterOption, number>>;
 }
 
-type ExpandedGroup = 'date' | 'priority' | 'status' | null;
+type ExpandedGroup = 'date' | 'status' | null;
 
 export function QueueFilterBar({ selected, onChange, counts }: Props) {
   const isDateFilter = selected === 'LATEST' || selected === 'EARLIEST';
-  const isPriorityFilter =
-    selected === 'HIGH' || selected === 'NORMAL' || selected === 'LOW' || selected === 'ROUTINE';
   const isStatusFilter =
     selected === 'ASSIGNED' || selected === 'PROCESSING' || selected === 'RETURNED';
 
   const [expandedGroup, setExpandedGroup] = useState<ExpandedGroup>(
-    isDateFilter ? 'date' : isPriorityFilter ? 'priority' : isStatusFilter ? 'status' : null,
+    isDateFilter ? 'date' : isStatusFilter ? 'status' : null,
   );
 
-  function handleMainChip(group: 'date' | 'all' | 'priority' | 'status') {
+  function handleMainChip(group: 'date' | 'all' | 'status') {
     if (group === 'all') {
       onChange('ALL');
       setExpandedGroup(null);
@@ -33,11 +31,6 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
     if (group === 'date') {
       onChange('DATE');
       setExpandedGroup((prev) => (prev === 'date' ? null : 'date'));
-      return;
-    }
-    if (group === 'priority') {
-      onChange('PRIORITY');
-      setExpandedGroup((prev) => (prev === 'priority' ? null : 'priority'));
       return;
     }
     if (group === 'status') {
@@ -49,8 +42,6 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
 
   const isAllActive = selected === 'ALL';
   const isDateActive = selected === 'DATE' || isDateFilter || expandedGroup === 'date';
-  const isPriorityActive =
-    selected === 'PRIORITY' || isPriorityFilter || expandedGroup === 'priority';
   const isStatusActive = selected === 'STATUS' || isStatusFilter || expandedGroup === 'status';
 
   return (
@@ -96,23 +87,6 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
               name={expandedGroup === 'date' ? 'chevron-up' : 'chevron-down'}
               size={13}
               color={isDateActive ? '#FFFFFF' : '#6B7280'}
-            />
-          </TouchableOpacity>
-
-          {/* Priority ▼ */}
-          <TouchableOpacity
-            style={[styles.chip, isPriorityActive && styles.chipActive]}
-            onPress={() => handleMainChip('priority')}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isPriorityActive }}
-          >
-            <Text style={[styles.chipText, isPriorityActive && styles.chipTextActive]}>
-              Priority
-            </Text>
-            <Ionicons
-              name={expandedGroup === 'priority' ? 'chevron-up' : 'chevron-down'}
-              size={13}
-              color={isPriorityActive ? '#FFFFFF' : '#6B7280'}
             />
           </TouchableOpacity>
 
@@ -163,57 +137,6 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
                 <Text style={[styles.subChipText, { color: isActive ? TEAL : '#374151' }]}>
                   {sub.label}
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      )}
-
-      {/* ── Priority sub-chips ─────────────────────────────────── */}
-      {expandedGroup === 'priority' && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.subRow}
-        >
-          {(
-            [
-              { key: 'HIGH' as FilterOption, label: 'High', color: '#DC2626', bg: '#FEE2E2' },
-              { key: 'NORMAL' as FilterOption, label: 'Normal', color: '#2563EB', bg: '#DBEAFE' },
-              { key: 'LOW' as FilterOption, label: 'Low', color: '#6B7280', bg: '#F3F4F6' },
-              { key: 'ROUTINE' as FilterOption, label: 'Routine', color: '#059669', bg: '#D1FAE5' },
-            ] as const
-          ).map((sub) => {
-            const isActive = selected === sub.key;
-            return (
-              <TouchableOpacity
-                key={sub.key}
-                style={[
-                  styles.subChip,
-                  { borderColor: sub.color },
-                  isActive && { backgroundColor: sub.bg },
-                ]}
-                onPress={() => onChange(sub.key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-              >
-                <View style={[styles.subDot, { backgroundColor: sub.color }]} />
-                <Text
-                  style={[
-                    styles.subChipText,
-                    { color: sub.color },
-                    !isActive && { color: '#374151' },
-                  ]}
-                >
-                  {sub.label}
-                </Text>
-                {counts?.[sub.key] !== undefined && (
-                  <View style={[styles.countBadge, isActive && { backgroundColor: sub.color }]}>
-                    <Text style={[styles.countText, isActive && styles.countTextActive]}>
-                      {counts[sub.key]}
-                    </Text>
-                  </View>
-                )}
               </TouchableOpacity>
             );
           })}

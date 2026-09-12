@@ -353,7 +353,7 @@ describe('useQueue', () => {
   });
 
   describe('filter changes', () => {
-    it.each<FilterOption>(['ALL', 'HIGH', 'NORMAL', 'ASSIGNED', 'PROCESSING'])(
+    it.each<FilterOption>(['ALL', 'ASSIGNED', 'PROCESSING', 'RETURNED'])(
       'setFilter("%s") updates the filter state',
       async (option) => {
         const { result } = renderHook(() => useQueue());
@@ -372,7 +372,7 @@ describe('useQueue', () => {
       expect(mockUnsubscribe).not.toHaveBeenCalled();
 
       act(() => {
-        result.current.setFilter('HIGH');
+        result.current.setFilter('ASSIGNED');
       });
 
       // Filter subscription cleaned up; allItems + returned-tracking stay
@@ -382,11 +382,13 @@ describe('useQueue', () => {
     });
   });
 
-  // QUEUE-03 / QUEUE-04 / QUEUE-05 — verifies buildQuery() produces the
-  // correct WatermelonDB clauses per filter, not just that state updates.
+  // QUEUE-03 / QUEUE-05 — verifies buildQuery() produces the correct
+  // WatermelonDB clauses per filter, not just that state updates.
   // Q.sortBy/Q.gte/Q.lte were previously unmocked, so DATE/LATEST/EARLIEST
   // would have thrown "not a function" if exercised — this closes that gap.
-  describe('filter query construction (QUEUE-03 / QUEUE-04 / QUEUE-05)', () => {
+  // QUEUE-04 (priority filtering) no longer applies — the priority filter
+  // was removed since priorityLevel is hardcoded to ROUTINE on the backend.
+  describe('filter query construction (QUEUE-03 / QUEUE-05)', () => {
     it('QUEUE-03: DATE filter scopes to today via received_at gte/lte and sorts desc', () => {
       const { result } = renderHook(() => useQueue());
 
@@ -410,28 +412,6 @@ describe('useQueue', () => {
       expect(start.getDate()).toBe(now.getDate());
       expect(start.getHours()).toBe(0);
       expect(end.getHours()).toBe(23);
-    });
-
-    it.each<[FilterOption, string]>([
-      ['HIGH', 'HIGH'],
-      ['NORMAL', 'NORMAL'],
-      ['LOW', 'LOW'],
-      ['ROUTINE', 'ROUTINE'],
-    ])('QUEUE-04: %s filter scopes to priority_level = %s only', (option, expected) => {
-      const { result } = renderHook(() => useQueue());
-
-      act(() => {
-        result.current.setFilter(option);
-      });
-
-      const clauses = lastFilterQueryClauses();
-      expect(clauses).toHaveLength(2);
-      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status' });
-      expect(clauses[1]).toMatchObject({
-        _type: 'where',
-        field: 'priority_level',
-        value: expected,
-      });
     });
 
     it('QUEUE-05: LATEST sorts received_at desc, EARLIEST sorts asc — same base filter otherwise', () => {

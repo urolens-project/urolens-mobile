@@ -242,10 +242,6 @@ export default function QueueScreen() {
               onChange={setFilter}
               counts={{
                 ALL: allItems.length,
-                HIGH: counts.priority,
-                NORMAL: allItems.filter(
-                  (i) => i.priorityLevel === 'NORMAL' || i.priorityLevel === 'LOW',
-                ).length,
                 ASSIGNED: counts.assigned,
                 PROCESSING: counts.inProgress,
                 RETURNED: counts.returned,
