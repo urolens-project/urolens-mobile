@@ -96,8 +96,22 @@ function emitItems(specimens: ReturnType<typeof makeSpecimen>[]) {
   subscribeCalls[0]?.cb(specimens);
 }
 
-function emitReturnedResults(results: Array<{ specimenId: string }>) {
-  subscribeCalls[2]?.cb(results);
+/**
+ * The hook now fetches ALL analysis_results (not pre-filtered by status)
+ * and picks each specimen's most recent one itself — so every fixture here
+ * needs a `status`, defaulting to RETURNED_FOR_CORRECTION since that's what
+ * every existing caller means by "emit a returned result".
+ */
+function emitReturnedResults(
+  results: Array<{
+    specimenId: string;
+    status?: string;
+    confirmedAt?: string | null;
+    syncedAt?: string | null;
+    createdAt?: number;
+  }>,
+) {
+  subscribeCalls[2]?.cb(results.map((r) => ({ status: 'RETURNED_FOR_CORRECTION', ...r })));
 }
 
 function buildDbChain() {
@@ -307,6 +321,33 @@ describe('useQueue', () => {
 
       expect(result.current.items.map((i) => i.id)).toEqual(['spec-2']);
     });
+
+    // Named after the actual user action, per the "must reflect fast"
+    // requirement: rejecting a specimen (useRejectSpecimen writes
+    // status='REJECTED' straight to WatermelonDB, synchronously and purely
+    // locally — no network round-trip) must drop it from the Queue in the
+    // very same reactive tick, not after a sync completes. Nothing in this
+    // test awaits synchronize() — only the local emission the reject would
+    // have triggered.
+    it('reflects a rejection immediately: the specimen disappears from the Queue in the same tick, no sync involved', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitItems([makeSpecimen({ id: 'spec-1', status: 'ASSIGNED' })]);
+      });
+      expect(result.current.items.map((i) => i.id)).toEqual(['spec-1']);
+
+      // Simulates exactly what useRejectSpecimen's local specimen.update()
+      // does — WatermelonDB's reactive query re-emits immediately.
+      await act(async () => {
+        emitItems([]);
+      });
+
+      expect(result.current.items).toEqual([]);
+      // No extra sync was triggered to make this happen — only the one
+      // synchronize() call from mount ever ran.
+      expect(synchronize).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('filter changes', () => {
@@ -466,6 +507,50 @@ describe('useQueue', () => {
 
       await act(async () => {
         emitItems([makeSpecimen({ id: 'spec-1', serverId: 'srv-1', status: 'ASSIGNED' })]);
+      });
+
+      expect(result.current.items[0].isReturnedForCorrection).toBe(false);
+    });
+
+    // Regression: PAT-00004/00006 ("Approved by Supervisor") and
+    // PAT-000015/000016 ("Released") stayed in the Queue because an OLD
+    // RETURNED_FOR_CORRECTION result from before a retake was still on
+    // file — only the specimen's LATEST result should ever count.
+    it('does not flag a specimen whose LATEST result is Approved, even though an older result was Returned for Correction', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      // The specimen's latest result is APPROVED, so returnedServerIds
+      // resolves to [] — the same as its initial value — so (correctly)
+      // nothing re-subscribes here; the original filter subscription
+      // (still subscribeCalls[0]) is the one to feed.
+      await act(async () => {
+        emitReturnedResults([
+          {
+            specimenId: 'srv-4',
+            status: 'RETURNED_FOR_CORRECTION',
+            confirmedAt: '2026-01-01T00:00:00Z',
+          },
+          { specimenId: 'srv-4', status: 'APPROVED', confirmedAt: '2026-01-05T00:00:00Z' },
+        ]);
+        emitItems([makeSpecimen({ id: 'spec-4', serverId: 'srv-4', status: 'COMPLETED' })]);
+      });
+
+      expect(result.current.items[0].isReturnedForCorrection).toBe(false);
+    });
+
+    it('does not flag a specimen whose LATEST result is Released, even though an older result was Returned for Correction', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitReturnedResults([
+          {
+            specimenId: 'srv-15',
+            status: 'RETURNED_FOR_CORRECTION',
+            confirmedAt: '2026-01-01T00:00:00Z',
+          },
+          { specimenId: 'srv-15', status: 'RELEASED', confirmedAt: '2026-01-05T00:00:00Z' },
+        ]);
+        emitItems([makeSpecimen({ id: 'spec-15', serverId: 'srv-15', status: 'COMPLETED' })]);
       });
 
       expect(result.current.items[0].isReturnedForCorrection).toBe(false);

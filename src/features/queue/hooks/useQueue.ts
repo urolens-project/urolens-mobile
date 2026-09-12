@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import { observeQuery } from '@db/observeQuery';
+import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
@@ -197,14 +198,20 @@ export function useQueue(): UseQueueResult {
   }, [returnedServerIds]);
 
   // Tracks which specimens (by server_id) have a result returned for
-  // correction (SRS UC 3.4) — feeds the two subscriptions above.
+  // correction (SRS UC 3.4) — feeds the two subscriptions above. Fetches
+  // every result (not pre-filtered by status) because a specimen can have
+  // more than one analysis_results row (e.g. a retake after being returned
+  // creates a new row) — only its LATEST result should count, or a
+  // superseded "returned" row keeps a since-Approved/Released specimen
+  // stuck in the Queue forever.
   useEffect(() => {
     const subscription = observeQuery(
-      database
-        .get<AnalysisResult>('analysis_results')
-        .query(Q.where('status', RETURNED_RESULT_STATUS)),
+      database.get<AnalysisResult>('analysis_results').query(),
       (results) => {
-        const next = results.map((r) => r.specimenId);
+        const latest = latestAnalysisResultsBySpecimen(results);
+        const next = Array.from(latest.values())
+          .filter((r) => r.status === RETURNED_RESULT_STATUS)
+          .map((r) => r.specimenId);
         setReturnedServerIds((prev) => (sameIds(prev, next) ? prev : next));
       },
     );

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import { observeQuery } from '@db/observeQuery';
+import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import type { ResultStatus } from '@db/models/AnalysisResult';
@@ -14,12 +14,6 @@ import {
   type ReportItem,
   type ReportSection,
 } from '../types';
-
-const FINISHED_RESULT_STATUSES: ResultStatus[] = [
-  'PENDING_SUPERVISOR_APPROVAL',
-  'APPROVED',
-  'RELEASED',
-];
 
 function resultStatusToCategory(status: ResultStatus): ReportCategory | null {
   switch (status) {
@@ -34,7 +28,7 @@ function resultStatusToCategory(status: ResultStatus): ReportCategory | null {
   }
 }
 
-function buildSections(specimens: Specimen[], results: AnalysisResult[]): ReportSection[] {
+function buildItems(specimens: Specimen[], results: AnalysisResult[]): ReportItem[] {
   const specimenByServerId = new Map(
     specimens.filter((s) => s.serverId).map((s) => [s.serverId as string, s]),
   );
@@ -56,7 +50,13 @@ function buildSections(specimens: Specimen[], results: AnalysisResult[]): Report
     });
   }
 
-  for (const r of results) {
+  // A specimen can have more than one analysis_results row (e.g. a retake
+  // after being returned for correction creates a new row) — only its
+  // LATEST result determines which category (if any) it belongs in, or a
+  // superseded "Pending Approval" row could keep showing a specimen that
+  // has since moved on to Approved or Released.
+  const latestResults = latestAnalysisResultsBySpecimen(results);
+  for (const r of latestResults.values()) {
     const category = resultStatusToCategory(r.status);
     if (!category) continue;
     const specimen = specimenByServerId.get(r.specimenId);
@@ -74,6 +74,10 @@ function buildSections(specimens: Specimen[], results: AnalysisResult[]): Report
     });
   }
 
+  return items;
+}
+
+function buildSections(items: ReportItem[]): ReportSection[] {
   // Always all 4 categories, in fixed order — even when empty. The Reports
   // screen shows one card per category (with its count) before drilling into
   // any single category's list, so callers need the full set to render.
@@ -111,11 +115,12 @@ export function useReports(): UseReportsResult {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Fetches every result, not pre-filtered by status: a specimen can have
+  // more than one analysis_results row, and only its latest one should
+  // count (see buildItems / latestAnalysisResultsBySpecimen).
   useEffect(() => {
     const subscription = observeQuery(
-      database
-        .get<AnalysisResult>('analysis_results')
-        .query(Q.where('status', Q.oneOf(FINISHED_RESULT_STATUSES))),
+      database.get<AnalysisResult>('analysis_results').query(),
       (rows) => {
         setResults(rows);
         setIsLoadingResults(false);
@@ -135,10 +140,12 @@ export function useReports(): UseReportsResult {
     }
   };
 
+  const items = buildItems(specimens, results);
+
   return {
-    sections: buildSections(specimens, results),
+    sections: buildSections(items),
     isLoading: isLoadingSpecimens || isLoadingResults,
-    totalCount: specimens.filter((s) => s.status === 'REJECTED').length + results.length,
+    totalCount: items.length,
     refresh,
     isRefreshing,
   };
