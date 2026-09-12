@@ -95,7 +95,7 @@ export default function QueueScreen() {
     () => ({
       assigned: allItems.filter((i) => i.status === 'ASSIGNED').length,
       priority: allItems.filter((i) => i.priorityLevel === 'HIGH').length,
-      pending: allItems.filter((i) => i.status === 'IN_QUEUE').length,
+      returned: allItems.filter((i) => i.isReturnedForCorrection).length,
       inProgress: allItems.filter((i) => i.status === 'PROCESSING').length,
     }),
     [allItems],
@@ -222,7 +222,7 @@ export default function QueueScreen() {
                 {[
                   { label: 'Assigned', value: counts.assigned, color: '#111827' },
                   { label: 'Priority', value: counts.priority, color: '#DC2626' },
-                  { label: 'Pending', value: counts.pending, color: '#D97706' },
+                  { label: 'Returned', value: counts.returned, color: '#D97706' },
                   { label: 'Progress', value: counts.inProgress, color: '#2563EB' },
                 ].map((stat, i) => (
                   <View key={stat.label} style={[styles.statItem, i < 3 && styles.statDivider]}>
@@ -248,6 +248,7 @@ export default function QueueScreen() {
                 ).length,
                 ASSIGNED: counts.assigned,
                 PROCESSING: counts.inProgress,
+                RETURNED: counts.returned,
               }}
             />
           </View>

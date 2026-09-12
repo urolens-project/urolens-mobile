@@ -17,6 +17,14 @@ interface BadgeConfig {
 }
 
 function getBadge(item: QueueItem): BadgeConfig {
+  if (item.isReturnedForCorrection) {
+    return {
+      label: 'RETURNED FOR CORRECTION',
+      bg: '#FFFBEB',
+      text: '#92400E',
+      barColor: '#D97706',
+    };
+  }
   if (item.priorityLevel === 'HIGH') {
     return { label: 'STAT / HIGH PRIORITY', bg: '#FEE2E2', text: '#DC2626', barColor: '#DC2626' };
   }

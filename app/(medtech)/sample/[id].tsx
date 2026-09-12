@@ -196,6 +196,9 @@ export default function SampleDetailScreen(): React.JSX.Element {
             rejectionNote: s.rejectionNote,
             rejectedAt: s.rejectedAt,
             syncedAt: s.syncedAt,
+            // Not derived here — this screen computes its own
+            // isReturnedForCorrection below, from the loaded analysisResult.
+            isReturnedForCorrection: false,
           });
           setIsLoading(false);
         });

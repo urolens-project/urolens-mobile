@@ -25,19 +25,23 @@ function getInitials(username: string | null): string {
 function TabProfileAvatar({ focused }: { focused: boolean }) {
   const { username } = useAuthStore();
   return (
-    <View style={{
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      backgroundColor: focused ? TEAL : '#E5E7EB',
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}>
-      <Text style={{
-        fontSize: 10,
-        fontWeight: '700',
-        color: focused ? '#FFFFFF' : '#6B7280',
-      }}>
+    <View
+      style={{
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: focused ? TEAL : '#E5E7EB',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 10,
+          fontWeight: '700',
+          color: focused ? '#FFFFFF' : '#6B7280',
+        }}
+      >
         {getInitials(username)}
       </Text>
     </View>
@@ -103,17 +107,15 @@ export default function MedTechLayout() {
           name="queue"
           options={{
             title: 'Queue',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="list" size={size} color={color} />
-            ),
+            tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
-          name="capture"
+          name="reports"
           options={{
-            title: 'Capture',
+            title: 'Reports',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="camera-outline" size={size} color={color} />
+              <Ionicons name="document-text-outline" size={size} color={color} />
             ),
           }}
         />
@@ -130,12 +132,13 @@ export default function MedTechLayout() {
           name="profile"
           options={{
             title: 'Profile',
-            tabBarIcon: ({ focused }) => (
-              <TabProfileAvatar focused={focused} />
-            ),
+            tabBarIcon: ({ focused }) => <TabProfileAvatar focused={focused} />,
           }}
         />
         {/* Hide detail screens from the tab bar */}
+        {/* capture is still pushed to directly from Begin Analysis / Retake
+            Image (sample/[id].tsx) — it just no longer has its own tab. */}
+        <Tabs.Screen name="capture" options={{ href: null, tabBarStyle: { display: 'none' } }} />
         <Tabs.Screen
           name="sample/[id]"
           options={{ href: null, tabBarStyle: { display: 'none' } }}
