@@ -3,13 +3,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
+import AnalysisResult from '@db/models/AnalysisResult';
 import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import type { QueueItem, FilterOption, PriorityLevel, SpecimenStatus } from '../types';
 
-const QUEUE_STATUSES: SpecimenStatus[] = ['ASSIGNED', 'IN_QUEUE'];
+// The Queue's own actionable statuses (SRS UC 2.2 + product decision). A
+// sample returned for correction (UC 3.4) is included separately below since
+// that's a property of its analysis_results row, not the specimen's status.
+const QUEUE_STATUSES: SpecimenStatus[] = ['ASSIGNED', 'PROCESSING'];
+const RETURNED_RESULT_STATUS = 'RETURNED_FOR_CORRECTION';
+const NO_RETURNED_SENTINEL = ['__none__'];
 
-function specimenToQueueItem(s: Specimen): QueueItem {
+function specimenToQueueItem(s: Specimen, returnedServerIds: Set<string>): QueueItem {
   return {
     id: s.id,
     serverId: s.serverId,
@@ -25,6 +31,7 @@ function specimenToQueueItem(s: Specimen): QueueItem {
     rejectionNote: s.rejectionNote,
     rejectedAt: s.rejectedAt,
     syncedAt: s.syncedAt,
+    isReturnedForCorrection: !!s.serverId && returnedServerIds.has(s.serverId),
   };
 }
 
@@ -36,45 +43,63 @@ function todayRange(): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-function buildQuery(filter: FilterOption): Q.Clause[] {
+// Samples in scope for "the Queue": ASSIGNED/PROCESSING by status, OR
+// returned-for-correction by server_id (their specimen status may be
+// anything — e.g. COMPLETED — since the correction flag lives on the result).
+function baseClause(returnedServerIds: string[]): Q.Clause {
+  if (returnedServerIds.length === 0) {
+    return Q.where('status', Q.oneOf(QUEUE_STATUSES));
+  }
+  return Q.or(
+    Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+    Q.where('server_id', Q.oneOf(returnedServerIds)),
+  );
+}
+
+function buildQuery(filter: FilterOption, returnedServerIds: string[]): Q.Clause[] {
   switch (filter) {
     case 'DATE': {
       const { start, end } = todayRange();
       return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+        baseClause(returnedServerIds),
         Q.where('received_at', Q.gte(start)),
         Q.where('received_at', Q.lte(end)),
         Q.sortBy('received_at', Q.desc),
       ];
     }
     case 'LATEST':
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.sortBy('received_at', Q.desc)];
+      return [baseClause(returnedServerIds), Q.sortBy('received_at', Q.desc)];
     case 'EARLIEST':
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.sortBy('received_at', Q.asc)];
+      return [baseClause(returnedServerIds), Q.sortBy('received_at', Q.asc)];
     case 'PRIORITY':
       return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
+        baseClause(returnedServerIds),
         Q.where('priority_level', Q.oneOf(['HIGH', 'NORMAL', 'LOW', 'ROUTINE'])),
       ];
     case 'HIGH':
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.where('priority_level', 'HIGH')];
+      return [baseClause(returnedServerIds), Q.where('priority_level', 'HIGH')];
     case 'NORMAL':
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.where('priority_level', 'NORMAL')];
+      return [baseClause(returnedServerIds), Q.where('priority_level', 'NORMAL')];
     case 'LOW':
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.where('priority_level', 'LOW')];
+      return [baseClause(returnedServerIds), Q.where('priority_level', 'LOW')];
     case 'ROUTINE':
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.where('priority_level', 'ROUTINE')];
+      return [baseClause(returnedServerIds), Q.where('priority_level', 'ROUTINE')];
     case 'STATUS':
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];
+      return [baseClause(returnedServerIds)];
     case 'ASSIGNED':
       return [Q.where('status', 'ASSIGNED')];
-    case 'IN_QUEUE':
-      return [Q.where('status', 'IN_QUEUE')];
     case 'PROCESSING':
       return [Q.where('status', 'PROCESSING')];
+    case 'RETURNED':
+      return [
+        Q.where(
+          'server_id',
+          Q.oneOf(returnedServerIds.length ? returnedServerIds : NO_RETURNED_SENTINEL),
+        ),
+      ];
     case 'ALL':
     default:
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];
+      return [baseClause(returnedServerIds)];
   }
 }
 
@@ -96,6 +121,7 @@ export function useQueue(): UseQueueResult {
   const [filter, setFilter] = useState<FilterOption>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [returnedServerIds, setReturnedServerIds] = useState<string[]>([]);
   const { isOnline } = useNetworkStatus();
 
   const loadLastSyncAt = useCallback(async () => {
@@ -107,29 +133,46 @@ export function useQueue(): UseQueueResult {
     loadLastSyncAt();
   }, [loadLastSyncAt]);
 
-  // Filtered list — changes with the active filter
+  // Filtered list — changes with the active filter and with which specimens
+  // are currently flagged returned-for-correction.
   useEffect(() => {
-    const clauses = buildQuery(filter);
+    const clauses = buildQuery(filter, returnedServerIds);
+    const returnedSet = new Set(returnedServerIds);
     const subscription = database
       .get<Specimen>('specimens')
       .query(...clauses)
       .observe()
       .subscribe((specimens) => {
-        setItems(specimens.map(specimenToQueueItem));
+        setItems(specimens.map((s) => specimenToQueueItem(s, returnedSet)));
         setIsLoading(false);
       });
 
     return () => subscription.unsubscribe();
-  }, [filter]);
+  }, [filter, returnedServerIds]);
 
   // Unfiltered totals — always the full active queue for stats card
   useEffect(() => {
+    const returnedSet = new Set(returnedServerIds);
     const subscription = database
       .get<Specimen>('specimens')
-      .query(Q.where('status', Q.oneOf(QUEUE_STATUSES)))
+      .query(baseClause(returnedServerIds))
       .observe()
       .subscribe((specimens) => {
-        setAllItems(specimens.map(specimenToQueueItem));
+        setAllItems(specimens.map((s) => specimenToQueueItem(s, returnedSet)));
+      });
+
+    return () => subscription.unsubscribe();
+  }, [returnedServerIds]);
+
+  // Tracks which specimens (by server_id) have a result returned for
+  // correction (SRS UC 3.4) — feeds the two subscriptions above.
+  useEffect(() => {
+    const subscription = database
+      .get<AnalysisResult>('analysis_results')
+      .query(Q.where('status', RETURNED_RESULT_STATUS))
+      .observe()
+      .subscribe((results) => {
+        setReturnedServerIds(results.map((r) => r.specimenId));
       });
 
     return () => subscription.unsubscribe();

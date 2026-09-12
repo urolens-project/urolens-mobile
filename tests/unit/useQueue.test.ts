@@ -20,6 +20,7 @@ jest.mock('@nozbe/watermelondb', () => ({
     gte: jest.fn((v: unknown) => ({ _type: 'gte', v })),
     lte: jest.fn((v: unknown) => ({ _type: 'lte', v })),
     sortBy: jest.fn((field: string, dir: string) => ({ _type: 'sortBy', field, dir })),
+    or: jest.fn((...clauses: unknown[]) => ({ _type: 'or', clauses })),
     asc: 'asc',
     desc: 'desc',
   },
@@ -66,27 +67,35 @@ function makeSpecimen(overrides: Partial<Record<string, unknown>> = {}) {
 // ─── Test setup ──────────────────────────────────────────────────────────────
 
 /**
- * The hook sets up two WatermelonDB subscriptions:
- *  1. filtered items (re-subscribes when filter changes)
- *  2. allItems totals (subscribes once on mount)
+ * The hook sets up three WatermelonDB subscriptions, in this fixed order:
+ *  0. filtered items (re-subscribes whenever filter or returnedServerIds change)
+ *  1. allItems totals (re-subscribes whenever returnedServerIds changes)
+ *  2. returned-for-correction tracking (subscribes once on mount, never re-fires)
  *
- * We track them by subscribe-call order so tests can emit to the right one.
+ * We track every subscribe() call in creation order — index 2 is always the
+ * returned-tracking subscription (it never tears down/recreates), but indices
+ * 0/1 shift once returnedServerIds changes and 0/1 re-subscribe. Tests that
+ * only care about the initial mount can use emitItems(); tests that drive a
+ * returnedServerIds-triggered re-subscription read the tail of the array directly.
  */
-let emitItems: (specimens: ReturnType<typeof makeSpecimen>[]) => void;
+const subscribeCalls: Array<{ cb: (rows: unknown[]) => void }> = [];
 const mockUnsubscribe = jest.fn();
-let subscribeCallCount = 0;
 let capturedQuery: jest.Mock;
 
+function emitItems(specimens: ReturnType<typeof makeSpecimen>[]) {
+  subscribeCalls[0]?.cb(specimens);
+}
+
+function emitReturnedResults(results: Array<{ specimenId: string }>) {
+  subscribeCalls[2]?.cb(results);
+}
+
 function buildDbChain() {
-  subscribeCallCount = 0;
-  const mockSubscribe = jest
-    .fn()
-    .mockImplementation((cb: (s: ReturnType<typeof makeSpecimen>[]) => void) => {
-      subscribeCallCount += 1;
-      if (subscribeCallCount === 1) emitItems = cb; // filter subscription
-      // 2nd call is allItems — no need to emit to it in these tests
-      return { unsubscribe: mockUnsubscribe };
-    });
+  subscribeCalls.length = 0;
+  const mockSubscribe = jest.fn().mockImplementation((cb: (rows: unknown[]) => void) => {
+    subscribeCalls.push({ cb });
+    return { unsubscribe: mockUnsubscribe };
+  });
   const mockObserve = jest.fn(() => ({ subscribe: mockSubscribe }));
   const mockQuery = jest.fn(() => ({ observe: mockObserve }));
   const mockGet = jest.fn(() => ({ query: mockQuery }));
@@ -95,7 +104,6 @@ function buildDbChain() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  subscribeCallCount = 0;
   const { mockGet, mockQuery } = buildDbChain();
   capturedQuery = mockQuery;
   (database.get as jest.Mock).mockImplementation(mockGet);
@@ -187,8 +195,9 @@ describe('useQueue', () => {
     it('unsubscribes from WatermelonDB when the component unmounts', () => {
       const { unmount } = renderHook(() => useQueue());
       unmount();
-      // Two subscriptions (filtered items + allItems) are both cleaned up
-      expect(mockUnsubscribe).toHaveBeenCalledTimes(2);
+      // Three subscriptions (filtered items + allItems + returned-for-correction
+      // tracking) are all cleaned up
+      expect(mockUnsubscribe).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -209,25 +218,25 @@ describe('useQueue', () => {
     });
   });
 
-  // QUEUE-06 — a specimen that moves out of ASSIGNED/IN_QUEUE elsewhere
+  // QUEUE-06 — a specimen that moves out of ASSIGNED/PROCESSING elsewhere
   // (confirmed, rejected, etc.) should disappear from the queue on the next
   // reactive emission, without a manual refresh.
   describe('reactive status changes (QUEUE-06)', () => {
-    it('drops a specimen from the list once it leaves ASSIGNED/IN_QUEUE', async () => {
+    it('drops a specimen from the list once it leaves ASSIGNED/PROCESSING', async () => {
       const { result } = renderHook(() => useQueue());
 
       await act(async () => {
         emitItems([
           makeSpecimen({ id: 'spec-1', status: 'ASSIGNED' }),
-          makeSpecimen({ id: 'spec-2', status: 'IN_QUEUE' }),
+          makeSpecimen({ id: 'spec-2', status: 'PROCESSING' }),
         ]);
       });
       expect(result.current.items.map((i) => i.id)).toEqual(['spec-1', 'spec-2']);
 
       // WatermelonDB's reactive query re-emits with spec-1 excluded once its
-      // status moves past ASSIGNED/IN_QUEUE (e.g. confirmed or rejected).
+      // status moves past ASSIGNED/PROCESSING (e.g. confirmed or rejected).
       await act(async () => {
-        emitItems([makeSpecimen({ id: 'spec-2', status: 'IN_QUEUE' })]);
+        emitItems([makeSpecimen({ id: 'spec-2', status: 'PROCESSING' })]);
       });
 
       expect(result.current.items.map((i) => i.id)).toEqual(['spec-2']);
@@ -257,10 +266,10 @@ describe('useQueue', () => {
         result.current.setFilter('HIGH');
       });
 
-      // Filter subscription cleaned up; allItems subscription stays
+      // Filter subscription cleaned up; allItems + returned-tracking stay
       expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
-      // mount: 2 (filter + allItems), setFilter: +1 = 3 total
-      expect(database.get).toHaveBeenCalledTimes(3);
+      // mount: 3 (filter + allItems + returned-tracking), setFilter: +1 = 4 total
+      expect(database.get).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -332,6 +341,68 @@ describe('useQueue', () => {
       clauses = lastFilterQueryClauses();
       expect(clauses).toHaveLength(2);
       expect(clauses[1]).toMatchObject({ _type: 'sortBy', field: 'received_at', dir: 'asc' });
+    });
+  });
+
+  // Queue scope change: only ASSIGNED/PROCESSING specimens are shown, plus
+  // anything a Supervisor returned for correction (SRS UC 3.4) — tracked via
+  // analysis_results, not the specimen's own status.
+  describe('returned-for-correction tracking (UC 3.4)', () => {
+    it('RETURNED filter falls back to a sentinel (matches nothing) before any result is tracked', () => {
+      const { result } = renderHook(() => useQueue());
+
+      act(() => {
+        result.current.setFilter('RETURNED');
+      });
+
+      const clauses = lastFilterQueryClauses();
+      expect(clauses).toHaveLength(1);
+      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'server_id' });
+      expect((clauses[0] as any).value).toMatchObject({ _type: 'oneOf', vals: ['__none__'] });
+    });
+
+    it('ALL/default query becomes an OR of status + server_id once a result is returned', () => {
+      renderHook(() => useQueue());
+
+      act(() => {
+        emitReturnedResults([{ specimenId: 'srv-9' }]);
+      });
+
+      // returnedServerIds changing re-subscribes filter (index 0/1) then
+      // allItems (index 1/1) in that order — filter's fresh query is the
+      // second-to-last .query(...) call once both have fired.
+      const calls = capturedQuery.mock.calls;
+      const filterClauses = calls[calls.length - 2] as unknown as Array<Record<string, unknown>>;
+      expect(filterClauses).toHaveLength(1);
+      expect(filterClauses[0]).toMatchObject({ _type: 'or' });
+    });
+
+    it('flags a specimen isReturnedForCorrection once its server_id is tracked as returned', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitReturnedResults([{ specimenId: 'srv-9' }]);
+      });
+
+      // The returnedServerIds change tore down and recreated the filter
+      // subscription — feed the fresh one (second-to-last of the two new
+      // subscriptions created by the filter+allItems re-subscribe).
+      const freshFilterCb = subscribeCalls[subscribeCalls.length - 2].cb;
+      await act(async () => {
+        freshFilterCb([makeSpecimen({ id: 'spec-9', serverId: 'srv-9', status: 'COMPLETED' })]);
+      });
+
+      expect(result.current.items[0].isReturnedForCorrection).toBe(true);
+    });
+
+    it('does not flag a specimen whose server_id is not in the returned set', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitItems([makeSpecimen({ id: 'spec-1', serverId: 'srv-1', status: 'ASSIGNED' })]);
+      });
+
+      expect(result.current.items[0].isReturnedForCorrection).toBe(false);
     });
   });
 
