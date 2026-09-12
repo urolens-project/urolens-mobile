@@ -18,7 +18,13 @@ const NUMBER_FONT_SIZE = Math.round(CARD_HEIGHT * 0.9);
 // A tight lineHeight leaves a digit's glyph sitting slightly above true
 // center (fonts reserve more descender space than a numeral needs) — nudge
 // it down instead of trusting flexbox centering alone.
-const NUMBER_TOP_NUDGE = Math.round(NUMBER_FONT_SIZE * 0.08);
+const NUMBER_TOP_NUDGE = Math.round(NUMBER_FONT_SIZE * 0.16);
+// Fixed (not min) width, sized to fit two bold digits at NUMBER_FONT_SIZE
+// comfortably. This is what keeps the divider at a constant x position
+// regardless of whether the count is 1 or 2 digits — a *minWidth* would let
+// a wider two-digit count grow the column and shift the divider along with
+// it; adjustsFontSizeToFit below is the safety valve for 3+ digit counts.
+const NUMBER_COL_WIDTH = Math.round(NUMBER_FONT_SIZE * 1.3);
 
 function ReportCategoryCardComponent({ category, title, count, onPress }: Props) {
   const style = REPORT_CATEGORY_STYLES[category];
@@ -73,7 +79,7 @@ const styles = StyleSheet.create({
   },
   numberCol: {
     height: '100%',
-    minWidth: CARD_HEIGHT,
+    width: NUMBER_COL_WIDTH,
     justifyContent: 'center',
     alignItems: 'center',
   },

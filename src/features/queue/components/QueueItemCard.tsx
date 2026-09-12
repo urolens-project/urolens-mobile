@@ -3,6 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { QueueItem } from '../types';
 
+const TEAL = '#2E7D7A';
+const TEAL_TINT = '#E0F2F1';
+
 interface Props {
   item: QueueItem;
   onPress: (id: string) => void;
@@ -13,31 +16,25 @@ interface BadgeConfig {
   label: string;
   bg: string;
   text: string;
-  barColor: string;
 }
 
 function getBadge(item: QueueItem): BadgeConfig {
   if (item.isReturnedForCorrection) {
-    return {
-      label: 'RETURNED FOR CORRECTION',
-      bg: '#FFFBEB',
-      text: '#92400E',
-      barColor: '#D97706',
-    };
+    return { label: 'RETURNED FOR CORRECTION', bg: '#FFFBEB', text: '#92400E' };
   }
   if (item.priorityLevel === 'HIGH') {
-    return { label: 'STAT / HIGH PRIORITY', bg: '#FEE2E2', text: '#DC2626', barColor: '#DC2626' };
+    return { label: 'STAT / HIGH PRIORITY', bg: '#FEE2E2', text: '#DC2626' };
   }
   if (item.priorityLevel === 'NORMAL') {
-    return { label: 'NORMAL', bg: '#DBEAFE', text: '#2563EB', barColor: '#2563EB' };
+    return { label: 'NORMAL', bg: '#DBEAFE', text: '#2563EB' };
   }
   if (item.priorityLevel === 'LOW') {
-    return { label: 'LOW', bg: '#F3F4F6', text: '#6B7280', barColor: '#9CA3AF' };
+    return { label: 'LOW', bg: '#F3F4F6', text: '#6B7280' };
   }
   if (item.status === 'PROCESSING') {
-    return { label: 'IN PROGRESS', bg: '#EDE9FE', text: '#7C3AED', barColor: '#7C3AED' };
+    return { label: 'IN PROGRESS', bg: '#EDE9FE', text: '#7C3AED' };
   }
-  return { label: 'ROUTINE', bg: '#D1FAE5', text: '#059669', barColor: '#059669' };
+  return { label: 'ROUTINE', bg: '#D1FAE5', text: '#059669' };
 }
 
 function formatTime(iso: string): string {
@@ -72,12 +69,15 @@ function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}`}
     >
-      {/* Left priority bar */}
-      <View style={[styles.bar, { backgroundColor: badge.barColor }]} />
+      {/* Brand mark — every sample is a urine specimen, so a droplet stands
+          in for the old priority-color bar instead of competing with it. */}
+      <View style={styles.dropletBadge}>
+        <Ionicons name="water" size={18} color={TEAL} />
+      </View>
 
       <View style={styles.content}>
-        {/* Row 1 — patient UID + badge. Shows patientUid, not patientName:
-            intentional privacy decision so PHI isn't visible on a shared queue list. */}
+        {/* Shows patientUid, not patientName: intentional privacy decision
+            so PHI isn't visible on a shared queue list. */}
         <View style={styles.row}>
           <Text style={styles.patientUid} numberOfLines={1}>
             {item.patientUid}
@@ -87,20 +87,17 @@ function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
           </View>
         </View>
 
-        {/* Row 2 — sample UID + time */}
         <View style={styles.row}>
-          <Text style={styles.uid}>{item.sampleUid}</Text>
-          <Text style={styles.time}>{formatTime(item.receivedAt)}</Text>
+          <Ionicons name={getTestTypeIcon(item.testType)} size={13} color="#9CA3AF" />
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {item.sampleUid} · {item.testType ?? '—'}
+          </Text>
         </View>
+      </View>
 
-        {/* Row 3 — test type + menu */}
-        <View style={[styles.row, styles.bottomRow]}>
-          <View style={styles.testTypeRow}>
-            <Ionicons name={getTestTypeIcon(item.testType)} size={14} color="#9CA3AF" />
-            <Text style={styles.testType}>{item.testType ?? '—'}</Text>
-          </View>
-          <Ionicons name="reorder-three-outline" size={20} color="#D1D5DB" />
-        </View>
+      <Text style={styles.time}>{formatTime(item.receivedAt)}</Text>
+      <View style={styles.arrowBadge}>
+        <Ionicons name="chevron-forward" size={22} color={TEAL} />
       </View>
     </TouchableOpacity>
   );
@@ -109,39 +106,42 @@ function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     marginBottom: 10,
-    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   cardSelected: {
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 6,
     borderWidth: 1.5,
-    borderColor: '#2E7D7A',
+    borderColor: TEAL,
   },
-  bar: {
-    width: 5,
+  dropletBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: TEAL_TINT,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
     gap: 6,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  bottomRow: {
-    marginTop: 2,
+    gap: 6,
   },
   patientUid: {
     flex: 1,
@@ -151,14 +151,15 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginRight: 8,
   },
-  uid: {
+  subtitle: {
+    flex: 1,
     fontSize: 13,
     color: '#6B7280',
-    fontWeight: '500',
   },
   time: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
+    fontWeight: '500',
   },
   badge: {
     paddingHorizontal: 8,
@@ -170,14 +171,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  testTypeRow: {
-    flexDirection: 'row',
+  arrowBadge: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 5,
-  },
-  testType: {
-    fontSize: 13,
-    color: '#9CA3AF',
   },
 });
 
