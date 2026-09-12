@@ -404,6 +404,43 @@ describe('useQueue', () => {
 
       expect(result.current.items[0].isReturnedForCorrection).toBe(false);
     });
+
+    // Regression: a naive `setReturnedServerIds(results.map(...))` builds a new
+    // array on every emission, even an equal-content one, which re-subscribes
+    // the filter/allItems queries on every tick — and if one of those
+    // re-subscribes happens to land while syncManager's one-time
+    // unsafeResetDatabase() is running, WatermelonDB throws instead of queuing.
+    // Re-emitting the same set of returned ids must not cause another
+    // re-subscribe.
+    it('does not re-subscribe when the returned-ids set is emitted again unchanged', async () => {
+      renderHook(() => useQueue());
+
+      await act(async () => {
+        emitReturnedResults([{ specimenId: 'srv-9' }]);
+      });
+      const callsAfterFirst = capturedQuery.mock.calls.length;
+
+      await act(async () => {
+        emitReturnedResults([{ specimenId: 'srv-9' }]);
+      });
+
+      expect(capturedQuery.mock.calls.length).toBe(callsAfterFirst);
+    });
+
+    it('does not re-subscribe when the same ids are emitted in a different order', async () => {
+      renderHook(() => useQueue());
+
+      await act(async () => {
+        emitReturnedResults([{ specimenId: 'srv-a' }, { specimenId: 'srv-b' }]);
+      });
+      const callsAfterFirst = capturedQuery.mock.calls.length;
+
+      await act(async () => {
+        emitReturnedResults([{ specimenId: 'srv-b' }, { specimenId: 'srv-a' }]);
+      });
+
+      expect(capturedQuery.mock.calls.length).toBe(callsAfterFirst);
+    });
   });
 
   describe('sync on mount', () => {

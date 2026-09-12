@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
+import { observeQuery } from '@db/observeQuery';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import type { ResultStatus } from '@db/models/AnalysisResult';
@@ -102,27 +103,24 @@ export function useReports(): UseReportsResult {
   const { isOnline } = useNetworkStatus();
 
   useEffect(() => {
-    const subscription = database
-      .get<Specimen>('specimens')
-      .query()
-      .observe()
-      .subscribe((rows) => {
-        setSpecimens(rows);
-        setIsLoadingSpecimens(false);
-      });
+    const subscription = observeQuery(database.get<Specimen>('specimens').query(), (rows) => {
+      setSpecimens(rows);
+      setIsLoadingSpecimens(false);
+    });
 
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    const subscription = database
-      .get<AnalysisResult>('analysis_results')
-      .query(Q.where('status', Q.oneOf(FINISHED_RESULT_STATUSES)))
-      .observe()
-      .subscribe((rows) => {
+    const subscription = observeQuery(
+      database
+        .get<AnalysisResult>('analysis_results')
+        .query(Q.where('status', Q.oneOf(FINISHED_RESULT_STATUSES))),
+      (rows) => {
         setResults(rows);
         setIsLoadingResults(false);
-      });
+      },
+    );
 
     return () => subscription.unsubscribe();
   }, []);
