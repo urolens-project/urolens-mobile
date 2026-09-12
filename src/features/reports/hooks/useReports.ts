@@ -73,13 +73,16 @@ function buildSections(specimens: Specimen[], results: AnalysisResult[]): Report
     });
   }
 
+  // Always all 4 categories, in fixed order — even when empty. The Reports
+  // screen shows one card per category (with its count) before drilling into
+  // any single category's list, so callers need the full set to render.
   return REPORT_CATEGORY_ORDER.map((category) => ({
     category,
     title: REPORT_CATEGORY_TITLES[category],
     data: items
       .filter((i) => i.category === category)
       .sort((a, b) => new Date(b.finalizedAt).getTime() - new Date(a.finalizedAt).getTime()),
-  })).filter((section) => section.data.length > 0);
+  }));
 }
 
 export interface UseReportsResult {

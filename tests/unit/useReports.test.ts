@@ -3,10 +3,11 @@
  *
  * Covers:
  *  - Initial loading state
+ *  - sections always has all 4 categories, in fixed order, even when empty
+ *    (the Reports screen renders one card per category up front)
  *  - Rejected specimens surface under the REJECTED section
  *  - Finished analysis_results (pending approval / approved / released)
  *    surface under their matching section, joined to their specimen by server_id
- *  - Sections with no items are omitted entirely
  *  - Within a section, items sort most-recently-finalized first
  *  - RETURNED_FOR_CORRECTION results are excluded (that belongs in the Queue)
  *  - A result with no matching local specimen is skipped, not crashed on
@@ -33,6 +34,13 @@ import { renderHook, act } from '@testing-library/react-native';
 import { useReports } from '../../src/features/reports/hooks/useReports';
 import { database } from '../../src/db/database';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
+import type { ReportCategory, ReportSection } from '../../src/features/reports/types';
+
+function findSection(sections: ReportSection[], category: ReportCategory): ReportSection {
+  const section = sections.find((s) => s.category === category);
+  if (!section) throw new Error(`No section for category ${category}`);
+  return section;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,10 +101,16 @@ beforeEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('useReports', () => {
-  it('starts with isLoading true and no sections', () => {
+  it('starts with isLoading true and all 4 (empty) category sections', () => {
     const { result } = renderHook(() => useReports());
     expect(result.current.isLoading).toBe(true);
-    expect(result.current.sections).toEqual([]);
+    expect(result.current.sections.map((s) => s.category)).toEqual([
+      'PENDING_APPROVAL',
+      'APPROVED',
+      'RELEASED',
+      'REJECTED',
+    ]);
+    expect(result.current.sections.every((s) => s.data.length === 0)).toBe(true);
   });
 
   it('clears isLoading only once both specimens and results have emitted', async () => {
@@ -121,12 +135,11 @@ describe('useReports', () => {
       emitResults([]);
     });
 
-    expect(result.current.sections).toHaveLength(1);
-    expect(result.current.sections[0]).toMatchObject({
-      category: 'REJECTED',
-      title: 'Rejected',
-    });
-    expect(result.current.sections[0].data[0].rejectionReason).toBe('INSUFFICIENT_VOLUME');
+    const rejected = findSection(result.current.sections, 'REJECTED');
+    expect(rejected.title).toBe('Rejected');
+    expect(rejected.data[0].rejectionReason).toBe('INSUFFICIENT_VOLUME');
+    // Every other category stays empty, not omitted
+    expect(result.current.sections).toHaveLength(4);
   });
 
   it('does not surface a non-rejected, non-finished specimen anywhere', async () => {
@@ -137,7 +150,7 @@ describe('useReports', () => {
       emitResults([]);
     });
 
-    expect(result.current.sections).toEqual([]);
+    expect(result.current.sections.every((s) => s.data.length === 0)).toBe(true);
   });
 
   it.each([
@@ -154,9 +167,9 @@ describe('useReports', () => {
         emitResults([makeResult({ specimenId: 'srv-42', status: resultStatus })]);
       });
 
-      expect(result.current.sections).toHaveLength(1);
-      expect(result.current.sections[0]).toMatchObject({ category, title });
-      expect(result.current.sections[0].data[0].id).toBe('spec-1');
+      const section = findSection(result.current.sections, category);
+      expect(section.title).toBe(title);
+      expect(section.data[0].id).toBe('spec-1');
     },
   );
 
@@ -168,7 +181,7 @@ describe('useReports', () => {
       emitResults([makeResult({ specimenId: 'srv-42', status: 'RETURNED_FOR_CORRECTION' })]);
     });
 
-    expect(result.current.sections).toEqual([]);
+    expect(result.current.sections.every((s) => s.data.length === 0)).toBe(true);
   });
 
   it('skips a result whose specimen has not synced locally yet, without crashing', async () => {
@@ -179,7 +192,7 @@ describe('useReports', () => {
       emitResults([makeResult({ specimenId: 'srv-99', status: 'APPROVED' })]);
     });
 
-    expect(result.current.sections).toEqual([]);
+    expect(result.current.sections.every((s) => s.data.length === 0)).toBe(true);
   });
 
   it('sorts items within a section by finalizedAt, most recent first', async () => {
@@ -204,7 +217,10 @@ describe('useReports', () => {
       ]);
     });
 
-    expect(result.current.sections[0].data.map((i) => i.id)).toEqual(['spec-b', 'spec-a']);
+    expect(findSection(result.current.sections, 'APPROVED').data.map((i) => i.id)).toEqual([
+      'spec-b',
+      'spec-a',
+    ]);
   });
 
   it('totalCount reflects rejected specimens plus finished results', async () => {
