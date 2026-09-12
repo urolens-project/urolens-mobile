@@ -121,25 +121,6 @@ function buildQuery(
       return [baseClause(returnedServerIds, finishedServerIds), Q.sortBy('received_at', Q.desc)];
     case 'EARLIEST':
       return [baseClause(returnedServerIds, finishedServerIds), Q.sortBy('received_at', Q.asc)];
-    case 'PRIORITY':
-      return [
-        baseClause(returnedServerIds, finishedServerIds),
-        Q.where('priority_level', Q.oneOf(['HIGH', 'NORMAL', 'LOW', 'ROUTINE'])),
-      ];
-    case 'HIGH':
-      return [baseClause(returnedServerIds, finishedServerIds), Q.where('priority_level', 'HIGH')];
-    case 'NORMAL':
-      return [
-        baseClause(returnedServerIds, finishedServerIds),
-        Q.where('priority_level', 'NORMAL'),
-      ];
-    case 'LOW':
-      return [baseClause(returnedServerIds, finishedServerIds), Q.where('priority_level', 'LOW')];
-    case 'ROUTINE':
-      return [
-        baseClause(returnedServerIds, finishedServerIds),
-        Q.where('priority_level', 'ROUTINE'),
-      ];
     case 'STATUS':
       return [baseClause(returnedServerIds, finishedServerIds)];
     case 'ASSIGNED':
