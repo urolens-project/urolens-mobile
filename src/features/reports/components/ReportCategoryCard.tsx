@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportCategory } from '../types';
 
@@ -15,6 +15,10 @@ interface Props {
 // only category cue left, so it has to carry the card.
 const CARD_HEIGHT = 96;
 const NUMBER_FONT_SIZE = Math.round(CARD_HEIGHT * 0.9);
+// A tight lineHeight leaves a digit's glyph sitting slightly above true
+// center (fonts reserve more descender space than a numeral needs) — nudge
+// it down instead of trusting flexbox centering alone.
+const NUMBER_TOP_NUDGE = Math.round(NUMBER_FONT_SIZE * 0.08);
 
 function ReportCategoryCardComponent({ category, title, count, onPress }: Props) {
   const style = REPORT_CATEGORY_STYLES[category];
@@ -77,14 +81,16 @@ const styles = StyleSheet.create({
     fontSize: NUMBER_FONT_SIZE,
     lineHeight: NUMBER_FONT_SIZE,
     fontWeight: '800',
+    marginTop: NUMBER_TOP_NUDGE,
     // Android pads a text line with extra ascent/descent space by default,
     // which pushes a single large glyph off-center within its box.
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    ...Platform.select({
+      android: { includeFontPadding: false, textAlignVertical: 'center' as const },
+    }),
   },
   textCol: {
     flex: 1,
-    borderLeftWidth: 3,
+    borderLeftWidth: 2,
     borderLeftColor: '#9CA3AF',
     paddingLeft: 10,
   },
