@@ -36,6 +36,28 @@ function specimenToQueueItem(s: Specimen, returnedServerIds: Set<string>): Queue
   };
 }
 
+// Display-layer safety net: a past sync bug could leave two local specimen
+// rows for the same server record sitting in storage (see
+// db/sync/dedupeByServerId.ts, which now cleans this up on every sync). This
+// collapses any that are still there RIGHT NOW so the Queue never shows a
+// patient card twice while waiting for the next sync to clean the DB up —
+// keeping the copy synced most recently, same tie-break as the DB cleanup.
+function dedupeQueueItems(items: QueueItem[]): QueueItem[] {
+  const bestByKey = new Map<string, QueueItem>();
+  for (const item of items) {
+    const key = item.serverId ?? item.id;
+    const existing = bestByKey.get(key);
+    if (!existing) {
+      bestByKey.set(key, item);
+      continue;
+    }
+    const existingSyncedAt = existing.syncedAt ? new Date(existing.syncedAt).getTime() : 0;
+    const itemSyncedAt = item.syncedAt ? new Date(item.syncedAt).getTime() : 0;
+    if (itemSyncedAt > existingSyncedAt) bestByKey.set(key, item);
+  }
+  return Array.from(bestByKey.values());
+}
+
 // `results.map(...)` builds a fresh array on every reactive emission, even
 // when the underlying set of returned-for-correction ids hasn't changed —
 // setting state to that new-but-equal array would re-trigger the two
@@ -153,7 +175,7 @@ export function useQueue(): UseQueueResult {
     const subscription = observeQuery(
       database.get<Specimen>('specimens').query(...clauses),
       (specimens) => {
-        setItems(specimens.map((s) => specimenToQueueItem(s, returnedSet)));
+        setItems(dedupeQueueItems(specimens.map((s) => specimenToQueueItem(s, returnedSet))));
         setIsLoading(false);
       },
     );
@@ -167,7 +189,7 @@ export function useQueue(): UseQueueResult {
     const subscription = observeQuery(
       database.get<Specimen>('specimens').query(baseClause(returnedServerIds)),
       (specimens) => {
-        setAllItems(specimens.map((s) => specimenToQueueItem(s, returnedSet)));
+        setAllItems(dedupeQueueItems(specimens.map((s) => specimenToQueueItem(s, returnedSet))));
       },
     );
 

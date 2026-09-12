@@ -46,11 +46,21 @@ import type { FilterOption } from '../../src/features/queue/types';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Minimal Specimen shape that satisfies specimenToQueueItem */
+/**
+ * Minimal Specimen shape that satisfies specimenToQueueItem.
+ *
+ * serverId defaults to a value derived from id (not a fixed 'srv-1') so
+ * that two calls with different ids and no explicit serverId are never
+ * accidentally treated as duplicates of the same server record by
+ * useQueue's dedupeQueueItems — pass `id` and this stays unique for free;
+ * override `serverId` explicitly only when a test wants to simulate an
+ * actual duplicate (same serverId, different local id).
+ */
 function makeSpecimen(overrides: Partial<Record<string, unknown>> = {}) {
+  const id = (overrides.id as string | undefined) ?? 'spec-1';
   return {
-    id: 'spec-1',
-    serverId: 'srv-1',
+    id,
+    serverId: `srv-${id}`,
     sampleUid: 'SAMPLE-001',
     patientName: 'Juan Dela Cruz',
     patientUid: 'PT-001',
@@ -198,6 +208,62 @@ describe('useQueue', () => {
       // Three subscriptions (filtered items + allItems + returned-for-correction
       // tracking) are all cleaned up
       expect(mockUnsubscribe).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  // Regression: a past sync bug could leave two local specimen rows for the
+  // same server record (see db/sync/dedupeByServerId.ts, which now cleans
+  // this up on every sync). Until that next sync runs, the Queue must not
+  // show the same patient/sample twice.
+  describe('duplicate-specimen display safety net', () => {
+    it('collapses two local rows that share a server_id into a single card', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitItems([
+          makeSpecimen({ id: 'local-old', serverId: 'srv-1', status: 'ASSIGNED' }),
+          makeSpecimen({ id: 'local-new', serverId: 'srv-1', status: 'ASSIGNED' }),
+        ]);
+      });
+
+      expect(result.current.items).toHaveLength(1);
+    });
+
+    it('keeps the copy with the more recent syncedAt as the survivor', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitItems([
+          makeSpecimen({
+            id: 'local-old',
+            serverId: 'srv-1',
+            sampleUid: 'STALE',
+            syncedAt: '2026-01-01T00:00:00Z',
+          }),
+          makeSpecimen({
+            id: 'local-new',
+            serverId: 'srv-1',
+            sampleUid: 'FRESH',
+            syncedAt: '2026-01-02T00:00:00Z',
+          }),
+        ]);
+      });
+
+      expect(result.current.items).toHaveLength(1);
+      expect(result.current.items[0].sampleUid).toBe('FRESH');
+    });
+
+    it('does not collapse two genuinely different specimens', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitItems([
+          makeSpecimen({ id: 'spec-1', serverId: 'srv-1' }),
+          makeSpecimen({ id: 'spec-2', serverId: 'srv-2' }),
+        ]);
+      });
+
+      expect(result.current.items).toHaveLength(2);
     });
   });
 

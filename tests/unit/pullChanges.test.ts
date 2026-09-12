@@ -24,7 +24,10 @@ jest.mock('@db/sync/conflictResolver', () => ({
   applyResolution: jest.fn((_strategy, serverValue: unknown) => serverValue),
 }));
 
-const mockCollections = new Map<string, { created: Record<string, unknown>[]; existing: Record<string, unknown>[] }>();
+const mockCollections = new Map<
+  string,
+  { created: Record<string, unknown>[]; existing: Record<string, unknown>[] }
+>();
 
 function mockMakeCollection(tableName: string) {
   if (!mockCollections.has(tableName)) {
@@ -128,9 +131,7 @@ describe('pullChanges', () => {
   it('sends lastSyncedAt as a camelCase query param on a delta sync', async () => {
     (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
     await pullChanges('2026-09-10T00:00:00Z');
-    expect(apiClient.get).toHaveBeenCalledWith(
-      '/sync/pull?lastSyncedAt=2026-09-10T00%3A00%3A00Z',
-    );
+    expect(apiClient.get).toHaveBeenCalledWith('/sync/pull?lastSyncedAt=2026-09-10T00%3A00%3A00Z');
   });
 
   it('returns the server timestamp for the caller to persist', async () => {
@@ -193,15 +194,18 @@ describe('pullChanges', () => {
     );
   });
 
-  it('does not touch a table whose wrapper key is absent from the response', async () => {
+  it('creates/updates nothing for a table whose wrapper key is absent from the response', async () => {
     (apiClient.get as jest.Mock).mockResolvedValue({
       data: { timestamp: '2026-09-12T00:00:00.000Z', changes: {} },
     });
     await pullChanges(null);
 
-    expect(mockCollections.has('specimens')).toBe(false);
-    expect(mockCollections.has('queue_assignments')).toBe(false);
-    expect(mockCollections.has('analysis_results')).toBe(false);
+    // The dedupe pass (below) reads every table unconditionally every sync,
+    // so mockCollections will have entries for all three — but none of
+    // them should have had a create/update applied.
+    for (const table of ['specimens', 'queue_assignments', 'analysis_results']) {
+      expect(mockCollections.get(table)?.created ?? []).toEqual([]);
+    }
   });
 
   it('creates a local record from an "updated" row when no local match exists yet (delta sync of a new record)', async () => {
@@ -231,8 +235,32 @@ describe('pullChanges', () => {
     await pullChanges('2026-09-10T00:00:00Z');
 
     const [created] = mockCollections.get('specimens')!.created;
-    expect(created).toEqual(
-      expect.objectContaining({ serverId: 'spec-2', sampleUid: 'S-002' }),
-    );
+    expect(created).toEqual(expect.objectContaining({ serverId: 'spec-2', sampleUid: 'S-002' }));
+  });
+
+  // Regression: a replayed/resent "created" batch (same server_id the
+  // client already has) was inserting a second local row instead of
+  // updating the existing one — the actual cause of duplicated cards in
+  // the Queue, and of "Sample not found" once only one copy kept receiving
+  // updates.
+  it('updates the existing local record instead of inserting a duplicate for a "created" row whose server_id is already known locally', async () => {
+    const existingRecord: Record<string, unknown> = {
+      serverId: 'spec-1',
+      sampleUid: 'STALE-UID',
+    };
+    const updateMock = jest.fn(async (fn: (r: Record<string, unknown>) => void) => {
+      fn(existingRecord);
+    });
+    existingRecord['update'] = updateMock;
+
+    mockCollections.set('specimens', { created: [], existing: [existingRecord] });
+    (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+
+    await pullChanges(null);
+
+    expect(mockCollections.get('specimens')!.created).toEqual([]);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(existingRecord['sampleUid']).toBe('S-001');
+    expect(existingRecord['serverId']).toBe('spec-1');
   });
 });
