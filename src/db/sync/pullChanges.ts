@@ -98,6 +98,11 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
   }
 }
 
+// Envelope keys (changes.specimens/queueAssignments/analysisResults, created/updated)
+// are camelCase; the per-row fields read below are intentionally snake_case,
+// mirroring raw backend DB columns (see sync_service.py). Don't "fix" this split —
+// it broke sync in production once already (see git history on this file).
+// tests/unit/pullChanges.test.ts pins the exact field names on both sides.
 function mapServerToLocal(table: string, record: ServerRecord): Record<string, unknown> {
   const base: Record<string, unknown> = {
     serverId: record.id,
