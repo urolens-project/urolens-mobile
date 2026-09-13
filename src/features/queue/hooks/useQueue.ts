@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
-import { synchronize } from '@db/sync/syncManager';
+import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import type { QueueItem, FilterOption, PriorityLevel, SpecimenStatus } from '../types';
 
@@ -47,40 +48,22 @@ function buildQuery(filter: FilterOption): Q.Clause[] {
       ];
     }
     case 'LATEST':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.sortBy('received_at', Q.desc),
-      ];
+      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.sortBy('received_at', Q.desc)];
     case 'EARLIEST':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.sortBy('received_at', Q.asc),
-      ];
+      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.sortBy('received_at', Q.asc)];
     case 'PRIORITY':
       return [
         Q.where('status', Q.oneOf(QUEUE_STATUSES)),
         Q.where('priority_level', Q.oneOf(['HIGH', 'NORMAL', 'LOW', 'ROUTINE'])),
       ];
     case 'HIGH':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', 'HIGH'),
-      ];
+      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.where('priority_level', 'HIGH')];
     case 'NORMAL':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', 'NORMAL'),
-      ];
+      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.where('priority_level', 'NORMAL')];
     case 'LOW':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', 'LOW'),
-      ];
+      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.where('priority_level', 'LOW')];
     case 'ROUTINE':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', 'ROUTINE'),
-      ];
+      return [Q.where('status', Q.oneOf(QUEUE_STATUSES)), Q.where('priority_level', 'ROUTINE')];
     case 'STATUS':
       return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];
     case 'ASSIGNED':
@@ -103,6 +86,7 @@ export interface UseQueueResult {
   setFilter: (f: FilterOption) => void;
   refresh: () => Promise<void>;
   isRefreshing: boolean;
+  lastSyncAt: number | null;
 }
 
 export function useQueue(): UseQueueResult {
@@ -111,7 +95,17 @@ export function useQueue(): UseQueueResult {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterOption>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const { isOnline } = useNetworkStatus();
+
+  const loadLastSyncAt = useCallback(async () => {
+    const raw = await AsyncStorage.getItem(LAST_SYNC_KEY);
+    setLastSyncAt(raw ? new Date(raw).getTime() : null);
+  }, []);
+
+  useEffect(() => {
+    loadLastSyncAt();
+  }, [loadLastSyncAt]);
 
   // Filtered list — changes with the active filter
   useEffect(() => {
@@ -143,9 +137,11 @@ export function useQueue(): UseQueueResult {
 
   useEffect(() => {
     if (isOnline) {
-      synchronize().catch(() => {});
+      synchronize()
+        .finally(loadLastSyncAt)
+        .catch(() => {});
     }
-  }, [isOnline]);
+  }, [isOnline, loadLastSyncAt]);
 
   const refresh = useCallback(async () => {
     if (!isOnline) return;
@@ -154,8 +150,9 @@ export function useQueue(): UseQueueResult {
       await synchronize();
     } finally {
       setIsRefreshing(false);
+      await loadLastSyncAt();
     }
-  }, [isOnline]);
+  }, [isOnline, loadLastSyncAt]);
 
-  return { items, allItems, isLoading, filter, setFilter, refresh, isRefreshing };
+  return { items, allItems, isLoading, filter, setFilter, refresh, isRefreshing, lastSyncAt };
 }
