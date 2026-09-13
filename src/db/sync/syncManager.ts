@@ -3,7 +3,7 @@ import { database } from '../database';
 import { pullChanges } from './pullChanges';
 import { pushChanges } from './pushChanges';
 
-const LAST_SYNC_KEY = 'urolens_last_sync_at';
+export const LAST_SYNC_KEY = 'urolens_last_sync_at';
 
 // Guard against concurrent syncs
 let isSyncing = false;
