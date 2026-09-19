@@ -12,8 +12,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { database } from '@db/database';
-import Specimen from '@db/models/Specimen';
 import { useAuthStore } from '@lib/auth/authStore';
 import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
@@ -111,27 +109,13 @@ export default function QueueScreen() {
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
 
-  // Per SRS UC 2.2 activity diagram: selecting a sample for processing marks it
-  // IN-PROCESS. If the MedTech leaves the sample screen without running an
-  // analysis, sample/[id].tsx reverts it back to `previousStatus`.
-  async function handleProceed() {
+  // Opens the sample detail. The sample only becomes In Progress once the
+  // MedTech taps "Begin Analysis" there (see features/queue/lib/startAnalysis).
+  function handleProceed() {
     if (!selectedItem) return;
-    const previousStatus = selectedItem.status;
-
-    try {
-      await database.write(async () => {
-        const specimen = await database.get<Specimen>('specimens').find(selectedItem.id);
-        await specimen.update((s) => {
-          s.status = 'PROCESSING';
-        });
-      });
-    } catch {
-      // Best-effort local transition — navigation proceeds regardless.
-    }
-
     router.push({
       pathname: '/(medtech)/sample/[id]',
-      params: { id: selectedItem.id, previousStatus },
+      params: { id: selectedItem.id },
     });
   }
 
