@@ -15,6 +15,20 @@ export const apiClient = axios.create({
   },
 });
 
+// Errors with no server response: distinguish a timeout from being unreachable.
+function describeTransportError(error: AxiosError): ApiError {
+  if (!error.response) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      return { code: 'TIMEOUT', message: 'The request timed out.' };
+    }
+    return { code: 'NETWORK_ERROR', message: 'Unable to reach the server.' };
+  }
+  return {
+    code: 'UNKNOWN_ERROR',
+    message: error.message ?? 'An unexpected error occurred.',
+  };
+}
+
 // Attach JWT on every request
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
@@ -38,10 +52,7 @@ apiClient.interceptors.response.use(
       router.replace('/(auth)/login');
     }
     const data = error.response?.data as { error?: ApiError } | undefined;
-    const apiError: ApiError = data?.error ?? {
-      code: 'UNKNOWN_ERROR',
-      message: error.message ?? 'An unexpected error occurred.',
-    };
+    const apiError: ApiError = data?.error ?? describeTransportError(error);
     return Promise.reject(apiError);
   },
 );
