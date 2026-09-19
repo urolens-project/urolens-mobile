@@ -8,13 +8,17 @@ jest.mock('@features/auth/hooks/useAuth', () => ({
   useAuth: jest.fn(),
 }));
 
+jest.mock('@lib/appInfo', () => ({
+  appInfo: { version: '1.0.0', environment: 'staging', environmentLabel: 'Staging' },
+}));
+
 const mockLogin = jest.fn();
 
 const defaultHook = {
-  login:       mockLogin,
-  logout:      jest.fn(),
+  login: mockLogin,
+  logout: jest.fn(),
   isSubmitting: false,
-  error:        null,
+  error: null,
 };
 
 beforeEach(() => {
@@ -49,9 +53,16 @@ describe('LoginForm', () => {
       expect(screen.getByRole('button', { name: 'Login' })).toBeTruthy();
     });
 
-    it('renders compliance footer badges', () => {
+    it('shows the app version and environment label in the footer', () => {
       render(<LoginForm />);
-      expect(screen.getAllByText('HIPAA Compliant')).toBeTruthy();
+      expect(screen.getByText('v1.0.0')).toBeTruthy();
+      expect(screen.getByText('Staging')).toBeTruthy();
+    });
+
+    it('does not render unverified compliance claims', () => {
+      render(<LoginForm />);
+      expect(screen.queryByText(/HIPAA/i)).toBeNull();
+      expect(screen.queryByText(/SSL/i)).toBeNull();
     });
   });
 
@@ -61,7 +72,7 @@ describe('LoginForm', () => {
       fireEvent.changeText(screen.getByPlaceholderText('Enter laboratory ID'), 'medtech01');
       fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'secret123');
       fireEvent.press(screen.getByRole('button', { name: 'Login' }));
-      expect(mockLogin).toHaveBeenCalledWith('medtech01', 'secret123');
+      expect(mockLogin).toHaveBeenCalledWith('medtech01', 'secret123', false);
     });
 
     it('calls login when password input submit editing is triggered', () => {
@@ -69,7 +80,7 @@ describe('LoginForm', () => {
       fireEvent.changeText(screen.getByPlaceholderText('Enter laboratory ID'), 'medtech01');
       fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'pass');
       fireEvent(screen.getByPlaceholderText('Enter password'), 'submitEditing');
-      expect(mockLogin).toHaveBeenCalledWith('medtech01', 'pass');
+      expect(mockLogin).toHaveBeenCalledWith('medtech01', 'pass', false);
     });
   });
 
@@ -123,6 +134,36 @@ describe('LoginForm', () => {
       expect(toggleRow.props.accessibilityState?.checked).toBe(false);
       fireEvent.press(toggleRow);
       expect(screen.getByRole('checkbox').props.accessibilityState?.checked).toBe(true);
+    });
+  });
+
+  describe('keep logged in wiring', () => {
+    it('passes keepLoggedIn=true to login when the box is checked', () => {
+      render(<LoginForm />);
+      fireEvent.changeText(screen.getByPlaceholderText('Enter laboratory ID'), 'medtech01');
+      fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'secret123');
+      fireEvent.press(screen.getByRole('checkbox'));
+      fireEvent.press(screen.getByRole('button', { name: 'Login' }));
+      expect(mockLogin).toHaveBeenCalledWith('medtech01', 'secret123', true);
+    });
+  });
+
+  describe('password visibility', () => {
+    it('hides the password by default and reveals it when toggled', () => {
+      render(<LoginForm />);
+      expect(screen.getByPlaceholderText('Enter password').props.secureTextEntry).toBe(true);
+      fireEvent.press(screen.getByRole('button', { name: 'Show password' }));
+      expect(screen.getByPlaceholderText('Enter password').props.secureTextEntry).toBe(false);
+      expect(screen.getByRole('button', { name: 'Hide password' })).toBeTruthy();
+    });
+  });
+
+  describe('error announcement', () => {
+    it('exposes the error as a polite live region for screen readers', () => {
+      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, error: 'Login failed.' });
+      render(<LoginForm />);
+      const message = screen.getByText('Login failed.');
+      expect(message.parent?.props.accessibilityLiveRegion).toBe('polite');
     });
   });
 });
