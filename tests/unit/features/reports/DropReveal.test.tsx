@@ -1,7 +1,7 @@
 import React from 'react';
 import { Animated, Text } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
-import { DropReveal } from '../../../../src/features/reports/components/DropReveal';
+import { DropReveal } from '../../../../src/components/DropReveal';
 
 const renderReveal = (reduceMotion: boolean) =>
   render(

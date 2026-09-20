@@ -77,6 +77,9 @@ jest.mock('react-native', () => {
       parallel: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
       delay: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
       loop: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
+      event: jest.fn(() => jest.fn()),
+      // Returns the component itself, so tests still find the host (e.g. 'FlatList').
+      createAnimatedComponent: (component: unknown) => component,
     },
     Easing: {
       in: (fn: unknown) => fn,
