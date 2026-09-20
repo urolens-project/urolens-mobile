@@ -1,25 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { formatShortDateTime } from '@lib/dateTime';
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportItem } from '../types';
 
 interface Props {
   item: ReportItem;
   onPress: (id: string) => void;
-}
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return '—';
-  }
 }
 
 // A finished sample. Colored by the category it sits in (badge, accent edge,
@@ -50,7 +38,7 @@ function ReportItemCardComponent({ item, onPress }: Props) {
         </Text>
         <View style={styles.timeRow}>
           <Ionicons name="time-outline" size={12} color="#9CA3AF" />
-          <Text style={styles.time}>{formatDate(item.finalizedAt)}</Text>
+          <Text style={styles.time}>{formatShortDateTime(item.finalizedAt)}</Text>
         </View>
         {item.category === 'REJECTED' && item.rejectionReason && (
           <View style={[styles.reasonChip, { backgroundColor: style.tint }]}>

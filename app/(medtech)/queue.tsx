@@ -15,6 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@lib/auth/authStore';
 import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
+import { useSyncStatus } from '@hooks/useSyncStatus';
+import { formatClinicToday, formatShortDateTime } from '@lib/dateTime';
+import { getQueueStatus } from '../../src/features/queue/status';
+import { getSyncPill } from '../../src/features/queue/syncPill';
 import { QueueItemCard } from '../../src/features/queue/components/QueueItemCard';
 import { QueueFilterBar } from '../../src/features/queue/components/QueueFilterBar';
 import type { FilterOption, QueueItem } from '../../src/features/queue/types';
@@ -22,14 +26,6 @@ import type { FilterOption, QueueItem } from '../../src/features/queue/types';
 const TEAL = '#2E7D7A';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function formatDate(): string {
-  return new Date().toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
 function formatLastSync(lastSyncAt: number | null): string {
   if (!lastSyncAt) return 'Not yet synced';
   const diffMin = Math.floor((Date.now() - lastSyncAt) / 60000);
@@ -91,19 +87,33 @@ export default function QueueScreen() {
   // items: filtered list shown in the FlatList
   const items: QueueItem[] = dbItems;
 
-  const counts = useMemo(
-    () => ({
-      assigned: allItems.filter((i) => i.status === 'ASSIGNED').length,
-      returned: allItems.filter((i) => i.isReturnedForCorrection).length,
-      inProgress: allItems.filter((i) => i.status === 'PROCESSING').length,
-    }),
-    [allItems],
-  );
+  // Each active sample counts once, under the status it's shown with — a returned
+  // sample is a Returned sample, even though its specimen still reads ASSIGNED.
+  const counts = useMemo(() => {
+    const totals = { assigned: 0, inProgress: 0, returned: 0 };
+    for (const item of allItems) {
+      const status = getQueueStatus(item);
+      if (status === 'RETURNED') totals.returned += 1;
+      else if (status === 'PROCESSING') totals.inProgress += 1;
+      else if (status === 'ASSIGNED') totals.assigned += 1;
+    }
+    return totals;
+  }, [allItems]);
 
   const selectedItem = useMemo(
     () => items.find((i) => i.id === selectedId) ?? null,
     [items, selectedId],
   );
+
+  const syncStatus = useSyncStatus();
+  const syncPill = getSyncPill({ isOnline, sync: syncStatus, lastSyncAt });
+
+  // Work already started (or sent back) is picked up again, not begun.
+  const selectedStatus = selectedItem ? getQueueStatus(selectedItem) : null;
+  const proceedLabel =
+    selectedStatus === 'PROCESSING' || selectedStatus === 'RETURNED'
+      ? 'Continue'
+      : 'Proceed to Analysis';
 
   const handleItemPress = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
@@ -180,7 +190,7 @@ export default function QueueScreen() {
             {/* Page title row */}
             <View style={styles.titleRow}>
               <Text style={styles.pageTitle}>My Sample Queue</Text>
-              <Text style={styles.dateText}>{formatDate()}</Text>
+              <Text style={styles.dateText}>{formatClinicToday()}</Text>
             </View>
 
             {/* Role + username + count row */}
@@ -200,10 +210,28 @@ export default function QueueScreen() {
 
             {/* Online status pill */}
             <View style={styles.statusPillRow}>
-              <View style={[styles.statusPill, !isOnline && styles.statusPillOffline]}>
-                <View style={[styles.statusDot, !isOnline && styles.statusDotOffline]} />
-                <Text style={[styles.statusText, !isOnline && styles.statusTextOffline]}>
-                  {isOnline ? 'Online • Queue Synchronized' : 'Offline • Showing cached data'}
+              <View
+                style={[
+                  styles.statusPill,
+                  syncPill.tone === 'caution' && styles.statusPillOffline,
+                  syncPill.tone === 'error' && styles.statusPillError,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.statusDot,
+                    syncPill.tone === 'caution' && styles.statusDotOffline,
+                    syncPill.tone === 'error' && styles.statusDotError,
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.statusText,
+                    syncPill.tone === 'caution' && styles.statusTextOffline,
+                    syncPill.tone === 'error' && styles.statusTextError,
+                  ]}
+                >
+                  {syncPill.label}
                 </Text>
               </View>
             </View>
@@ -251,7 +279,7 @@ export default function QueueScreen() {
           <View style={styles.actionInfo}>
             <Text style={styles.actionTitle}>Selected: {selectedItem.sampleUid}</Text>
             <Text style={styles.actionSub}>
-              {selectedItem.patientUid} • {selectedItem.testType}
+              {selectedItem.patientUid} • {formatShortDateTime(selectedItem.receivedAt)}
             </Text>
           </View>
           <View style={styles.actionButtons}>
@@ -259,7 +287,7 @@ export default function QueueScreen() {
               <Text style={styles.rejectBtnText}>Reject</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.proceedBtn} onPress={handleProceed}>
-              <Text style={styles.proceedBtnText}>Proceed to Analysis</Text>
+              <Text style={styles.proceedBtnText}>{proceedLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -427,6 +455,16 @@ const styles = StyleSheet.create({
   },
   statusDotOffline: {
     backgroundColor: '#D97706',
+  },
+  statusPillError: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FECACA',
+  },
+  statusDotError: {
+    backgroundColor: '#DC2626',
+  },
+  statusTextError: {
+    color: '#991B1B',
   },
   statusText: {
     fontSize: 12,

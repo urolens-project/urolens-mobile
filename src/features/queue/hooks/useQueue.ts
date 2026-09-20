@@ -8,6 +8,8 @@ import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { clinicDayRange } from '@lib/dateTime';
+import { orderByStatus } from '../status';
 import type { QueueItem, FilterOption, PriorityLevel, SpecimenStatus } from '../types';
 
 // The Queue's own actionable statuses (SRS UC 2.2 + product decision). A
@@ -76,14 +78,6 @@ function sameIds(a: string[], b: string[]): boolean {
   return sortedA.every((id, i) => id === sortedB[i]);
 }
 
-function todayRange(): { start: string; end: string } {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  return { start: start.toISOString(), end: end.toISOString() };
-}
-
 // Samples in scope for "the Queue": ASSIGNED/PROCESSING by status — minus
 // anything whose latest result means the MedTech has nothing left to do
 // (finishedServerIds) — OR returned-for-correction by server_id regardless
@@ -102,21 +96,51 @@ function baseClause(returnedServerIds: string[], finishedServerIds: string[]): Q
   return Q.or(statusClause, Q.where('server_id', Q.oneOf(returnedServerIds)));
 }
 
-function buildQuery(
+// Clauses that keep a status filter to its own group. Finished work is out of
+// the Queue altogether, and a returned sample belongs to Returned only — so the
+// Assigned and In Progress lists (and their counts) never overlap with it.
+function exclusionClauses(returnedServerIds: string[], finishedServerIds: string[]): Q.Clause[] {
+  const clauses: Q.Clause[] = [];
+  if (finishedServerIds.length > 0) {
+    clauses.push(Q.where('server_id', Q.notIn(finishedServerIds)));
+  }
+  if (returnedServerIds.length > 0) {
+    clauses.push(Q.where('server_id', Q.notIn(returnedServerIds)));
+  }
+  return clauses;
+}
+
+// The Date filter: what needs the MedTech's attention today. Received today,
+// plus work already started or sent back — an In Progress or Returned sample
+// stays visible no matter what day it arrived, otherwise picking Date would hide
+// the very samples a MedTech is in the middle of. (Always applied on top of
+// baseClause, so anything finished or out of the Queue stays out.)
+function dateClause(returnedServerIds: string[]): Q.Clause {
+  const { start, end } = clinicDayRange();
+  const receivedToday = Q.and(
+    Q.where('received_at', Q.gte(start)),
+    Q.where('received_at', Q.lte(end)),
+  );
+  const startedWork = [Q.where('status', 'PROCESSING')];
+  if (returnedServerIds.length > 0) {
+    startedWork.push(Q.where('server_id', Q.oneOf(returnedServerIds)));
+  }
+  return Q.or(receivedToday, ...startedWork);
+}
+
+// Exported for tests.
+export function buildQuery(
   filter: FilterOption,
   returnedServerIds: string[],
   finishedServerIds: string[],
 ): Q.Clause[] {
   switch (filter) {
-    case 'DATE': {
-      const { start, end } = todayRange();
+    case 'DATE':
       return [
         baseClause(returnedServerIds, finishedServerIds),
-        Q.where('received_at', Q.gte(start)),
-        Q.where('received_at', Q.lte(end)),
+        dateClause(returnedServerIds),
         Q.sortBy('received_at', Q.desc),
       ];
-    }
     case 'LATEST':
       return [baseClause(returnedServerIds, finishedServerIds), Q.sortBy('received_at', Q.desc)];
     case 'EARLIEST':
@@ -124,13 +148,15 @@ function buildQuery(
     case 'STATUS':
       return [baseClause(returnedServerIds, finishedServerIds)];
     case 'ASSIGNED':
-      return finishedServerIds.length === 0
-        ? [Q.where('status', 'ASSIGNED')]
-        : [Q.where('status', 'ASSIGNED'), Q.where('server_id', Q.notIn(finishedServerIds))];
+      return [
+        Q.where('status', 'ASSIGNED'),
+        ...exclusionClauses(returnedServerIds, finishedServerIds),
+      ];
     case 'PROCESSING':
-      return finishedServerIds.length === 0
-        ? [Q.where('status', 'PROCESSING')]
-        : [Q.where('status', 'PROCESSING'), Q.where('server_id', Q.notIn(finishedServerIds))];
+      return [
+        Q.where('status', 'PROCESSING'),
+        ...exclusionClauses(returnedServerIds, finishedServerIds),
+      ];
     case 'RETURNED':
       return [
         Q.where(
@@ -183,7 +209,12 @@ export function useQueue(): UseQueueResult {
     const subscription = observeQuery(
       database.get<Specimen>('specimens').query(...clauses),
       (specimens) => {
-        setItems(dedupeQueueItems(specimens.map((s) => specimenToQueueItem(s, returnedSet))));
+        const next = dedupeQueueItems(specimens.map((s) => specimenToQueueItem(s, returnedSet)));
+        // All (and the Status chip, which lists the same samples) read best with
+        // what needs attention first: Returned, then In Progress, then Assigned.
+        // The status of a sample is derived (a returned flag on its result), so this
+        // can't be a database sort — it's applied here instead.
+        setItems(filter === 'ALL' || filter === 'STATUS' ? orderByStatus(next) : next);
         setIsLoading(false);
       },
     );

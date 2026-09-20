@@ -13,16 +13,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/features/auth/hooks/useAuth';
 import { useAuthStore } from '../../src/lib/auth/authStore';
 import { synchronize, getIsSyncing } from '../../src/db/sync/syncManager';
+import { formatShortDateTime } from '../../src/lib/dateTime';
 
 const TEAL = '#2E7D7A';
 const BG = '#F7F6F3';
 const LAST_SYNC_KEY = 'urolens_last_sync_at';
 
 const ROLE_LABELS: Record<string, string> = {
-  MEDTECH:       'Medical Technologist',
-  SUPERVISOR:    'Supervisor',
-  RECEPTIONIST:  'Receptionist',
-  PHYSICIAN:     'Physician',
+  MEDTECH: 'Medical Technologist',
+  SUPERVISOR: 'Supervisor',
+  RECEPTIONIST: 'Receptionist',
+  PHYSICIAN: 'Physician',
   ADMINISTRATOR: 'Administrator',
 };
 
@@ -43,7 +44,7 @@ function formatSyncTime(iso: string | null): string {
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.floor(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h ago`;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return formatShortDateTime(iso);
 }
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -113,11 +114,11 @@ export default function ProfileScreen() {
         {/* ── Account details ──────────────────────────────────────────────── */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Account</Text>
-          <InfoRow icon="person-outline"    label="Username" value={username ?? '—'} />
+          <InfoRow icon="person-outline" label="Username" value={username ?? '—'} />
           <View style={styles.separator} />
-          <InfoRow icon="shield-checkmark-outline" label="Role"     value={roleLabel} />
+          <InfoRow icon="shield-checkmark-outline" label="Role" value={roleLabel} />
           <View style={styles.separator} />
-          <InfoRow icon="key-outline"       label="User ID"  value={shortId} />
+          <InfoRow icon="key-outline" label="User ID" value={shortId} />
           <View style={styles.separator} />
           <InfoRow icon="checkmark-circle-outline" label="Status" value="Active" />
         </View>
@@ -140,10 +141,11 @@ export default function ProfileScreen() {
               accessibilityLabel="Sync now"
               accessibilityRole="button"
             >
-              {syncing
-                ? <ActivityIndicator size="small" color={TEAL} />
-                : <Text style={styles.syncBtnText}>Sync now</Text>
-              }
+              {syncing ? (
+                <ActivityIndicator size="small" color={TEAL} />
+              ) : (
+                <Text style={styles.syncBtnText}>Sync now</Text>
+              )}
             </TouchableOpacity>
           </View>
           <View style={styles.separator} />

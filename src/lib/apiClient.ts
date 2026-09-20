@@ -52,7 +52,10 @@ apiClient.interceptors.response.use(
       router.replace('/(auth)/login');
     }
     const data = error.response?.data as { error?: ApiError } | undefined;
-    const apiError: ApiError = data?.error ?? describeTransportError(error);
+    const apiError: ApiError = {
+      ...(data?.error ?? describeTransportError(error)),
+      status: error.response?.status,
+    };
     return Promise.reject(apiError);
   },
 );

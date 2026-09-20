@@ -51,7 +51,8 @@ jest.mock('react-native', () => {
     SafeAreaView: 'SafeAreaView',
     FlatList: 'FlatList',
     SectionList: 'SectionList',
-    StatusBar: { setBarStyle: jest.fn(), setHidden: jest.fn() },
+    // The real StatusBar is both a component (<StatusBar />) and an object with statics.
+    StatusBar: Object.assign(() => null, { setBarStyle: jest.fn(), setHidden: jest.fn() }),
     Platform: {
       OS: 'ios',
       Version: 14,

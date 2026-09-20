@@ -21,6 +21,8 @@ jest.mock('@db/sync/pullChanges', () => ({
 
 jest.mock('@db/sync/pushChanges', () => ({
   pushChanges: jest.fn(),
+  hasPendingActions: jest.fn(),
+  requeueLegacyFailedActions: jest.fn(),
 }));
 
 // Fresh module + fresh mock instances per test (resets isSyncing = false)
@@ -28,22 +30,39 @@ let synchronize: () => Promise<void>;
 let getIsSyncing: () => boolean;
 let mockPull: jest.Mock;
 let mockPush: jest.Mock;
+let mockHasPending: jest.Mock;
+let mockRequeue: jest.Mock;
+let mockReset: jest.Mock;
+let getSyncStatus: () => { state: string; lastSuccessAt: number | null };
+let subscribeSyncStatus: (listener: () => void) => () => void;
 let mockGetItem: jest.Mock;
 let mockSetItem: jest.Mock;
 
 beforeEach(() => {
   jest.resetModules();
 
-  ({ synchronize, getIsSyncing } = require('@db/sync/syncManager'));
-  ({ pullChanges: mockPull }     = require('@db/sync/pullChanges'));
-  ({ pushChanges: mockPush }     = require('@db/sync/pushChanges'));
+  ({
+    synchronize,
+    getIsSyncing,
+    getSyncStatus,
+    subscribeSyncStatus,
+  } = require('@db/sync/syncManager'));
+  ({ pullChanges: mockPull } = require('@db/sync/pullChanges'));
+  ({
+    pushChanges: mockPush,
+    hasPendingActions: mockHasPending,
+    requeueLegacyFailedActions: mockRequeue,
+  } = require('@db/sync/pushChanges'));
+  mockReset = require('@db/database').database.unsafeResetDatabase;
 
-  const as   = require('@react-native-async-storage/async-storage');
+  const as = require('@react-native-async-storage/async-storage');
   mockGetItem = as.getItem;
   mockSetItem = as.setItem;
 
   mockPull.mockResolvedValue('2026-05-26T10:00:00Z');
   mockPush.mockResolvedValue(undefined);
+  mockHasPending.mockResolvedValue(false);
+  mockRequeue.mockResolvedValue(undefined);
   mockGetItem.mockResolvedValue(null);
   mockSetItem.mockResolvedValue(undefined);
 });
@@ -51,8 +70,13 @@ beforeEach(() => {
 describe('synchronize', () => {
   it('calls pushChanges before pullChanges (push-then-pull order)', async () => {
     const order: string[] = [];
-    mockPush.mockImplementation(async () => { order.push('push'); });
-    mockPull.mockImplementation(async () => { order.push('pull'); return '2026-05-26T10:00:00Z'; });
+    mockPush.mockImplementation(async () => {
+      order.push('push');
+    });
+    mockPull.mockImplementation(async () => {
+      order.push('pull');
+      return '2026-05-26T10:00:00Z';
+    });
 
     await synchronize();
 
@@ -80,10 +104,7 @@ describe('synchronize', () => {
 
     await synchronize();
 
-    expect(mockSetItem).toHaveBeenCalledWith(
-      'urolens_last_sync_at',
-      '2026-05-26T12:00:00Z',
-    );
+    expect(mockSetItem).toHaveBeenCalledWith('urolens_last_sync_at', '2026-05-26T12:00:00Z');
   });
 
   it('does not save timestamp when pullChanges returns falsy', async () => {
@@ -96,11 +117,14 @@ describe('synchronize', () => {
 
   it('skips a concurrent call while a sync is already in progress', async () => {
     let unblockPush: () => void;
-    const blocker = new Promise<void>((res) => { unblockPush = res; });
+    const blocker = new Promise<void>((res) => {
+      unblockPush = res;
+    });
     mockPush.mockReturnValue(blocker);
 
-    const first = synchronize();   // starts, stalls at pushChanges
-    await synchronize();           // should return immediately (guard)
+    const first = synchronize(); // starts, stalls at pushChanges
+    await synchronize(); // should return immediately (guard)
+    await new Promise((res) => setImmediate(res)); // let the first sync reach its push
 
     expect(mockPush).toHaveBeenCalledTimes(1); // only one push
 
@@ -140,7 +164,11 @@ describe('getIsSyncing', () => {
 
   it('returns true while a sync is running', async () => {
     let unblockPush: () => void;
-    mockPush.mockReturnValue(new Promise<void>((res) => { unblockPush = res; }));
+    mockPush.mockReturnValue(
+      new Promise<void>((res) => {
+        unblockPush = res;
+      }),
+    );
 
     const syncPromise = synchronize();
     expect(getIsSyncing()).toBe(true);
@@ -148,5 +176,98 @@ describe('getIsSyncing', () => {
     unblockPush!();
     await syncPromise;
     expect(getIsSyncing()).toBe(false);
+  });
+});
+
+describe('unsent changes and the full-sync reset', () => {
+  it('resets the local database on a first (full) sync when nothing is waiting to be sent', async () => {
+    mockGetItem.mockResolvedValue(null);
+    mockHasPending.mockResolvedValue(false);
+
+    await synchronize();
+
+    expect(mockReset).toHaveBeenCalledTimes(1);
+  });
+
+  // The reset erases pending_sync too — with retries, unsent changes can now
+  // outlive a sync, so it must not run while any are still waiting.
+  it('does NOT reset the local database while changes are still waiting to be sent', async () => {
+    mockGetItem.mockResolvedValue(null);
+    mockHasPending.mockResolvedValue(true);
+
+    await synchronize();
+
+    expect(mockReset).not.toHaveBeenCalled();
+    expect(mockPull).toHaveBeenCalled(); // still pulls, merging in place
+  });
+
+  it('gives previously-failed changes their one retry before pushing', async () => {
+    const order: string[] = [];
+    mockRequeue.mockImplementation(async () => {
+      order.push('requeue');
+    });
+    mockPush.mockImplementation(async () => {
+      order.push('push');
+    });
+
+    await synchronize();
+
+    expect(order).toEqual(['requeue', 'push']);
+  });
+});
+
+describe('sync status (drives the Queue status pill)', () => {
+  it('starts idle with no successful sync', () => {
+    expect(getSyncStatus()).toEqual({ state: 'idle', lastSuccessAt: null });
+  });
+
+  it('is syncing while a sync runs, then succeeded with a timestamp', async () => {
+    let unblock: () => void;
+    mockPush.mockReturnValue(
+      new Promise<void>((res) => {
+        unblock = res;
+      }),
+    );
+
+    const running = synchronize();
+    await Promise.resolve();
+    expect(getSyncStatus().state).toBe('syncing');
+
+    unblock!();
+    await running;
+    expect(getSyncStatus().state).toBe('succeeded');
+    expect(getSyncStatus().lastSuccessAt).toEqual(expect.any(Number));
+  });
+
+  it('is failed after a sync error, keeping any earlier success time', async () => {
+    await synchronize();
+    const { lastSuccessAt } = getSyncStatus();
+
+    mockPull.mockRejectedValue(new Error('Server error'));
+    await expect(synchronize()).rejects.toThrow();
+
+    expect(getSyncStatus()).toEqual({ state: 'failed', lastSuccessAt });
+  });
+
+  it('recovers to succeeded once a later sync works', async () => {
+    mockPull.mockRejectedValueOnce(new Error('boom'));
+    await expect(synchronize()).rejects.toThrow();
+    expect(getSyncStatus().state).toBe('failed');
+
+    await synchronize();
+    expect(getSyncStatus().state).toBe('succeeded');
+  });
+
+  it('notifies subscribers on each change, and stops after unsubscribe', async () => {
+    const listener = jest.fn();
+    const unsubscribe = subscribeSyncStatus(listener);
+
+    await synchronize();
+    expect(listener).toHaveBeenCalledTimes(2); // syncing, then succeeded
+
+    unsubscribe();
+    listener.mockClear();
+    await synchronize();
+    expect(listener).not.toHaveBeenCalled();
   });
 });

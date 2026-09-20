@@ -7,7 +7,10 @@
  *  - pushChanges replays the queued action against the server
  */
 
-jest.mock('@nozbe/watermelondb', () => ({ Model: class {}, Q: { where: jest.fn() } }));
+jest.mock('@nozbe/watermelondb', () => ({
+  Model: class {},
+  Q: { where: jest.fn(), sortBy: jest.fn(), asc: 'asc' },
+}));
 jest.mock('@db/database', () => ({ database: { get: jest.fn(), write: jest.fn() } }));
 jest.mock('@lib/apiClient', () => {
   const post = jest.fn();
@@ -89,6 +92,7 @@ describe('pushChanges START_ANALYSIS', () => {
     const item = {
       action: PendingSyncAction.START_ANALYSIS,
       entityId: 'srv-1',
+      createdAt: Date.now(),
       payload: {},
       update: jest.fn().mockImplementation(async (cb: (r: Record<string, unknown>) => void) => {
         cb(item as unknown as Record<string, unknown>);
