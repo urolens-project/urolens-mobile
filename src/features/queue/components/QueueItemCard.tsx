@@ -1,23 +1,19 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PulseDot } from '@components/PulseDot';
 import { formatShortDateTime } from '@lib/dateTime';
+import { QUEUE_STATUS_STYLES } from '../constants';
 import { getQueueStatus } from '../status';
+import { ITEM_HEIGHT } from '../scrollEffects';
 import type { QueueItem } from '../types';
-
-const TEAL = '#2E7D7A';
-const TEAL_TINT = '#E0F2F1';
 
 interface Props {
   item: QueueItem;
   onPress: (id: string) => void;
   selected?: boolean;
-}
-
-interface BadgeConfig {
-  label: string;
-  bg: string;
-  text: string;
+  // Lets the "in progress" dot pulse. Off for reduced motion or when the tab is out of view.
+  live?: boolean;
 }
 
 // Status-based, not priority-based: priorityLevel is hardcoded to ROUTINE
@@ -26,56 +22,65 @@ interface BadgeConfig {
 // than uninformative, it implies a triage signal the system doesn't
 // actually compute.
 //
-// Every card in the Queue carries exactly one status badge, with the same
-// colors as the Status filter chips (QueueFilterBar) so a badge and the chip
-// that filters to it read as the same thing. Which status a sample has is
-// decided in one place (getQueueStatus) — shared with the counts, filters and
+// Every card in the Queue carries exactly one status badge, in the same colors as the
+// Status filter chips and the stats tiles (QUEUE_STATUS_STYLES). Which status a sample
+// has is decided in one place (getQueueStatus) — shared with the counts, filters and
 // sort — so RETURNED always wins over IN PROGRESS, which wins over ASSIGNED.
-const BADGES: Record<string, BadgeConfig> = {
-  RETURNED: { label: 'RETURNED', bg: '#FEF3C7', text: '#92400E' },
-  PROCESSING: { label: 'IN PROGRESS', bg: '#EDE9FE', text: '#7C3AED' },
-  ASSIGNED: { label: 'ASSIGNED', bg: TEAL_TINT, text: TEAL },
-};
-
-function getBadge(item: QueueItem): BadgeConfig | null {
+function QueueItemCardComponent({ item, onPress, selected = false, live = true }: Props) {
   const status = getQueueStatus(item);
-  return status ? BADGES[status] : null;
-}
+  const style = status ? QUEUE_STATUS_STYLES[status] : null;
+  const accent = style?.color ?? '#2E7D7A';
 
-function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
-  const badge = getBadge(item);
+  // Selecting a card lifts it slightly and draws a ring in its status color.
+  const lift = useRef(new Animated.Value(selected ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.spring(lift, {
+      toValue: selected ? 1 : 0,
+      friction: 7,
+      tension: 140,
+      useNativeDriver: true,
+    }).start();
+  }, [selected, lift]);
+
+  const wrapStyle = {
+    transform: [{ scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) }],
+  };
+  const ringStyle = { opacity: lift };
 
   return (
-    <TouchableOpacity
-      style={[styles.card, selected && styles.cardSelected]}
-      onPress={() => onPress(item.id)}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}${
-        badge ? `, ${badge.label.toLowerCase()}` : ''
-      }`}
-    >
-      {/* Brand mark — every sample is a urine specimen, so a droplet stands
-          in for the old priority-color bar instead of competing with it. */}
-      <View style={styles.dropletBadge}>
-        <Ionicons name="water" size={18} color={TEAL} />
-      </View>
+    <Animated.View style={wrapStyle}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => onPress(item.id)}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}${
+          style ? `, ${style.label.toLowerCase()}` : ''
+        }`}
+      >
+        <View style={[styles.accent, { backgroundColor: accent }]} />
 
-      <View style={styles.content}>
-        {/* Shows patientUid, not patientName: intentional privacy decision
-            so PHI isn't visible on a shared queue list. */}
-        <View style={styles.row}>
-          <Text style={styles.patientUid} numberOfLines={1}>
-            {item.patientUid}
-          </Text>
-          {badge && (
-            <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-              <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
-            </View>
-          )}
+        {/* Brand mark — every sample is a urine specimen, so a droplet (in the
+            sample's status color) marks each card. */}
+        <View style={[styles.dropletBadge, { backgroundColor: style?.tint ?? '#E0F2F1' }]}>
+          <Ionicons name="water" size={20} color={accent} />
         </View>
 
-        <View style={styles.row}>
+        <View style={styles.content}>
+          {/* Shows patientUid, not patientName: intentional privacy decision
+              so PHI isn't visible on a shared queue list. */}
+          <View style={styles.row}>
+            <Text style={styles.patientUid} numberOfLines={1}>
+              {item.patientUid}
+            </Text>
+            {style && (
+              <View style={[styles.badge, { backgroundColor: style.tint }]}>
+                {status === 'PROCESSING' && <PulseDot color={style.color} size={6} live={live} />}
+                <Text style={[styles.badgeText, { color: style.badgeText }]}>{style.label}</Text>
+              </View>
+            )}
+          </View>
+
           {/* Sample code and when it arrived (clinic time). Shrinks a little on
               narrow phones rather than cutting off the time. */}
           <Text
@@ -87,49 +92,65 @@ function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
             {item.sampleUid} · {formatShortDateTime(item.receivedAt)}
           </Text>
         </View>
-      </View>
 
-      <View style={styles.arrowBadge}>
-        <Ionicons name="chevron-forward" size={22} color={TEAL} />
-      </View>
-    </TouchableOpacity>
+        <View style={[styles.arrowBadge, { backgroundColor: style?.wash ?? '#EEF7F6' }]}>
+          <Ionicons name="chevron-forward" size={15} color={accent} />
+        </View>
+      </TouchableOpacity>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.ring, { borderColor: accent }, ringStyle]}
+      />
+    </Animated.View>
   );
 }
+
+const CARD_RADIUS = 20;
 
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 24,
+    borderRadius: CARD_RADIUS,
+    paddingLeft: 16,
+    paddingRight: 12,
+    paddingVertical: 18,
+    // Rows scroll-react by position (see scrollEffects), which relies on a known height.
+    minHeight: ITEM_HEIGHT,
     gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    shadowColor: '#1F2937',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.09,
+    shadowRadius: 10,
     elevation: 3,
   },
-  cardSelected: {
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 6,
-    borderWidth: 1.5,
-    borderColor: TEAL,
+  // Slim colored edge on the left, inset from the corners.
+  accent: {
+    position: 'absolute',
+    left: 0,
+    top: 18,
+    bottom: 18,
+    width: 4,
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 2,
+  },
+  ring: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: CARD_RADIUS,
+    borderWidth: 2,
   },
   dropletBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: TEAL_TINT,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     flex: 1,
-    gap: 6,
+    gap: 5,
   },
   row: {
     flexDirection: 'row',
@@ -138,21 +159,23 @@ const styles = StyleSheet.create({
   },
   patientUid: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#111827',
     fontVariant: ['tabular-nums'],
     marginRight: 8,
   },
   subtitle: {
-    flex: 1,
     fontSize: 12,
     color: '#6B7280',
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   badgeText: {
     fontSize: 10,
@@ -160,8 +183,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   arrowBadge: {
-    width: 32,
-    height: 32,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -22,7 +22,7 @@ import { ReportItemCard } from '../../src/features/reports/components/ReportItem
 import { CategoryHeader } from '../../src/features/reports/components/CategoryHeader';
 import { CurvedHeader } from '../../src/features/reports/components/CurvedHeader';
 import { ReportIllustration } from '../../src/features/reports/components/ReportIllustration';
-import { DropReveal, useReduceMotion } from '../../src/features/reports/components/DropReveal';
+import { DropReveal, useReduceMotion } from '@components/DropReveal';
 import { REPORT_CATEGORY_STYLES } from '../../src/features/reports/constants';
 import type { ReportCategory } from '../../src/features/reports/types';
 

@@ -10,7 +10,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportCategory } from '../types';
-import { COMPACT_WAVES, HeaderWaves } from './HeaderWaves';
+import { COMPACT_WAVES, HeaderWaves } from '@components/HeaderWaves';
 
 // Deliberately much shorter than the Reports landing header (172): this is a
 // working list screen, so it gives the space to the samples instead.
