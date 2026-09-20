@@ -1,5 +1,5 @@
 // Path: urolens-mobile/app/(medtech)/sample/[id].tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclai
 import { useConfirmAction } from '@features/result-confirmation/hooks/useConfirmAction';
 import { ResultReviewScreen } from '@features/result-confirmation/components/ResultReviewScreen';
 import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
+import { startAnalysis } from '@features/queue/lib/startAnalysis';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import type { QueueItem } from '../../../src/features/queue/types';
 
 const TEAL = '#2E7D7A';
@@ -116,16 +118,12 @@ function AIFindingsSection({ findings }: { findings: Record<string, number> }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SampleDetailScreen(): React.JSX.Element {
-  const {
-    id: specimenId,
-    resultId,
-    previousStatus,
-  } = useLocalSearchParams<{
+  const { id: specimenId, resultId } = useLocalSearchParams<{
     id: string;
     resultId?: string;
-    previousStatus?: string;
   }>();
   const router = useRouter();
+  const { isOnline } = useNetworkStatus();
 
   const [specimen, setSpecimen] = useState<QueueItem | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -134,40 +132,6 @@ export default function SampleDetailScreen(): React.JSX.Element {
   const [notFound, setNotFound] = useState(false);
 
   const { confirmResult: confirmAction, isConfirming, error: confirmError } = useConfirmAction();
-
-  // Mirrors latest analysisResult/isContinuing into the unmount cleanup below,
-  // which otherwise closes over stale values from the render that scheduled it.
-  const analysisResultRef = useRef<AnalysisResult | null>(null);
-  useEffect(() => {
-    analysisResultRef.current = analysisResult;
-  }, [analysisResult]);
-
-  // Set true by any action that carries the MedTech forward into the analysis
-  // flow (begin/retake/reject). Stays false when they just navigate away —
-  // that's the "went back without doing the analysis" case from UC 2.2.
-  const isContinuingRef = useRef(false);
-
-  // Per SRS UC 2.2: Queue marks the specimen IN-PROCESS when the MedTech taps
-  // "Proceed to Analysis". If they leave this screen without starting/continuing
-  // the analysis, revert the specimen back to its status before that transition.
-  useEffect(() => {
-    if (!specimenId || !previousStatus) return;
-
-    return () => {
-      if (isContinuingRef.current || analysisResultRef.current) return;
-
-      database
-        .write(async () => {
-          const s = await database.get<Specimen>('specimens').find(specimenId);
-          if (s.status === 'PROCESSING') {
-            await s.update((rec) => {
-              rec.status = previousStatus;
-            });
-          }
-        })
-        .catch(() => {});
-    };
-  }, [specimenId, previousStatus]);
 
   // Both useEffect hooks must remain unconditional (Rules of Hooks).
   // Internal guards make them no-ops when specimenId/serverId are absent.
@@ -272,21 +236,17 @@ export default function SampleDetailScreen(): React.JSX.Element {
       );
       return;
     }
-    isContinuingRef.current = true;
-
-    // Same local-only transition as the Queue's "Proceed to Analysis" —
-    // reached here directly (e.g. from a notification) the specimen may
-    // still be sitting at ASSIGNED, so tapping Begin is what should put it
-    // "In Progress" for the badge to reflect that.
+    // Tapping Begin is what makes the specimen In Progress. Best-effort:
+    // startAnalysis queues the change if the server can't be reached, and
+    // capture proceeds regardless.
     try {
-      await database.write(async () => {
-        const s = await database.get<Specimen>('specimens').find(specimenId);
-        await s.update((rec) => {
-          rec.status = 'PROCESSING';
-        });
+      await startAnalysis({
+        specimenId,
+        serverId: specimen.serverId,
+        isOnline,
       });
     } catch {
-      // Best-effort local transition — navigation proceeds regardless.
+      // Local write failed — navigation proceeds regardless.
     }
 
     router.push({
@@ -302,7 +262,6 @@ export default function SampleDetailScreen(): React.JSX.Element {
     }
 
     const doRetake = () => {
-      isContinuingRef.current = true;
       router.push({
         pathname: '/(medtech)/capture',
         params: {
@@ -329,7 +288,6 @@ export default function SampleDetailScreen(): React.JSX.Element {
   }
 
   function handleRejectSpecimen() {
-    isContinuingRef.current = true;
     router.push(`/(medtech)/sample/reject/${specimenId}`);
   }
 

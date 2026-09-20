@@ -12,8 +12,6 @@ import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 // DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
 if (__DEV__ && Platform.OS !== 'web') {
   const { DevSettings } = require('react-native');
@@ -37,11 +35,6 @@ export default function RootLayout() {
     setHasMounted(true);
   }, []);
 
-  // TEMP — clear sync timestamp so next launch triggers a full sync + local DB reset
-  useEffect(() => {
-    AsyncStorage.removeItem('urolens_last_sync_at');
-  }, []);
-
   // 2. Handle asynchronous authentication bootstrapping safely after mount
   useEffect(() => {
     if (!hasMounted) return; // Exit early if the component hasn't safely mounted yet
@@ -56,7 +49,7 @@ export default function RootLayout() {
           tokenStorage.getUserRole(),
           tokenStorage.getUsername(),
         ]);
-        
+
         if (!isCurrent) return;
 
         if (token && userId && role) {
