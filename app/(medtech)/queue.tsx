@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
+import { useAuthStore } from '@lib/auth/authStore';
 import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
 import { QueueItemCard } from '../../src/features/queue/components/QueueItemCard';
@@ -74,6 +75,7 @@ function EmptyState({ isOnline, filter }: { isOnline: boolean; filter: FilterOpt
 export default function QueueScreen() {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
+  const { username } = useAuthStore();
   const {
     items: dbItems,
     allItems: dbAllItems,
@@ -94,8 +96,7 @@ export default function QueueScreen() {
   const counts = useMemo(
     () => ({
       assigned: allItems.filter((i) => i.status === 'ASSIGNED').length,
-      priority: allItems.filter((i) => i.priorityLevel === 'HIGH').length,
-      pending: allItems.filter((i) => i.status === 'IN_QUEUE').length,
+      returned: allItems.filter((i) => i.isReturnedForCorrection).length,
       inProgress: allItems.filter((i) => i.status === 'PROCESSING').length,
     }),
     [allItems],
@@ -149,8 +150,8 @@ export default function QueueScreen() {
             <Ionicons name="flask" size={16} color="#FFFFFF" />
           </View>
           <View>
-            <Text style={styles.appName}>LabFlow LIS</Text>
-            <Text style={styles.appSub}>UroLens Diagnostics</Text>
+            <Text style={styles.appName}>UroLens</Text>
+            <Text style={styles.appSub}>Laboratory Diagnostics</Text>
           </View>
         </View>
         <View style={styles.headerRight}>
@@ -198,10 +199,17 @@ export default function QueueScreen() {
               <Text style={styles.dateText}>{formatDate()}</Text>
             </View>
 
-            {/* Role + count row */}
+            {/* Role + username + count row */}
             <View style={styles.roleRow}>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>Medical Technologist</Text>
+              <View style={styles.roleGroup}>
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleBadgeText}>Medical Technologist</Text>
+                </View>
+                {username && (
+                  <Text style={styles.usernameText} numberOfLines={1}>
+                    {username}
+                  </Text>
+                )}
               </View>
               <Text style={styles.activeCount}>{allItems.length} Active Samples</Text>
             </View>
@@ -221,11 +229,10 @@ export default function QueueScreen() {
               <View style={styles.statsRow}>
                 {[
                   { label: 'Assigned', value: counts.assigned, color: '#111827' },
-                  { label: 'Priority', value: counts.priority, color: '#DC2626' },
-                  { label: 'Pending', value: counts.pending, color: '#D97706' },
-                  { label: 'Progress', value: counts.inProgress, color: '#2563EB' },
+                  { label: 'In Progress', value: counts.inProgress, color: '#7C3AED' },
+                  { label: 'Returned', value: counts.returned, color: '#D97706' },
                 ].map((stat, i) => (
-                  <View key={stat.label} style={[styles.statItem, i < 3 && styles.statDivider]}>
+                  <View key={stat.label} style={[styles.statItem, i < 2 && styles.statDivider]}>
                     <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
                     <Text style={styles.statLabel}>{stat.label}</Text>
                   </View>
@@ -242,12 +249,9 @@ export default function QueueScreen() {
               onChange={setFilter}
               counts={{
                 ALL: allItems.length,
-                HIGH: counts.priority,
-                NORMAL: allItems.filter(
-                  (i) => i.priorityLevel === 'NORMAL' || i.priorityLevel === 'LOW',
-                ).length,
                 ASSIGNED: counts.assigned,
                 PROCESSING: counts.inProgress,
+                RETURNED: counts.returned,
               }}
             />
           </View>
@@ -381,6 +385,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     marginBottom: 12,
   },
+  roleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
   roleBadge: {
     backgroundColor: TEAL,
     paddingHorizontal: 10,
@@ -391,6 +401,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  usernameText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    flexShrink: 1,
   },
   activeCount: {
     fontSize: 13,
