@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
+import AnalysisResult from '@db/models/AnalysisResult';
 import apiClient from '@lib/apiClient';
 import { synchronize } from '@db/sync/syncManager';
 
@@ -62,11 +63,16 @@ export async function registerForPushNotifications(): Promise<void> {
 }
 
 /**
- * `sample/[id]`'s route param is the local WatermelonDB row id, but a push
+ * `sample/[id]`'s route param is the local WatermelonDB row id, but a
  * notification's `entity_id` is a server id (the backend has no concept of
  * a device's local ids) — resolve the local record first, then navigate.
+ * Used for both push-notification taps and taps in the Alerts list.
+ *
+ * `entity_id` may be the specimen's server id or the analysis result's — the
+ * two kinds of notification the backend sends use one each — so a result id is
+ * followed to its specimen. Falls back to the Queue when nothing matches.
  */
-async function navigateToSpecimenByServerId(serverId: string | undefined): Promise<void> {
+export async function navigateToSpecimenByServerId(serverId: string | undefined): Promise<void> {
   if (!serverId) {
     router.push('/(medtech)/queue');
     return;
@@ -74,10 +80,18 @@ async function navigateToSpecimenByServerId(serverId: string | undefined): Promi
 
   await synchronize().catch(() => {});
 
-  const matches = await database
-    .get<Specimen>('specimens')
-    .query(Q.where('server_id', serverId))
-    .fetch();
+  const specimens = database.get<Specimen>('specimens');
+  let matches = await specimens.query(Q.where('server_id', serverId)).fetch();
+
+  if (!matches[0]) {
+    const results = await database
+      .get<AnalysisResult>('analysis_results')
+      .query(Q.where('server_id', serverId))
+      .fetch();
+    if (results[0]) {
+      matches = await specimens.query(Q.where('server_id', results[0].specimenId)).fetch();
+    }
+  }
 
   if (matches[0]) {
     router.push(`/(medtech)/sample/${matches[0].id}`);
