@@ -48,4 +48,7 @@ export interface ApiError {
   code: string;
   message: string;
   details?: Record<string, unknown>;
+  // HTTP status of the response. Absent when there was no response at all
+  // (no network, timeout) — which is itself worth knowing when deciding to retry.
+  status?: number;
 }

@@ -49,8 +49,10 @@ const mockSetNotificationChannelAsync = Notifications.setNotificationChannelAsyn
 const mockGetPermissionsAsync = Notifications.getPermissionsAsync as jest.Mock;
 const mockRequestPermissionsAsync = Notifications.requestPermissionsAsync as jest.Mock;
 const mockGetExpoPushTokenAsync = Notifications.getExpoPushTokenAsync as jest.Mock;
-const mockAddNotificationReceivedListener = Notifications.addNotificationReceivedListener as jest.Mock;
-const mockAddNotificationResponseReceivedListener = Notifications.addNotificationResponseReceivedListener as jest.Mock;
+const mockAddNotificationReceivedListener =
+  Notifications.addNotificationReceivedListener as jest.Mock;
+const mockAddNotificationResponseReceivedListener =
+  Notifications.addNotificationResponseReceivedListener as jest.Mock;
 const mockApiPost = (apiClient as unknown as { post: jest.Mock }).post;
 const mockRouterPush = router.push as jest.Mock;
 const mockSynchronize = synchronize as jest.Mock;
@@ -82,10 +84,13 @@ describe('registerForPushNotifications', () => {
   it('registers Android notification channel when OS is android', async () => {
     (Platform as unknown as { OS: string }).OS = 'android';
     await registerForPushNotifications();
-    expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith('default', expect.objectContaining({
-      name: 'UroLens Alerts',
-      importance: 4,
-    }));
+    expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
+      'default',
+      expect.objectContaining({
+        name: 'UroLens Alerts',
+        importance: 4,
+      }),
+    );
   });
 
   it('does NOT create Android channel on iOS', async () => {
@@ -214,6 +219,35 @@ describe('registerNotificationListeners', () => {
     await flush();
 
     expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/queue');
+  });
+
+  // entity_id can be the analysis result's server id rather than the specimen's;
+  // follow it to the specimen instead of giving up and landing on the Queue.
+  it('follows a result server_id to its specimen when no specimen has that id', async () => {
+    const specimenFetch = jest
+      .fn()
+      .mockResolvedValueOnce([]) // no specimen with server_id "result-77"
+      .mockResolvedValueOnce([{ id: 'local-9' }]); // the specimen the result belongs to
+    const resultFetch = jest.fn().mockResolvedValue([{ specimenId: 'srv-spec-9' }]);
+    mockDbGet.mockImplementation((table: string) => ({
+      query: jest.fn(() => ({ fetch: table === 'specimens' ? specimenFetch : resultFetch })),
+    }));
+
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: {
+            data: { notification_type: 'RESULT_RETURNED', entity_id: 'result-77' },
+          },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockDbGet).toHaveBeenCalledWith('analysis_results');
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-9');
   });
 
   it('navigates to queue on RESULT_RETURNED tap without entity_id', async () => {

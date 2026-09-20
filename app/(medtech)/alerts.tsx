@@ -12,25 +12,34 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import apiClient from '@lib/apiClient';
+import { navigateToSpecimenByServerId } from '@lib/notifications/notificationHandler';
 
 const TEAL = '#2E7D7A';
 
+// Exactly what GET /notifications returns (the backend's NotificationOut, camelCase).
+// Note the push-notification payload is a different thing and IS snake_case
+// (notification_type / entity_id) — see notificationHandler.ts.
 interface NotificationItem {
-  notification_id: string;
+  notificationId: string;
   message: string;
-  notification_type: string;
-  entity_id: string | null;
-  is_read: boolean;
-  created_at: string;
+  notificationType: string;
+  entityId: string | null;
+  isRead: boolean;
+  createdAt: string;
 }
 
 function notificationIcon(type: string): React.ComponentProps<typeof Ionicons>['name'] {
   switch (type) {
-    case 'SAMPLE_ASSIGNED': return 'flask-outline';
-    case 'RESULT_RETURNED': return 'return-down-back-outline';
-    case 'RESULT_READY_FOR_REVIEW': return 'checkmark-circle-outline';
-    case 'SMART_DIAGNOSIS_UNAVAILABLE': return 'warning-outline';
-    default: return 'notifications-outline';
+    case 'SAMPLE_ASSIGNED':
+      return 'flask-outline';
+    case 'RESULT_RETURNED':
+      return 'return-down-back-outline';
+    case 'RESULT_READY_FOR_REVIEW':
+      return 'checkmark-circle-outline';
+    case 'SMART_DIAGNOSIS_UNAVAILABLE':
+      return 'warning-outline';
+    default:
+      return 'notifications-outline';
   }
 }
 
@@ -53,23 +62,21 @@ function NotificationCard({
 }) {
   return (
     <Pressable
-      style={[styles.card, !item.is_read && styles.cardUnread]}
+      style={[styles.card, !item.isRead && styles.cardUnread]}
       onPress={() => onPress(item)}
     >
       <View style={styles.iconWrap}>
         <Ionicons
-          name={notificationIcon(item.notification_type)}
+          name={notificationIcon(item.notificationType)}
           size={22}
-          color={item.is_read ? '#9CA3AF' : TEAL}
+          color={item.isRead ? '#9CA3AF' : TEAL}
         />
       </View>
       <View style={styles.cardBody}>
-        <Text style={[styles.message, !item.is_read && styles.messageUnread]}>
-          {item.message}
-        </Text>
-        <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+        <Text style={[styles.message, !item.isRead && styles.messageUnread]}>{item.message}</Text>
+        <Text style={styles.time}>{formatTime(item.createdAt)}</Text>
       </View>
-      {!item.is_read && <View style={styles.dot} />}
+      {!item.isRead && <View style={styles.dot} />}
     </Pressable>
   );
 }
@@ -101,32 +108,29 @@ export default function AlertsScreen() {
   }, [fetchNotifications]);
 
   const markReadAndNavigate = useCallback(async (item: NotificationItem) => {
-    if (!item.is_read) {
+    if (!item.isRead) {
       setNotifications((prev) =>
-        prev.map((n) =>
-          n.notification_id === item.notification_id ? { ...n, is_read: true } : n,
-        ),
+        prev.map((n) => (n.notificationId === item.notificationId ? { ...n, isRead: true } : n)),
       );
-      apiClient
-        .patch(`/notifications/${item.notification_id}/read`)
-        .catch(() => {});
+      apiClient.patch(`/notifications/${item.notificationId}/read`).catch(() => {});
     }
 
-    switch (item.notification_type) {
+    switch (item.notificationType) {
       case 'SAMPLE_ASSIGNED':
         router.push('/(medtech)/queue');
         break;
       case 'RESULT_RETURNED':
-        if (item.entity_id) {
-          router.push(`/(medtech)/sample/${item.entity_id}`);
-        }
+        // entityId is a server id; the sample route needs the local row id.
+        navigateToSpecimenByServerId(item.entityId ?? undefined).catch(() => {
+          router.push('/(medtech)/queue');
+        });
         break;
       default:
         break;
     }
   }, []);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   if (loading) {
     return (
@@ -160,16 +164,10 @@ export default function AlertsScreen() {
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(item) => item.notification_id}
-          renderItem={({ item }) => (
-            <NotificationCard item={item} onPress={markReadAndNavigate} />
-          )}
+          keyExtractor={(item) => item.notificationId}
+          renderItem={({ item }) => <NotificationCard item={item} onPress={markReadAndNavigate} />}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={TEAL}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} />
           }
           contentContainerStyle={
             notifications.length === 0 ? styles.emptyContainer : styles.listContent

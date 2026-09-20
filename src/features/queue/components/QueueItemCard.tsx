@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { formatShortDateTime } from '@lib/dateTime';
+import { getQueueStatus } from '../status';
 import type { QueueItem } from '../types';
 
 const TEAL = '#2E7D7A';
@@ -22,37 +24,22 @@ interface BadgeConfig {
 // on the backend today (no code path there ever sets HIGH/NORMAL/LOW), so a
 // priority badge would show the same label on every card forever — worse
 // than uninformative, it implies a triage signal the system doesn't
-// actually compute. "Assigned" (the default, nothing notable) intentionally
-// gets no badge at all rather than a decorative one.
+// actually compute.
+//
+// Every card in the Queue carries exactly one status badge, with the same
+// colors as the Status filter chips (QueueFilterBar) so a badge and the chip
+// that filters to it read as the same thing. Which status a sample has is
+// decided in one place (getQueueStatus) — shared with the counts, filters and
+// sort — so RETURNED always wins over IN PROGRESS, which wins over ASSIGNED.
+const BADGES: Record<string, BadgeConfig> = {
+  RETURNED: { label: 'RETURNED', bg: '#FEF3C7', text: '#92400E' },
+  PROCESSING: { label: 'IN PROGRESS', bg: '#EDE9FE', text: '#7C3AED' },
+  ASSIGNED: { label: 'ASSIGNED', bg: TEAL_TINT, text: TEAL },
+};
+
 function getBadge(item: QueueItem): BadgeConfig | null {
-  if (item.isReturnedForCorrection) {
-    return { label: 'RETURNED', bg: '#FFFBEB', text: '#92400E' };
-  }
-  if (item.status === 'PROCESSING') {
-    return { label: 'IN PROGRESS', bg: '#EDE9FE', text: '#7C3AED' };
-  }
-  return null;
-}
-
-function formatTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  } catch {
-    return '—';
-  }
-}
-
-function getTestTypeIcon(testType: string): React.ComponentProps<typeof Ionicons>['name'] {
-  const t = testType?.toLowerCase() ?? '';
-  if (t.includes('urin')) return 'water-outline';
-  if (t.includes('blood')) return 'pulse-outline';
-  if (t.includes('semen') || t.includes('sperm')) return 'cellular-outline';
-  if (t.includes('stool') || t.includes('fecal')) return 'flask-outline';
-  return 'flask-outline';
+  const status = getQueueStatus(item);
+  return status ? BADGES[status] : null;
 }
 
 function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
@@ -64,7 +51,9 @@ function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
       onPress={() => onPress(item.id)}
       activeOpacity={0.8}
       accessibilityRole="button"
-      accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}`}
+      accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}${
+        badge ? `, ${badge.label.toLowerCase()}` : ''
+      }`}
     >
       {/* Brand mark — every sample is a urine specimen, so a droplet stands
           in for the old priority-color bar instead of competing with it. */}
@@ -87,14 +76,19 @@ function QueueItemCardComponent({ item, onPress, selected = false }: Props) {
         </View>
 
         <View style={styles.row}>
-          <Ionicons name={getTestTypeIcon(item.testType)} size={13} color="#9CA3AF" />
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {item.sampleUid} · {item.testType ?? '—'}
+          {/* Sample code and when it arrived (clinic time). Shrinks a little on
+              narrow phones rather than cutting off the time. */}
+          <Text
+            style={styles.subtitle}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {item.sampleUid} · {formatShortDateTime(item.receivedAt)}
           </Text>
         </View>
       </View>
 
-      <Text style={styles.time}>{formatTime(item.receivedAt)}</Text>
       <View style={styles.arrowBadge}>
         <Ionicons name="chevron-forward" size={22} color={TEAL} />
       </View>
@@ -152,13 +146,8 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     flex: 1,
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  time: {
     fontSize: 12,
     color: '#6B7280',
-    fontWeight: '500',
   },
   badge: {
     paddingHorizontal: 8,
