@@ -264,7 +264,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
     }
   }
 
-  function handleBeginAnalysis() {
+  async function handleBeginAnalysis() {
     if (!specimen?.serverId) {
       Alert.alert(
         'Not Synced',
@@ -273,6 +273,22 @@ export default function SampleDetailScreen(): React.JSX.Element {
       return;
     }
     isContinuingRef.current = true;
+
+    // Same local-only transition as the Queue's "Proceed to Analysis" —
+    // reached here directly (e.g. from a notification) the specimen may
+    // still be sitting at ASSIGNED, so tapping Begin is what should put it
+    // "In Progress" for the badge to reflect that.
+    try {
+      await database.write(async () => {
+        const s = await database.get<Specimen>('specimens').find(specimenId);
+        await s.update((rec) => {
+          rec.status = 'PROCESSING';
+        });
+      });
+    } catch {
+      // Best-effort local transition — navigation proceeds regardless.
+    }
+
     router.push({
       pathname: '/(medtech)/capture',
       params: { specimenId: specimen.serverId, localSpecimenId: specimenId },

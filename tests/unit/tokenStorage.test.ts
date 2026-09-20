@@ -79,4 +79,25 @@ describe('tokenStorage', () => {
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledTimes(4);
     });
   });
+
+  describe('session-only mode (keep me logged in off)', () => {
+    afterEach(() => tokenStorage.setSessionOnly(false));
+
+    it('keeps values in memory and never writes them to SecureStore', async () => {
+      tokenStorage.setSessionOnly(true);
+      await tokenStorage.saveToken('volatile-token');
+      expect(mockSecureStore.setItemAsync).not.toHaveBeenCalled();
+      expect(await tokenStorage.getToken()).toBe('volatile-token');
+      expect(mockSecureStore.getItemAsync).not.toHaveBeenCalled();
+    });
+
+    it('forgets in-memory values after clearAll', async () => {
+      tokenStorage.setSessionOnly(true);
+      await tokenStorage.saveToken('volatile-token');
+      mockSecureStore.deleteItemAsync.mockResolvedValue(undefined);
+      mockSecureStore.getItemAsync.mockResolvedValue(null);
+      await tokenStorage.clearAll();
+      expect(await tokenStorage.getToken()).toBeNull();
+    });
+  });
 });
