@@ -6,9 +6,7 @@ import { PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
 
 export async function pushChanges(): Promise<void> {
   const collection = database.get<PendingSync>('pending_sync');
-  const pendingItems = await collection
-    .query(Q.where('status', PendingSyncStatus.PENDING))
-    .fetch();
+  const pendingItems = await collection.query(Q.where('status', PendingSyncStatus.PENDING)).fetch();
 
   for (const item of pendingItems) {
     try {
@@ -32,7 +30,10 @@ export async function pushChanges(): Promise<void> {
         continue;
       }
 
-      console.error(`[pushChanges] Failed to sync action ${item.action} for ${item.entityId}:`, err);
+      console.error(
+        `[pushChanges] Failed to sync action ${item.action} for ${item.entityId}:`,
+        err,
+      );
       await database.write(async () => {
         await item.update((record) => {
           (record as unknown as PendingSync).status = PendingSyncStatus.FAILED;
@@ -51,6 +52,10 @@ async function dispatchAction(item: PendingSync): Promise<void> {
   switch (item.action as PendingSyncAction) {
     case PendingSyncAction.REJECT_SPECIMEN:
       await apiClient.post(`/specimens/${item.entityId}/reject`, payload);
+      break;
+
+    case PendingSyncAction.START_ANALYSIS:
+      await apiClient.post(`/specimens/${item.entityId}/start-analysis`);
       break;
 
     case PendingSyncAction.CONFIRM_RESULT:
