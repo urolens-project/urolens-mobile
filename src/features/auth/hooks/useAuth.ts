@@ -11,7 +11,7 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
   const { setAuthenticated, clearAuth } = useAuthStore();
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string, keepLoggedIn = false) => {
     if (!username.trim() || !password.trim()) {
       setError('Username and password are required.');
       return;
@@ -20,6 +20,9 @@ export function useAuth() {
     setError(null);
     try {
       const data = await authApi.login(username, password);
+      // Drop any session left over from a previous login, then choose where this one lives.
+      await tokenStorage.clearAll();
+      tokenStorage.setSessionOnly(!keepLoggedIn);
       await tokenStorage.saveToken(data.accessToken);
       await tokenStorage.saveUserInfo(data.userId, data.role, username);
       setAuthenticated(data.userId, data.role as UserRole, username);
@@ -28,6 +31,12 @@ export function useAuth() {
       const apiError = err as ApiError;
       if (apiError.code === 'ACCOUNT_LOCKED') {
         setError('Your account is locked. Contact an administrator.');
+      } else if (apiError.code === 'ACCOUNT_INACTIVE') {
+        setError('Your account is inactive. Contact an administrator.');
+      } else if (apiError.code === 'NETWORK_ERROR') {
+        setError('Cannot reach the server. Check your connection and try again.');
+      } else if (apiError.code === 'TIMEOUT') {
+        setError('The server took too long to respond. Please try again.');
       } else if (apiError.code === 'INVALID_CREDENTIALS') {
         setError('Invalid username or password.');
       } else {
@@ -37,7 +46,7 @@ export function useAuth() {
       setIsSubmitting(false);
     }
   };
-  
+
   const logout = async () => {
     try {
       await authApi.logout();

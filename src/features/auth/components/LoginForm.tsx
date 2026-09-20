@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,16 +12,26 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
+import { appInfo } from '@lib/appInfo';
 
 const TEAL = '#2E7D7A';
+
+const ENV_COLORS = {
+  production: { bg: '#DCFCE7', fg: '#166534' },
+  staging: { bg: '#FEF3C7', fg: '#92400E' },
+  development: { bg: '#E0E7FF', fg: '#3730A3' },
+} as const;
 
 export function LoginForm() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
   const { login, isSubmitting, error } = useAuth();
+  const envColors = ENV_COLORS[appInfo.environment];
 
-  const handleSubmit = () => login(username, password);
+  const handleSubmit = () => login(username, password, keepLoggedIn);
 
   return (
     <KeyboardAvoidingView
@@ -44,7 +54,6 @@ export function LoginForm() {
 
         {/* ── Card ── */}
         <View style={styles.card}>
-
           {/* Username */}
           <Text style={styles.label}>Username</Text>
           <View style={styles.inputRow}>
@@ -55,6 +64,11 @@ export function LoginForm() {
               onChangeText={setUsername}
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="username"
+              textContentType="username"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => passwordRef.current?.focus()}
               placeholder="Enter laboratory ID"
               placeholderTextColor="#9CA3AF"
               editable={!isSubmitting}
@@ -70,23 +84,50 @@ export function LoginForm() {
             </TouchableOpacity>
           </View>
           <View style={[styles.inputRow, error ? styles.inputRowError : null]}>
-            <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+            <Ionicons
+              name="lock-closed-outline"
+              size={18}
+              color="#9CA3AF"
+              style={styles.inputIcon}
+            />
             <TextInput
+              ref={passwordRef}
               style={styles.textInput}
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="current-password"
+              textContentType="password"
+              returnKeyType="go"
               placeholder="Enter password"
               placeholderTextColor="#9CA3AF"
               editable={!isSubmitting}
               onSubmitEditing={handleSubmit}
               accessibilityLabel="Password"
             />
+            <TouchableOpacity
+              onPress={() => setShowPassword((v) => !v)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#6B7280"
+              />
+            </TouchableOpacity>
           </View>
 
           {/* Error message */}
           {error ? (
-            <View style={styles.errorRow}>
+            <View
+              style={styles.errorRow}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+            >
               <Ionicons name="alert-circle" size={16} color="#DC2626" />
               <Text style={styles.errorText}>{error}</Text>
             </View>
@@ -95,11 +136,15 @@ export function LoginForm() {
           {/* Keep logged in */}
           <TouchableOpacity
             style={styles.keepRow}
-            onPress={() => setKeepLoggedIn(v => !v)}
+            onPress={() => setKeepLoggedIn((v) => !v)}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: keepLoggedIn }}
+            accessibilityHint="Stay signed in after the app is closed"
+            disabled={isSubmitting}
           >
-            <View style={[styles.radio, keepLoggedIn && styles.radioFilled]} />
+            <View style={[styles.checkbox, keepLoggedIn && styles.checkboxChecked]}>
+              {keepLoggedIn ? <Ionicons name="checkmark" size={12} color="#FFFFFF" /> : null}
+            </View>
             <Text style={styles.keepText}>Keep me logged in for this shift</Text>
           </TouchableOpacity>
 
@@ -110,31 +155,26 @@ export function LoginForm() {
             disabled={isSubmitting}
             accessibilityRole="button"
             accessibilityLabel="Login"
+            accessibilityHint="Signs in with the entered username and password"
           >
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.buttonText}>Login  →</Text>
+              <Text style={styles.buttonText}>Login →</Text>
             )}
           </TouchableOpacity>
         </View>
 
         {/* ── Footer ── */}
         <View style={styles.footer}>
-          <View style={styles.footerBadges}>
-            <View style={styles.badge}>
-              <Ionicons name="shield-checkmark-outline" size={14} color="#6B7280" />
-              <Text style={styles.badgeText}>HIPAA Compliant</Text>
+          <Text style={styles.authorizedNotice}>Authorized laboratory personnel only.</Text>
+          <View style={styles.buildRow}>
+            <Text style={styles.buildText}>v{appInfo.version}</Text>
+            <View style={[styles.envPill, { backgroundColor: envColors.bg }]}>
+              <Text style={[styles.envText, { color: envColors.fg }]}>
+                {appInfo.environmentLabel}
+              </Text>
             </View>
-            <View style={styles.badge}>
-              <Ionicons name="shield-checkmark-outline" size={14} color="#6B7280" />
-              <Text style={styles.badgeText}>SSL Encrypted</Text>
-            </View>
-          </View>
-          <View style={styles.footerLinks}>
-            <Text style={styles.footerLink}>Help Center</Text>
-            <Text style={styles.footerDot}>·</Text>
-            <Text style={styles.footerLink}>System Status</Text>
           </View>
           <Text style={styles.copyright}>© 2026 UroLens Medical Systems. All Rights Reserved.</Text>
         </View>
@@ -261,15 +301,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     gap: 10,
   },
-  radio: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
     borderWidth: 1.5,
     borderColor: '#9CA3AF',
     backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  radioFilled: {
+  checkboxChecked: {
     backgroundColor: TEAL,
     borderColor: TEAL,
   },
@@ -285,9 +327,6 @@ const styles = StyleSheet.create({
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: '#3B82F6',
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -305,31 +344,29 @@ const styles = StyleSheet.create({
     marginTop: 32,
     gap: 10,
   },
-  footerBadges: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  badgeText: {
+  authorizedNotice: {
     fontSize: 12,
     color: '#6B7280',
+    textAlign: 'center',
   },
-  footerLinks: {
+  buildRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  footerLink: {
+  buildText: {
     fontSize: 12,
     color: '#6B7280',
   },
-  footerDot: {
-    fontSize: 14,
-    color: '#9CA3AF',
+  envPill: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  envText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   copyright: {
     fontSize: 11,

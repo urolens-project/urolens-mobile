@@ -9,25 +9,39 @@ const USERNAME_KEY = 'urolens_username';
 
 // expo-secure-store wraps the iOS Keychain / Android Keystore and is unavailable on web,
 // so web falls back to AsyncStorage (localStorage under the hood).
+//
+// When "Keep me logged in" is off, the session lives in `sessionMemory` only: it is
+// never written to disk, so it disappears when the app process is killed.
+const sessionMemory = new Map<string, string>();
+let sessionOnly = false;
+
 async function getItem(key: string): Promise<string | null> {
-  return Platform.OS === 'web'
-    ? AsyncStorage.getItem(key)
-    : SecureStore.getItemAsync(key);
+  const inMemory = sessionMemory.get(key);
+  if (inMemory !== undefined) return inMemory;
+  return Platform.OS === 'web' ? AsyncStorage.getItem(key) : SecureStore.getItemAsync(key);
 }
 
 async function setItem(key: string, value: string): Promise<void> {
+  if (sessionOnly) {
+    sessionMemory.set(key, value);
+    return;
+  }
   return Platform.OS === 'web'
     ? AsyncStorage.setItem(key, value)
     : SecureStore.setItemAsync(key, value);
 }
 
 async function deleteItem(key: string): Promise<void> {
-  return Platform.OS === 'web'
-    ? AsyncStorage.removeItem(key)
-    : SecureStore.deleteItemAsync(key);
+  sessionMemory.delete(key);
+  return Platform.OS === 'web' ? AsyncStorage.removeItem(key) : SecureStore.deleteItemAsync(key);
 }
 
 export const tokenStorage = {
+  /** When true, subsequent saves are kept in memory only and never persisted to disk. */
+  setSessionOnly(value: boolean): void {
+    sessionOnly = value;
+  },
+
   async saveToken(token: string): Promise<void> {
     await setItem(ACCESS_TOKEN_KEY, token);
   },
