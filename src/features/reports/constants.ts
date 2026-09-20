@@ -6,6 +6,10 @@ export interface CategoryStyle {
   color: string;
   // Soft background wash for the count badge in the drilldown header.
   tint: string;
+  // Very light wash for the whole category card, and the mid-tone disc that
+  // sits behind its illustration.
+  wash: string;
+  blob: string;
 }
 
 // Shared between the category grid and the drilled-down list, so both read
@@ -14,8 +18,8 @@ export interface CategoryStyle {
 // stays a conventional green, PENDING an amber "awaiting action", REJECTED
 // the same red used everywhere else in the app for rejections.
 export const REPORT_CATEGORY_STYLES: Record<ReportCategory, CategoryStyle> = {
-  PENDING_APPROVAL: { color: '#D97706', tint: '#FEF3C7' },
-  APPROVED: { color: '#059669', tint: '#ECFDF5' },
-  RELEASED: { color: '#2E7D7A', tint: '#E0F2F1' },
-  REJECTED: { color: '#DC2626', tint: '#FEF2F2' },
+  PENDING_APPROVAL: { color: '#D97706', tint: '#FEF3C7', wash: '#FFF7E6', blob: '#FDE7B0' },
+  APPROVED: { color: '#059669', tint: '#ECFDF5', wash: '#E9F8F1', blob: '#BFEBD6' },
+  RELEASED: { color: '#2E7D7A', tint: '#E0F2F1', wash: '#E3F2F1', blob: '#BFE3E0' },
+  REJECTED: { color: '#DC2626', tint: '#FEF2F2', wash: '#FDEDED', blob: '#FBC9C9' },
 };
