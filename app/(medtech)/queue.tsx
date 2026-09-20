@@ -1,29 +1,52 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View,
-  FlatList,
-  Text,
-  RefreshControl,
-  StyleSheet,
-  StatusBar,
-  TouchableOpacity,
-  Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Animated, View, FlatList, RefreshControl, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useAuthStore } from '@lib/auth/authStore';
+import { DropReveal, useReduceMotion } from '@components/DropReveal';
+import { RiseIn } from '@components/RiseIn';
 import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
 import { useSyncStatus } from '@hooks/useSyncStatus';
-import { formatClinicToday, formatShortDateTime } from '@lib/dateTime';
+import { formatClinicToday } from '@lib/dateTime';
+import { QUEUE_STATUS_STYLES } from '../../src/features/queue/constants';
 import { getQueueStatus } from '../../src/features/queue/status';
 import { getSyncPill } from '../../src/features/queue/syncPill';
-import { QueueItemCard } from '../../src/features/queue/components/QueueItemCard';
+import {
+  ITEM_GAP,
+  ITEM_STRIDE,
+  getStickyRest,
+  getWheelRange,
+  rollAwayStyle,
+} from '../../src/features/queue/scrollEffects';
+import { QueueActionBar } from '../../src/features/queue/components/QueueActionBar';
+import { QueueEmptyState } from '../../src/features/queue/components/QueueEmptyState';
 import { QueueFilterBar } from '../../src/features/queue/components/QueueFilterBar';
-import type { FilterOption, QueueItem } from '../../src/features/queue/types';
+import { QueueHeader } from '../../src/features/queue/components/QueueHeader';
+import { QueueItemCard } from '../../src/features/queue/components/QueueItemCard';
+import { QueueStatsCard } from '../../src/features/queue/components/QueueStatsCard';
+import { StickyFilters } from '../../src/features/queue/components/StickyFilters';
+import { SyncStatusPill } from '../../src/features/queue/components/SyncStatusPill';
+import type { QueueItem } from '../../src/features/queue/types';
 
 const TEAL = '#2E7D7A';
+
+// Number of rows that get the drop-in entrance; anything further down is just shown,
+// so scrolling a long list never re-triggers animation.
+const ANIMATED_ROWS = 8;
+const ROW_STAGGER_MS = 90;
+const CARD_RADIUS = 20;
+
+// Layout the scroll effects are worked out from (see scrollEffects).
+const LIST_PADDING_TOP = 16;
+const BLOCK_GAP = 14;
+// Air between the pinned filters and the first row.
+const FILTERS_BOTTOM_SPACE = 6;
+
+// The list reports its scroll position on the native thread, so the effects below track
+// the finger exactly without waking the JS thread.
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as unknown as typeof FlatList;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function formatLastSync(lastSyncAt: number | null): string {
@@ -36,38 +59,14 @@ function formatLastSync(lastSyncAt: number | null): string {
   return `${Math.floor(diffHr / 24)}d ago`;
 }
 
-// ─── Empty state ─────────────────────────────────────────────────────────────
-function EmptyState({ isOnline, filter }: { isOnline: boolean; filter: FilterOption }) {
-  if (!isOnline) {
-    return (
-      <View style={styles.empty}>
-        <Ionicons name="cloud-offline-outline" size={40} color="#D1D5DB" />
-        <Text style={styles.emptyTitle}>You&apos;re offline</Text>
-        <Text style={styles.emptySub}>Connect to sync your latest queue.</Text>
-      </View>
-    );
-  }
-  if (filter !== 'ALL') {
-    return (
-      <View style={styles.empty}>
-        <Ionicons name="filter-outline" size={40} color="#D1D5DB" />
-        <Text style={styles.emptyTitle}>No matches</Text>
-        <Text style={styles.emptySub}>Try selecting a different filter.</Text>
-      </View>
-    );
-  }
-  return (
-    <View style={styles.empty}>
-      <Ionicons name="checkmark-circle-outline" size={40} color="#D1D5DB" />
-      <Text style={styles.emptyTitle}>Queue is clear</Text>
-      <Text style={styles.emptySub}>No samples are currently assigned to you.</Text>
-    </View>
-  );
+function ItemSeparator() {
+  return <View style={styles.separator} />;
 }
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export default function QueueScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isOnline } = useNetworkStatus();
   const { username } = useAuthStore();
   const {
@@ -81,6 +80,64 @@ export default function QueueScreen() {
     lastSyncAt,
   } = useQueue();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Motion: skipped for users who ask for reduced motion, and ambient (looping) motion
+  // stops while the tab is out of view — tabs stay mounted, so it would keep running.
+  const reduceMotion = useReduceMotion();
+  const isFocused = useIsFocused();
+  const live = isFocused && !reduceMotion;
+
+  // The header is teal, so this tab needs light status-bar text; the tabs with a white
+  // header (and this one when left) need dark. Tabs stay mounted, so set it on focus and
+  // put it back on blur rather than relying on a <StatusBar> element that only applies
+  // when it mounts.
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle('light-content', true);
+      return () => StatusBar.setBarStyle('dark-content', true);
+    }, []),
+  );
+
+  // Bumped each time the tab is entered again, replaying the entrance animations. The
+  // first entry plays from the components' own mount, so it's skipped here.
+  const [playKey, setPlayKey] = useState(0);
+  const isFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      setPlayKey((key) => key + 1);
+    }, []),
+  );
+
+  // ── Scroll: the filters pin under the header; the rest rolls away beneath them ──
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const onScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: true,
+      }),
+    [scrollY],
+  );
+  // Measured, because they change: the stats block with its content, the filter bar when a
+  // filter row opens, the whole list header with both.
+  const [topBlockHeight, setTopBlockHeight] = useState(0);
+  const [filtersHeight, setFiltersHeight] = useState(0);
+  const [listHeaderHeight, setListHeaderHeight] = useState(0);
+
+  const stickyRest = getStickyRest(LIST_PADDING_TOP, topBlockHeight, BLOCK_GAP);
+  // Where the first row starts, and the line under the pinned filters that rows roll into.
+  const rowsTop = LIST_PADDING_TOP + listHeaderHeight;
+  const pinBottom = filtersHeight;
+  // The stats block rolls away over the first stretch of scrolling, until the filters cover it.
+  const topBlockRoll = reduceMotion
+    ? undefined
+    : rollAwayStyle(scrollY, {
+        start: 0,
+        end: LIST_PADDING_TOP + topBlockHeight - pinBottom,
+      });
 
   // allItems: always the full unfiltered queue — used for stats card
   const allItems: QueueItem[] = dbAllItems;
@@ -134,128 +191,99 @@ export default function QueueScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoBox}>
-            <Ionicons name="flask" size={16} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.appName}>UroLens</Text>
-            <Text style={styles.appSub}>Laboratory Diagnostics</Text>
-          </View>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            accessibilityLabel="Sync"
-            onPress={refresh}
-            disabled={!isOnline || isRefreshing}
-          >
-            <Ionicons
-              name="sync-outline"
-              size={20}
-              color={!isOnline || isRefreshing ? '#D1D5DB' : '#374151'}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Notifications">
-            <View>
-              <Ionicons name="notifications-outline" size={20} color="#374151" />
-              <View style={styles.notifDot} />
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <QueueHeader
+        username={username}
+        activeCount={allItems.length}
+        dateLabel={formatClinicToday()}
+        topInset={insets.top}
+        playKey={playKey}
+        reduceMotion={reduceMotion}
+        live={live}
+        syncing={syncStatus.state === 'syncing' || isRefreshing}
+        syncDisabled={!isOnline || isRefreshing}
+        onSync={refresh}
+      />
 
       {/* ── List ── */}
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <QueueItemCard item={item} onPress={handleItemPress} selected={item.id === selectedId} />
-        )}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={refresh}
-            tintColor={TEAL}
-            enabled={isOnline}
-          />
-        }
-        ListHeaderComponent={
-          <View>
-            {/* Page title row */}
-            <View style={styles.titleRow}>
-              <Text style={styles.pageTitle}>My Sample Queue</Text>
-              <Text style={styles.dateText}>{formatClinicToday()}</Text>
-            </View>
-
-            {/* Role + username + count row */}
-            <View style={styles.roleRow}>
-              <View style={styles.roleGroup}>
-                <View style={styles.roleBadge}>
-                  <Text style={styles.roleBadgeText}>Medical Technologist</Text>
-                </View>
-                {username && (
-                  <Text style={styles.usernameText} numberOfLines={1}>
-                    {username}
-                  </Text>
-                )}
-              </View>
-              <Text style={styles.activeCount}>{allItems.length} Active Samples</Text>
-            </View>
-
-            {/* Online status pill */}
-            <View style={styles.statusPillRow}>
-              <View
-                style={[
-                  styles.statusPill,
-                  syncPill.tone === 'caution' && styles.statusPillOffline,
-                  syncPill.tone === 'error' && styles.statusPillError,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.statusDot,
-                    syncPill.tone === 'caution' && styles.statusDotOffline,
-                    syncPill.tone === 'error' && styles.statusDotError,
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    syncPill.tone === 'caution' && styles.statusTextOffline,
-                    syncPill.tone === 'error' && styles.statusTextError,
-                  ]}
+      <View style={styles.listArea}>
+        <AnimatedFlatList
+          data={items}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => {
+            const status = getQueueStatus(item);
+            const roll = reduceMotion
+              ? undefined
+              : rollAwayStyle(scrollY, getWheelRange(rowsTop + index * ITEM_STRIDE, pinBottom));
+            return (
+              <Animated.View style={roll}>
+                <DropReveal
+                  index={index}
+                  playKey={playKey}
+                  reduceMotion={reduceMotion || index >= ANIMATED_ROWS}
+                  accent={status ? QUEUE_STATUS_STYLES[status].color : TEAL}
+                  radius={CARD_RADIUS}
+                  staggerMs={ROW_STAGGER_MS}
                 >
-                  {syncPill.label}
-                </Text>
-              </View>
-            </View>
+                  <QueueItemCard
+                    item={item}
+                    onPress={handleItemPress}
+                    selected={item.id === selectedId}
+                    live={live}
+                  />
+                </DropReveal>
+              </Animated.View>
+            );
+          }}
+          ItemSeparatorComponent={ItemSeparator}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refresh}
+              tintColor={TEAL}
+              enabled={isOnline}
+            />
+          }
+          ListHeaderComponent={
+            <View onLayout={(e) => setListHeaderHeight(e.nativeEvent.layout.height)}>
+              {/* Scrolls away: rolls up and under the pinned filters. */}
+              <Animated.View
+                style={[styles.topBlock, topBlockRoll]}
+                onLayout={(e) => setTopBlockHeight(e.nativeEvent.layout.height)}
+              >
+                {/* Connection / sync status */}
+                <RiseIn playKey={playKey} reduceMotion={reduceMotion} style={styles.pillRow}>
+                  <SyncStatusPill pill={syncPill} live={live} />
+                </RiseIn>
 
-            {/* Stats card */}
-            <View style={styles.statsCard}>
-              <View style={styles.statsRow}>
-                {[
-                  { label: 'Assigned', value: counts.assigned, color: '#111827' },
-                  { label: 'In Progress', value: counts.inProgress, color: '#7C3AED' },
-                  { label: 'Returned', value: counts.returned, color: '#D97706' },
-                ].map((stat, i) => (
-                  <View key={stat.label} style={[styles.statItem, i < 2 && styles.statDivider]}>
-                    <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
-                    <Text style={styles.statLabel}>{stat.label}</Text>
-                  </View>
-                ))}
-              </View>
-              <View style={styles.syncRow}>
-                <Text style={styles.syncText}>Last Sync: {formatLastSync(lastSyncAt)}</Text>
-              </View>
-            </View>
+                {/* Stats card */}
+                <RiseIn playKey={playKey} reduceMotion={reduceMotion} delay={80}>
+                  <QueueStatsCard
+                    counts={counts}
+                    lastSync={formatLastSync(lastSyncAt)}
+                    reduceMotion={reduceMotion}
+                  />
+                </RiseIn>
+              </Animated.View>
 
-            {/* Filter bar */}
+              {/* Room for the filters, which sit over the list (below) rather than in it. */}
+              <View style={{ height: BLOCK_GAP + filtersHeight + FILTERS_BOTTOM_SPACE }} />
+            </View>
+          }
+          ListEmptyComponent={
+            isLoading ? null : (
+              <QueueEmptyState isOnline={isOnline} filter={filter} reduceMotion={reduceMotion} />
+            )
+          }
+          contentContainerStyle={[styles.list, items.length === 0 && styles.listEmpty]}
+          showsVerticalScrollIndicator={false}
+        />
+
+        {/* Filter bar: follows the scroll up, then stays pinned under the header. */}
+        <StickyFilters scrollY={scrollY} restY={stickyRest} onHeight={setFiltersHeight}>
+          <RiseIn playKey={playKey} reduceMotion={reduceMotion} delay={160}>
             <QueueFilterBar
               selected={filter}
               onChange={setFilter}
@@ -266,32 +294,18 @@ export default function QueueScreen() {
                 RETURNED: counts.returned,
               }}
             />
-          </View>
-        }
-        ListEmptyComponent={isLoading ? null : <EmptyState isOnline={isOnline} filter={filter} />}
-        contentContainerStyle={[styles.list, items.length === 0 && styles.listEmpty]}
-        showsVerticalScrollIndicator={false}
-      />
+          </RiseIn>
+        </StickyFilters>
+      </View>
 
       {/* ── Bottom action bar ── */}
-      {selectedItem && (
-        <View style={styles.actionBar}>
-          <View style={styles.actionInfo}>
-            <Text style={styles.actionTitle}>Selected: {selectedItem.sampleUid}</Text>
-            <Text style={styles.actionSub}>
-              {selectedItem.patientUid} • {formatShortDateTime(selectedItem.receivedAt)}
-            </Text>
-          </View>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.rejectBtn} onPress={handleReject}>
-              <Text style={styles.rejectBtnText}>Reject</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.proceedBtn} onPress={handleProceed}>
-              <Text style={styles.proceedBtnText}>{proceedLabel}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <QueueActionBar
+        item={selectedItem}
+        proceedLabel={proceedLabel}
+        onReject={handleReject}
+        onProceed={handleProceed}
+        reduceMotion={reduceMotion}
+      />
     </SafeAreaView>
   );
 }
@@ -302,304 +316,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F3F4F6',
   },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  // Holds the list and the filters laid over it.
+  listArea: {
+    flex: 1,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  logoBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: TEAL,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  appName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    lineHeight: 18,
-  },
-  appSub: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    lineHeight: 15,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notifDot: {
-    position: 'absolute',
-    top: -1,
-    right: -1,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#DC2626',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-  },
-  // List
   list: {
     paddingHorizontal: 16,
-    paddingBottom: 120,
+    paddingTop: LIST_PADDING_TOP,
+    paddingBottom: 140,
   },
   listEmpty: {
     flex: 1,
   },
-
-  // Page title
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    paddingTop: 16,
-    paddingBottom: 6,
+  topBlock: {
+    gap: BLOCK_GAP,
   },
-  pageTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#111827',
+  pillRow: {
+    paddingHorizontal: 2,
   },
-  dateText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-
-  // Role row
-  roleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginBottom: 12,
-  },
-  roleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 1,
-  },
-  roleBadge: {
-    backgroundColor: TEAL,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  roleBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  usernameText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-    flexShrink: 1,
-  },
-  activeCount: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  // Online status pill
-  statusPillRow: {
-    paddingHorizontal: 4,
-    marginBottom: 12,
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    alignSelf: 'flex-start',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  statusPillOffline: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
-  },
-  statusDotOffline: {
-    backgroundColor: '#D97706',
-  },
-  statusPillError: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FECACA',
-  },
-  statusDotError: {
-    backgroundColor: '#DC2626',
-  },
-  statusTextError: {
-    color: '#991B1B',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#065F46',
-  },
-  statusTextOffline: {
-    color: '#92400E',
-  },
-
-  // Stats card
-  statsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    marginHorizontal: 4,
-    marginBottom: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 12,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 3,
-  },
-  statDivider: {
-    borderRightWidth: 1,
-    borderRightColor: '#F3F4F6',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
-  syncRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    paddingTop: 10,
-  },
-  syncText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-
-  // Empty state
-  empty: {
-    alignItems: 'center',
-    paddingTop: 60,
-    gap: 10,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  emptySub: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    textAlign: 'center',
-  },
-
-  // Bottom action bar
-  actionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  actionInfo: {
-    marginBottom: 10,
-  },
-  actionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  actionSub: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  rejectBtn: {
-    flex: 1,
-    height: 46,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#DC2626',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rejectBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  proceedBtn: {
-    flex: 2,
-    height: 46,
-    borderRadius: 10,
-    backgroundColor: TEAL,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  proceedBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  separator: {
+    height: ITEM_GAP,
   },
 });

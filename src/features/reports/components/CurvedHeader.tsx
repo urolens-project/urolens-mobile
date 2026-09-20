@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getInitials } from '@lib/auth/getInitials';
-import { HeaderWaves, LANDING_WAVES, TEAL } from './HeaderWaves';
+import { HeaderWaves, LANDING_WAVES, TEAL } from '@components/HeaderWaves';
 
 // Height of the header below the status bar. The curve sits inside this, with
 // the left edge of the header ending ~30px above the bottom and the right edge
