@@ -1,10 +1,22 @@
 import { useState, useRef } from 'react';
 import AnalysisResult from '@db/models/AnalysisResult';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { getErrorMessage } from '@lib/errorMessage';
 import { confirmResultCore } from '../lib/confirmResultCore';
 
+// What a confirm attempt came to. The failure message is returned rather than only
+// stored in `error`: a caller that awaits confirmResult() and then reads `error`
+// gets the value from the render that created its handler — always the previous
+// one, never this attempt's.
+export type ConfirmActionResult =
+  | { status: 'confirmed' }
+  // A confirmation is already running (a double-tap). That one reports the outcome,
+  // so there is nothing to show for this call.
+  | { status: 'busy' }
+  | { status: 'failed'; message: string };
+
 interface UseConfirmActionReturn {
-  confirmResult: (result: AnalysisResult) => Promise<boolean>;
+  confirmResult: (result: AnalysisResult) => Promise<ConfirmActionResult>;
   isConfirming: boolean;
   error: string | null;
 }
@@ -19,19 +31,19 @@ export function useConfirmAction(): UseConfirmActionReturn {
   // Ref guard prevents double-submission regardless of React re-render timing.
   const confirmingRef = useRef(false);
 
-  const confirmResult = async (result: AnalysisResult): Promise<boolean> => {
-    if (confirmingRef.current) return false;
+  const confirmResult = async (result: AnalysisResult): Promise<ConfirmActionResult> => {
+    if (confirmingRef.current) return { status: 'busy' };
     confirmingRef.current = true;
     setIsConfirming(true);
     setError(null);
 
     try {
       await confirmResultCore({ result, isOnline });
-      return true;
+      return { status: 'confirmed' };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to confirm result';
+      const message = getErrorMessage(err, 'Failed to confirm result');
       setError(message);
-      return false;
+      return { status: 'failed', message };
     } finally {
       confirmingRef.current = false;
       setIsConfirming(false);

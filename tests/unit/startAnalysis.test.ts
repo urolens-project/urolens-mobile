@@ -3,7 +3,9 @@
  *
  *  - Online: tells the server, flips local status to PROCESSING, queues nothing
  *  - Offline: queues a START_ANALYSIS pending_sync row, flips local status
- *  - Online but the request fails: falls back to queueing (nothing is lost)
+ *  - Online but the request can't be completed (no network, timeout, 5xx): falls back
+ *    to queueing (nothing is lost)
+ *  - Online and the server refuses (4xx): reported, nothing queued, nothing changed
  *  - pushChanges replays the queued action against the server
  */
 
@@ -84,6 +86,97 @@ describe('startAnalysis', () => {
     expect(specimen.status).toBe('PROCESSING');
     expect(pendingRows).toHaveLength(1);
     expect(pendingRows[0].action).toBe(PendingSyncAction.START_ANALYSIS);
+  });
+});
+
+describe('startAnalysis when the server refuses', () => {
+  // Bug: any error — even a 409 "specimen was rejected" — was queued, and the local
+  // status was flipped to PROCESSING, so a rejected specimen looked In Progress.
+  it('reports the refusal, and changes nothing on the device', async () => {
+    const { specimen, pendingRows } = setupDb();
+    post.mockRejectedValue({
+      code: 'SPECIMEN_NOT_STARTABLE',
+      message: 'Specimen in status REJECTED cannot be started.',
+      status: 409,
+    });
+
+    const result = await startAnalysis({
+      specimenId: 'local-1',
+      serverId: 'srv-1',
+      isOnline: true,
+    });
+
+    expect(result).toEqual({
+      started: false,
+      message: 'Specimen in status REJECTED cannot be started.',
+    });
+    expect(specimen.status).toBe('ASSIGNED');
+    expect(specimen.update).not.toHaveBeenCalled();
+    expect(pendingRows).toHaveLength(0);
+  });
+
+  it('treats a 403 (not assigned to you) as a refusal too', async () => {
+    const { specimen, pendingRows } = setupDb();
+    post.mockRejectedValue({
+      code: 'SPECIMEN_NOT_ASSIGNED',
+      message: 'Specimen is not assigned to you.',
+      status: 403,
+    });
+
+    const result = await startAnalysis({
+      specimenId: 'local-1',
+      serverId: 'srv-1',
+      isOnline: true,
+    });
+
+    expect(result).toMatchObject({ started: false, message: 'Specimen is not assigned to you.' });
+    expect(specimen.status).toBe('ASSIGNED');
+    expect(pendingRows).toHaveLength(0);
+  });
+
+  it('falls back to a plain message when the refusal carries none', async () => {
+    setupDb();
+    post.mockRejectedValue({ code: 'CONFLICT', status: 409 });
+
+    const result = await startAnalysis({
+      specimenId: 'local-1',
+      serverId: 'srv-1',
+      isOnline: true,
+    });
+
+    expect(result).toEqual({
+      started: false,
+      message: 'The server would not start analysis for this specimen.',
+    });
+  });
+
+  it('still queues for later when the server merely had a problem (5xx)', async () => {
+    const { specimen, pendingRows } = setupDb();
+    post.mockRejectedValue({ code: 'INTERNAL_ERROR', message: 'oops', status: 503 });
+
+    const result = await startAnalysis({
+      specimenId: 'local-1',
+      serverId: 'srv-1',
+      isOnline: true,
+    });
+
+    expect(result).toEqual({ started: true });
+    expect(specimen.status).toBe('PROCESSING');
+    expect(pendingRows).toHaveLength(1);
+  });
+
+  it('still queues when the request timed out', async () => {
+    const { pendingRows } = setupDb();
+    post.mockRejectedValue({ code: 'TIMEOUT', message: 'The request timed out.' });
+
+    const result = await startAnalysis({
+      specimenId: 'local-1',
+      serverId: 'srv-1',
+      isOnline: true,
+    });
+
+    expect(result).toEqual({ started: true });
+    expect(pendingRows).toHaveLength(1);
   });
 });
 

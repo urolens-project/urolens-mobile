@@ -26,8 +26,14 @@ export async function confirmResultCore({ result, isOnline }: ConfirmResultParam
       if ((err as ApiError)?.code !== 'RESULT_ALREADY_CONFIRMED') throw err;
     }
     // Pull smart_diagnosis immediately so the panel renders without waiting
-    // for the next periodic sync.
-    await synchronize();
+    // for the next periodic sync. Best-effort: by now the server has accepted the
+    // confirmation, so a failed pull must not be reported as a failed confirmation —
+    // the next sync brings the diagnosis in.
+    try {
+      await synchronize();
+    } catch {
+      // Swallowed on purpose; see above.
+    }
   } else {
     await database.write(async () => {
       await database.get<PendingSync>('pending_sync').create((r) => {
