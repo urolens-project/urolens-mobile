@@ -19,6 +19,14 @@ export const REPORT_CATEGORY_TITLES: Record<ReportCategory, string> = {
   REJECTED: 'Rejected',
 };
 
+// One-line explanation shown on each category card.
+export const REPORT_CATEGORY_DESCRIPTIONS: Record<ReportCategory, string> = {
+  PENDING_APPROVAL: 'Confirmed results waiting for a supervisor to review and approve.',
+  APPROVED: 'Results a supervisor has reviewed and approved.',
+  RELEASED: 'Approved results that have been released and delivered.',
+  REJECTED: 'Specimens rejected for quality issues such as volume or labeling.',
+};
+
 export interface ReportItem {
   id: string;
   sampleUid: string;
