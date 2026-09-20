@@ -1,6 +1,7 @@
 import {
   clinicDayRange,
   formatClinicToday,
+  formatDateTime,
   formatShortDate,
   formatShortDateTime,
 } from '../../src/lib/dateTime';
@@ -24,6 +25,26 @@ describe('formatShortDateTime', () => {
 
   it.each([null, undefined, '', 'not a date'])('shows a dash for %p', (value) => {
     expect(formatShortDateTime(value as string | null | undefined)).toBe('—');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('shows the clinic date with the year, and the time', () => {
+    // 04:30 UTC is 12:30 PM in Manila
+    expect(formatDateTime('2026-09-20T04:30:00.000Z')).toBe('Sep 20, 2026, 12:30 PM');
+  });
+
+  it('keeps the year so an older sample is not mistaken for a recent one', () => {
+    expect(formatDateTime('2025-01-05T02:05:00Z')).toBe('Jan 5, 2025, 10:05 AM');
+  });
+
+  it('uses the clinic day, not UTC', () => {
+    expect(formatDateTime('2026-09-19T20:00:00Z')).toBe('Sep 20, 2026, 4:00 AM');
+  });
+
+  it('shows a dash for a missing or invalid date, not "Invalid Date"', () => {
+    expect(formatDateTime(null)).toBe('—');
+    expect(formatDateTime('not a date')).toBe('—');
   });
 });
 

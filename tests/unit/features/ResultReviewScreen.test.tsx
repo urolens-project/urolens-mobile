@@ -5,10 +5,19 @@ import { ResultReviewScreen } from '@features/result-confirmation/components/Res
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
 import { useResultConfirmation } from '@features/result-confirmation/hooks/useResultConfirmation';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { useHasManualOverrides } from '@features/manual-override/hooks/useHasManualOverrides';
+import { Alert } from 'react-native';
+import { router } from 'expo-router';
 
 jest.mock('@features/result-confirmation/hooks/useResultConfirmation', () => ({
   __esModule: true,
   useResultConfirmation: jest.fn(),
+}));
+jest.mock('@features/manual-override/hooks/useHasManualOverrides', () => ({
+  useHasManualOverrides: jest.fn(),
+}));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
 }));
 jest.mock('@hooks/useNetworkStatus');
 jest.mock('expo-router', () => ({
@@ -27,18 +36,20 @@ const mockResult = {
   smartDiagnosis: null,
   smartDiagnosisUnavailable: false,
   aiFindingsJson: JSON.stringify({ rbc: 3, wbc: 12 }),
-  get aiFindings() { return JSON.parse(this.aiFindingsJson); },
+  get aiFindings() {
+    return JSON.parse(this.aiFindingsJson);
+  },
 };
 
 const mockHookReturn = {
   result: mockResult,
   aiFindings: [
-    { parameter: 'rbc', count: 3,  isAnomalous: false },
-    { parameter: 'wbc', count: 12, isAnomalous: true  },
+    { parameter: 'rbc', count: 3, isAnomalous: false },
+    { parameter: 'wbc', count: 12, isAnomalous: true },
   ],
-  isLoading:    false,
+  isLoading: false,
   isConfirming: false,
-  error:        null,
+  error: null,
   confirmResult: jest.fn(),
 };
 
@@ -46,6 +57,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   (useResultConfirmation as jest.Mock).mockReturnValue(mockHookReturn);
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
+  (useHasManualOverrides as jest.Mock).mockReturnValue(false);
 });
 
 describe('AIDisclaimer', () => {
@@ -95,7 +107,10 @@ describe('ResultReviewScreen', () => {
       result: null,
     });
     render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
-    expect(screen.getByTestId?.('loading') ?? screen.UNSAFE_getByType(require('react-native').ActivityIndicator)).toBeTruthy();
+    expect(
+      screen.getByTestId?.('loading') ??
+        screen.UNSAFE_getByType(require('react-native').ActivityIndicator),
+    ).toBeTruthy();
   });
 
   it('shows error message when confirm fails', () => {
@@ -111,5 +126,45 @@ describe('ResultReviewScreen', () => {
     (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
     render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
     expect(screen.getByText('Queue Confirmation')).toBeTruthy();
+  });
+});
+
+describe('ResultReviewScreen retake', () => {
+  it('goes straight to capture when there are no overrides to lose', () => {
+    render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
+    fireEvent.press(screen.getByLabelText('Retake image'));
+
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(router.push).toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: '/(medtech)/capture' }),
+    );
+  });
+
+  it('warns before discarding manual overrides, and only retakes once confirmed', () => {
+    (useHasManualOverrides as jest.Mock).mockReturnValue(true);
+    render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
+    fireEvent.press(screen.getByLabelText('Retake image'));
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'Discard Overrides?',
+      expect.stringContaining('manual overrides will be removed'),
+      expect.any(Array),
+    );
+    expect(router.push).not.toHaveBeenCalled();
+
+    // Choosing "Retake" in the dialog carries on to capture.
+    const buttons = (Alert.alert as jest.Mock).mock.calls[0][2] as {
+      text: string;
+      onPress?: () => void;
+    }[];
+    buttons.find((b) => b.text === 'Retake')?.onPress?.();
+    expect(router.push).toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: '/(medtech)/capture' }),
+    );
+  });
+
+  it('checks for overrides on this result', () => {
+    render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
+    expect(useHasManualOverrides).toHaveBeenCalledWith('result-123');
   });
 });

@@ -4,6 +4,7 @@ import { database } from '@db/database';
 import ManualOverride from '@db/models/ManualOverride';
 import PendingSync from '@db/models/PendingSync';
 import { apiClient } from '@lib/apiClient';
+import { getErrorMessage } from '@lib/errorMessage';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
 import { useAuthStore } from '@lib/auth/authStore';
@@ -20,10 +21,7 @@ export function useManualOverride(): UseManualOverrideReturn {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submitOverride = async (
-    resultId: string,
-    payload: OverridePayload,
-  ): Promise<boolean> => {
+  const submitOverride = async (resultId: string, payload: OverridePayload): Promise<boolean> => {
     if (isSubmitting) return false;
     setIsSubmitting(true);
     setError(null);
@@ -32,10 +30,10 @@ export function useManualOverride(): UseManualOverrideReturn {
       if (isOnline) {
         // Online path — direct API call
         await apiClient.post<OverrideResponse>(`/results/${resultId}/override`, {
-          parameter:      payload.parameter,
+          parameter: payload.parameter,
           originalAiValue: payload.originalAiValue,
-          correctedValue:  payload.correctedValue,
-          rationale:       payload.rationale,
+          correctedValue: payload.correctedValue,
+          rationale: payload.rationale,
         });
         // Server will persist original_ai_value — local record marks synced
         await _writeLocalOverride(resultId, payload, true);
@@ -46,18 +44,18 @@ export function useManualOverride(): UseManualOverrideReturn {
         await _writeLocalOverride(resultId, payload, false);
         await database.write(async () => {
           await database.get<PendingSync>('pending_sync').create((r) => {
-            r.entity      = 'manual_override';
-            r.entityId    = resultId;
-            r.action      = PendingSyncAction.OVERRIDE_PARAMETER;
+            r.entity = 'manual_override';
+            r.entityId = resultId;
+            r.action = PendingSyncAction.OVERRIDE_PARAMETER;
             r.payloadJson = JSON.stringify({ resultId, ...payload });
-            r.status      = PendingSyncStatus.PENDING;
-            r.createdAt   = Date.now();
+            r.status = PendingSyncStatus.PENDING;
+            r.createdAt = Date.now();
           });
         });
       }
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to submit override';
+      const message = getErrorMessage(err, 'Failed to submit override');
       setError(message);
       return false;
     } finally {
@@ -78,14 +76,14 @@ async function _writeLocalOverride(
 
   await database.write(async () => {
     await database.get<ManualOverride>('manual_overrides').create((r) => {
-      r.resultId        = resultId;
-      r.parameter       = payload.parameter;
+      r.resultId = resultId;
+      r.parameter = payload.parameter;
       r.originalAiValue = payload.originalAiValue;
-      r.correctedValue  = payload.correctedValue;
-      r.rationale       = payload.rationale;
-      r.overriddenBy    = userId;
-      r.isSynced        = isSynced;
-      r.createdAt       = Date.now();
+      r.correctedValue = payload.correctedValue;
+      r.rationale = payload.rationale;
+      r.overriddenBy = userId;
+      r.isSynced = isSynced;
+      r.createdAt = Date.now();
     });
   });
 }

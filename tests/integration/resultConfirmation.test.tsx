@@ -33,6 +33,10 @@ jest.mock('@components/OfflineBanner', () => ({
   OfflineBanner: () => null,
 }));
 
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
 jest.mock('@db/sync/syncManager', () => ({
   synchronize: jest.fn(() => Promise.resolve()),
 }));
@@ -43,35 +47,40 @@ const mockUpdate = jest.fn();
 const mockCreate = jest.fn();
 
 const mockResult = {
-  serverId:                  'result-int-01',
-  specimenId:                'specimen-int-01',
-  status:                    'PENDING_CONFIRM',
-  isConfirmed:               false,
-  isSynced:                  false,
-  smartDiagnosis:            null,
+  serverId: 'result-int-01',
+  specimenId: 'specimen-int-01',
+  status: 'PENDING_CONFIRM',
+  isConfirmed: false,
+  isSynced: false,
+  smartDiagnosis: null,
   smartDiagnosisUnavailable: false,
-  aiFindingsJson:            JSON.stringify({ rbc: 3, wbc: 14, bacteria: 2 }),
-  get aiFindings() { return JSON.parse(this.aiFindingsJson); },
+  aiFindingsJson: JSON.stringify({ rbc: 3, wbc: 14, bacteria: 2 }),
+  get aiFindings() {
+    return JSON.parse(this.aiFindingsJson);
+  },
   update: mockUpdate,
 };
 
 function setupDatabaseMock(result = mockResult) {
   const mockObserve = jest.fn(() => ({
-    subscribe: jest.fn((cb: (records: typeof result[]) => void) => {
+    subscribe: jest.fn((cb: (records: (typeof result)[]) => void) => {
       cb([result]);
       return { unsubscribe: jest.fn() };
     }),
   }));
 
   (database.get as jest.Mock).mockImplementation((table: string) => {
-    if (table === 'analysis_results') return {
-      query: jest.fn(() => ({ observe: mockObserve })),
-    };
+    if (table === 'analysis_results')
+      return {
+        query: jest.fn(() => ({ observe: mockObserve })),
+      };
     if (table === 'pending_sync') return { create: mockCreate };
     return {};
   });
 
-  mockUpdate.mockImplementation(async (fn: (r: Record<string, unknown>) => void) => fn(mockResult as unknown as Record<string, unknown>));
+  mockUpdate.mockImplementation(async (fn: (r: Record<string, unknown>) => void) =>
+    fn(mockResult as unknown as Record<string, unknown>),
+  );
 }
 
 beforeEach(() => {
