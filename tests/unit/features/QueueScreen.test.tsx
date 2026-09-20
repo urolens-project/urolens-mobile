@@ -1,4 +1,5 @@
 import React from 'react';
+import { Animated } from 'react-native';
 import { render, fireEvent, within } from '@testing-library/react-native';
 import QueueScreen from '../../../app/(medtech)/queue';
 import { useQueue } from '@features/queue/hooks/useQueue';
@@ -6,8 +7,15 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { useSyncStatus } from '@hooks/useSyncStatus';
 import type { QueueItem } from '@features/queue/types';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn() }),
+  useFocusEffect: jest.fn(),
+}));
+jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
+jest.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: 'SafeAreaView',
+  useSafeAreaInsets: () => ({ top: 44, bottom: 0, left: 0, right: 0 }),
+}));
 jest.mock('@features/queue/hooks/useQueue', () => ({ useQueue: jest.fn() }));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
 jest.mock('@hooks/useSyncStatus', () => ({ useSyncStatus: jest.fn() }));
@@ -48,8 +56,9 @@ function setQueue(items: QueueItem[], allItems: QueueItem[] = items) {
   });
 }
 
-// FlatList is a stub in the jest setup and never renders its rows or header, so pull them
-// off its props and render them the way the list would.
+// FlatList is a stub in the jest setup and never renders its rows or list header, so pull
+// them off its props and render them the way the list would. (The title, date and role sit
+// in the fixed header above the list, so those are on the screen itself.)
 type Screen = ReturnType<typeof render>;
 const listOf = (view: Screen) => view.UNSAFE_root.findByType('FlatList' as never);
 
@@ -113,7 +122,44 @@ describe('the Proceed / Continue button', () => {
   });
 });
 
-describe('the header of the Queue', () => {
+describe('the fixed header of the Queue', () => {
+  it('shows the title, the active count, the date, the role and the username', () => {
+    setQueue([item('a1'), item('a2'), item('p1', { status: 'PROCESSING' })]);
+    const view = render(<QueueScreen />);
+
+    expect(view.getByText('My Sample Queue')).toBeTruthy();
+    expect(view.getByText('3 Active Samples')).toBeTruthy();
+    expect(view.getByText(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/)).toBeTruthy();
+    expect(view.getByText('Medical Technologist')).toBeTruthy();
+    expect(view.getByText('medtech')).toBeTruthy();
+  });
+
+  it('keeps the Sync and Notifications buttons', () => {
+    setQueue([item('a1')]);
+    const view = render(<QueueScreen />);
+    expect(view.getByLabelText('Sync')).toBeTruthy();
+    expect(view.getByLabelText('Notifications')).toBeTruthy();
+  });
+
+  it('Sync starts a refresh', () => {
+    const refresh = jest.fn();
+    setQueue([item('a1')]);
+    (useQueue as jest.Mock).mockReturnValue({ ...(useQueue as jest.Mock)(), refresh });
+    const view = render(<QueueScreen />);
+    fireEvent.press(view.getByLabelText('Sync'));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('Sync is disabled while offline', () => {
+    (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
+    setQueue([item('a1')]);
+    const view = render(<QueueScreen />);
+    const sync = view.getByLabelText('Sync');
+    expect(sync.props.accessibilityState?.disabled ?? sync.props.disabled).toBe(true);
+  });
+});
+
+describe('the list header of the Queue', () => {
   // The list header (stats, status pill) is a prop of the FlatList stub; render it directly.
   const headerOf = (view: Screen) => render(listOf(view).props.ListHeaderComponent);
   const statValue = (header: Screen, label: string) =>
@@ -130,12 +176,13 @@ describe('the header of the Queue', () => {
       item('r3', { status: 'PROCESSING', isReturnedForCorrection: true }),
     ];
     setQueue(all);
-    const header = headerOf(render(<QueueScreen />));
+    const view = render(<QueueScreen />);
+    expect(view.getByText('6 Active Samples')).toBeTruthy();
+    const header = headerOf(view);
 
     expect(statValue(header, 'Assigned')).toBe(2);
     expect(statValue(header, 'In Progress')).toBe(1);
     expect(statValue(header, 'Returned')).toBe(3);
-    expect(header.getByText('6 Active Samples')).toBeTruthy();
   });
 
   it.each([
@@ -169,11 +216,53 @@ describe('the header of the Queue', () => {
     setQueue([item('A')]);
     expect(headerOf(render(<QueueScreen />)).getByText(text)).toBeTruthy();
   });
+});
 
-  it("shows today's date in clinic time", () => {
-    setQueue([item('A')]);
-    expect(
-      headerOf(render(<QueueScreen />)).getByText(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/),
-    ).toBeTruthy();
+// The filters stay put while the list moves under them; the stats block rolls away, and the
+// rows roll under the filters like a wheel. The geometry is covered in scrollEffects.test.ts
+// and StickyFilters.test.tsx; this checks the screen is wired to it.
+describe('scrolling', () => {
+  const headerOf = (view: Screen) => render(listOf(view).props.ListHeaderComponent);
+
+  it('reports the scroll position from the list, on the native thread', () => {
+    setQueue([item('a1')]);
+    render(<QueueScreen />);
+
+    const event = Animated.event as jest.Mock;
+    expect(event).toHaveBeenCalled();
+    const [mapping, options] = event.mock.calls[0];
+    expect(mapping[0].nativeEvent.contentOffset).toHaveProperty('y');
+    expect(options).toEqual({ useNativeDriver: true });
+  });
+
+  it('asks the list for scroll events often enough to track the finger', () => {
+    setQueue([item('a1')]);
+    const view = render(<QueueScreen />);
+    expect(listOf(view).props.scrollEventThrottle).toBe(16);
+    expect(typeof listOf(view).props.onScroll).toBe('function');
+  });
+
+  it('shows the filters on the screen, over the list, not inside the part that scrolls away', () => {
+    setQueue([item('a1')]);
+    const view = render(<QueueScreen />);
+
+    expect(view.getByText('Date')).toBeTruthy();
+    expect(view.getByText('Status')).toBeTruthy();
+    expect(headerOf(view).queryByText('Status')).toBeNull();
+  });
+
+  it('keeps the stats and the sync pill in the part that scrolls away', () => {
+    setQueue([item('a1'), item('p1', { status: 'PROCESSING' })]);
+    const header = headerOf(render(<QueueScreen />));
+    expect(header.getByText('Assigned')).toBeTruthy();
+    expect(header.getByText('Online • Queue Synchronized')).toBeTruthy();
+  });
+
+  it('still builds a row for every sample', () => {
+    setQueue([item('a1'), item('a2'), item('a3')]);
+    const view = render(<QueueScreen />);
+    expect(listOf(view).props.data).toHaveLength(3);
+    const row = render(listOf(view).props.renderItem({ item: item('a1'), index: 0 }));
+    expect(row.getByRole('button')).toBeTruthy();
   });
 });

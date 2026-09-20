@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { RiseIn } from '@components/RiseIn';
 import type { FilterOption } from '../types';
 
 const TEAL = '#2E7D7A';
@@ -109,98 +110,102 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
 
       {/* ── Date sub-chips ────────────────────────────────────── */}
       {expandedGroup === 'date' && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.subRow}
-        >
-          {(
-            [
-              { key: 'LATEST' as FilterOption, label: 'Latest', icon: 'arrow-down-outline' },
-              { key: 'EARLIEST' as FilterOption, label: 'Earliest', icon: 'arrow-up-outline' },
-            ] as const
-          ).map((sub) => {
-            const isActive = selected === sub.key;
-            return (
-              <TouchableOpacity
-                key={sub.key}
-                style={[
-                  styles.subChip,
-                  { borderColor: TEAL },
-                  isActive && { backgroundColor: '#E0F2F1' },
-                ]}
-                onPress={() => onChange(sub.key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-              >
-                <Ionicons name={sub.icon as any} size={14} color={isActive ? TEAL : '#6B7280'} />
-                <Text style={[styles.subChipText, { color: isActive ? TEAL : '#374151' }]}>
-                  {sub.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <RiseIn distance={-10}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.subRow}
+          >
+            {(
+              [
+                { key: 'LATEST' as FilterOption, label: 'Latest', icon: 'arrow-down-outline' },
+                { key: 'EARLIEST' as FilterOption, label: 'Earliest', icon: 'arrow-up-outline' },
+              ] as const
+            ).map((sub) => {
+              const isActive = selected === sub.key;
+              return (
+                <TouchableOpacity
+                  key={sub.key}
+                  style={[
+                    styles.subChip,
+                    { borderColor: TEAL },
+                    isActive && { backgroundColor: '#E0F2F1' },
+                  ]}
+                  onPress={() => onChange(sub.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                >
+                  <Ionicons name={sub.icon as any} size={14} color={isActive ? TEAL : '#6B7280'} />
+                  <Text style={[styles.subChipText, { color: isActive ? TEAL : '#374151' }]}>
+                    {sub.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </RiseIn>
       )}
 
       {/* ── Status sub-chips ───────────────────────────────────── */}
       {expandedGroup === 'status' && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.subRow}
-        >
-          {(
-            [
-              { key: 'ASSIGNED' as FilterOption, label: 'Assigned', color: TEAL, bg: '#E0F2F1' },
-              {
-                key: 'PROCESSING' as FilterOption,
-                label: 'In Progress',
-                color: '#7C3AED',
-                bg: '#EDE9FE',
-              },
-              {
-                key: 'RETURNED' as FilterOption,
-                label: 'Returned',
-                color: '#D97706',
-                bg: '#FEF3C7',
-              },
-            ] as const
-          ).map((sub) => {
-            const isActive = selected === sub.key;
-            return (
-              <TouchableOpacity
-                key={sub.key}
-                style={[
-                  styles.subChip,
-                  { borderColor: sub.color },
-                  isActive && { backgroundColor: sub.bg },
-                ]}
-                onPress={() => onChange(sub.key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-              >
-                <View style={[styles.subDot, { backgroundColor: sub.color }]} />
-                <Text
+        <RiseIn distance={-10}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.subRow}
+          >
+            {(
+              [
+                { key: 'ASSIGNED' as FilterOption, label: 'Assigned', color: TEAL, bg: '#E0F2F1' },
+                {
+                  key: 'PROCESSING' as FilterOption,
+                  label: 'In Progress',
+                  color: '#7C3AED',
+                  bg: '#EDE9FE',
+                },
+                {
+                  key: 'RETURNED' as FilterOption,
+                  label: 'Returned',
+                  color: '#D97706',
+                  bg: '#FEF3C7',
+                },
+              ] as const
+            ).map((sub) => {
+              const isActive = selected === sub.key;
+              return (
+                <TouchableOpacity
+                  key={sub.key}
                   style={[
-                    styles.subChipText,
-                    { color: sub.color },
-                    !isActive && { color: '#374151' },
+                    styles.subChip,
+                    { borderColor: sub.color },
+                    isActive && { backgroundColor: sub.bg },
                   ]}
+                  onPress={() => onChange(sub.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
                 >
-                  {sub.label}
-                </Text>
-                {counts?.[sub.key] !== undefined && (
-                  <View style={[styles.countBadge, isActive && { backgroundColor: sub.color }]}>
-                    <Text style={[styles.countText, isActive && styles.countTextActive]}>
-                      {counts[sub.key]}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <View style={[styles.subDot, { backgroundColor: sub.color }]} />
+                  <Text
+                    style={[
+                      styles.subChipText,
+                      { color: sub.color },
+                      !isActive && { color: '#374151' },
+                    ]}
+                  >
+                    {sub.label}
+                  </Text>
+                  {counts?.[sub.key] !== undefined && (
+                    <View style={[styles.countBadge, isActive && { backgroundColor: sub.color }]}>
+                      <Text style={[styles.countText, isActive && styles.countTextActive]}>
+                        {counts[sub.key]}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </RiseIn>
       )}
     </View>
   );
@@ -219,23 +224,32 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
     paddingVertical: 12,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    shadowColor: '#1F2937',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
+    elevation: 1,
   },
   chipActive: {
     backgroundColor: TEAL,
     borderColor: TEAL,
+    shadowColor: TEAL,
+    shadowOpacity: 0.3,
+    shadowRadius: 7,
+    elevation: 3,
   },
   chipText: {
     fontSize: 13,
@@ -270,17 +284,17 @@ const styles = StyleSheet.create({
   // Sub-chips row
   subRow: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+    gap: 6,
+    paddingHorizontal: 4,
+    paddingBottom: 12,
   },
   subChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 16,
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
