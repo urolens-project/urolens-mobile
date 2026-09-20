@@ -1,61 +1,54 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { REPORT_CATEGORY_STYLES } from '../constants';
+import { REPORT_CATEGORY_DESCRIPTIONS } from '../types';
 import type { ReportCategory } from '../types';
+import { ReportIllustration } from './ReportIllustration';
 
 interface Props {
   category: ReportCategory;
   title: string;
   count: number;
   onPress: (category: ReportCategory) => void;
+  // Idle motion on the illustration; off for reduced motion.
+  animate?: boolean;
 }
 
-// Full-width "stat row" card: a huge count on the left, the category name
-// on the right. No icon, no color heading — the number's own color is the
-// only category cue left, so it has to carry the card.
-const CARD_HEIGHT = 96;
-const NUMBER_FONT_SIZE = Math.round(CARD_HEIGHT * 0.9);
-// A lineHeight tight against fontSize, combined with adjustsFontSizeToFit
-// and a marginTop that pushed the line past the remaining container height,
-// was making iOS collapse the whole number to nothing instead of just
-// clipping it — this is why the count wasn't rendering at all. lineHeight
-// now has real headroom above fontSize, and the top nudge is small enough
-// that lineHeight + nudge never exceeds CARD_HEIGHT.
-const NUMBER_LINE_HEIGHT = Math.round(NUMBER_FONT_SIZE * 1.05);
-// numberCol centers this Text's outer box (marginTop + lineHeight) via
-// justifyContent — the largest nudge that still keeps the whole box inside
-// CARD_HEIGHT (no overflow either edge) is the leftover headroom itself.
-const NUMBER_TOP_NUDGE = Math.max(0, CARD_HEIGHT - NUMBER_LINE_HEIGHT);
-// Fixed (not min) width, sized to fit three bold digits at NUMBER_FONT_SIZE
-// without needing to shrink the font. This is what keeps the divider at a
-// constant x position regardless of digit count — a *minWidth* would let a
-// wider count grow the column and shift the divider along with it.
-const NUMBER_COL_WIDTH = Math.round(NUMBER_FONT_SIZE * 1.9);
+export const CARD_RADIUS = 24;
 
-function ReportCategoryCardComponent({ category, title, count, onPress }: Props) {
+function ReportCategoryCardComponent({ category, title, count, onPress, animate = true }: Props) {
   const style = REPORT_CATEGORY_STYLES[category];
   const isEmpty = count === 0;
+  const countLabel = `${count} sample${count === 1 ? '' : 's'}`;
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, { backgroundColor: style.wash }]}
       onPress={() => onPress(category)}
-      activeOpacity={0.85}
+      activeOpacity={0.9}
       accessibilityRole="button"
-      accessibilityLabel={`${title}, ${count} sample${count === 1 ? '' : 's'}`}
+      accessibilityLabel={`${title}, ${countLabel}`}
     >
-      <View style={styles.numberCol}>
-        <Text
-          style={[styles.number, { color: isEmpty ? '#9CA3AF' : style.color }]}
-          numberOfLines={1}
-        >
-          {count}
-        </Text>
-      </View>
       <View style={styles.textCol}>
         <Text style={styles.title} numberOfLines={3}>
           {title}
         </Text>
+        <Text style={styles.description} numberOfLines={3}>
+          {REPORT_CATEGORY_DESCRIPTIONS[category]}
+        </Text>
+
+        <View style={styles.pill}>
+          <Text style={[styles.pillCount, { color: isEmpty ? '#9CA3AF' : style.color }]}>
+            {count}
+          </Text>
+          <Text style={styles.pillLabel}>{count === 1 ? 'sample' : 'samples'}</Text>
+          <Ionicons name="chevron-forward" size={14} color="#6B7280" />
+        </View>
+      </View>
+
+      <View style={styles.art}>
+        <ReportIllustration category={category} animate={animate} />
       </View>
     </TouchableOpacity>
   );
@@ -64,51 +57,65 @@ function ReportCategoryCardComponent({ category, title, count, onPress }: Props)
 const styles = StyleSheet.create({
   card: {
     width: '100%',
-    height: CARD_HEIGHT,
+    minHeight: 156,
+    borderRadius: CARD_RADIUS,
+    paddingVertical: 18,
+    paddingLeft: 20,
+    paddingRight: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    gap: 8,
-    // Shadow/border stand in for the removed color heading — the card still
-    // needs to read as a raised, tappable tile against the screen background.
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(17, 24, 39, 0.06)',
-  },
-  numberCol: {
-    height: '100%',
-    width: NUMBER_COL_WIDTH,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  number: {
-    fontSize: NUMBER_FONT_SIZE,
-    lineHeight: NUMBER_LINE_HEIGHT,
-    fontWeight: '800',
-    marginTop: NUMBER_TOP_NUDGE,
-    // Android pads a text line with extra ascent/descent space by default,
-    // which pushes a single large glyph off-center within its box.
-    ...Platform.select({
-      android: { includeFontPadding: false, textAlignVertical: 'center' as const },
-    }),
+    shadowColor: '#1F2937',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   textCol: {
     flex: 1,
-    borderLeftWidth: 2,
-    borderLeftColor: '#9CA3AF',
-    paddingLeft: 10,
+    paddingRight: 4,
+    gap: 6,
   },
   title: {
-    fontSize: 17,
+    fontSize: 19,
+    lineHeight: 24,
     fontWeight: '700',
+    color: '#111827',
+  },
+  description: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#6B7280',
+  },
+  pill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingLeft: 14,
+    paddingRight: 10,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  pillCount: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  pillLabel: {
+    fontSize: 13,
+    fontWeight: '600',
     color: '#374151',
-    lineHeight: 22,
+  },
+  art: {
+    width: 124,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
