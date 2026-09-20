@@ -1,10 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportItem } from '../types';
-
-const TEAL = '#2E7D7A';
-const TEAL_TINT = '#E0F2F1';
 
 interface Props {
   item: ReportItem;
@@ -24,20 +22,23 @@ function formatDate(iso: string): string {
   }
 }
 
-// Same layout as the Queue's sample cards (QueueItemCard) — droplet mark,
-// shadow, date-then-arrow trailing edge — so a sample reads the same
-// whether it's still active or already filed away in Reports.
+// A finished sample. Colored by the category it sits in (badge, accent edge,
+// rejection chip), so it reads as part of the container it was opened from.
 function ReportItemCardComponent({ item, onPress }: Props) {
+  const style = REPORT_CATEGORY_STYLES[item.category];
+
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => onPress(item.id)}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}`}
     >
-      <View style={styles.dropletBadge}>
-        <Ionicons name="water" size={18} color={TEAL} />
+      <View style={[styles.accent, { backgroundColor: style.color }]} />
+
+      <View style={[styles.dropletBadge, { backgroundColor: style.tint }]}>
+        <Ionicons name="water" size={20} color={style.color} />
       </View>
 
       <View style={styles.content}>
@@ -47,16 +48,21 @@ function ReportItemCardComponent({ item, onPress }: Props) {
         <Text style={styles.subtitle} numberOfLines={1}>
           {item.sampleUid} · {item.testType ?? '—'}
         </Text>
+        <View style={styles.timeRow}>
+          <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+          <Text style={styles.time}>{formatDate(item.finalizedAt)}</Text>
+        </View>
         {item.category === 'REJECTED' && item.rejectionReason && (
-          <Text style={styles.rejectionReason} numberOfLines={1}>
-            {item.rejectionReason.replace(/_/g, ' ')}
-          </Text>
+          <View style={[styles.reasonChip, { backgroundColor: style.tint }]}>
+            <Text style={[styles.reasonText, { color: style.color }]} numberOfLines={1}>
+              {item.rejectionReason.replace(/_/g, ' ')}
+            </Text>
+          </View>
         )}
       </View>
 
-      <Text style={styles.time}>{formatDate(item.finalizedAt)}</Text>
-      <View style={styles.arrowBadge}>
-        <Ionicons name="chevron-forward" size={22} color={TEAL} />
+      <View style={[styles.arrowBadge, { backgroundColor: style.wash }]}>
+        <Ionicons name="chevron-forward" size={16} color={style.color} />
       </View>
     </TouchableOpacity>
   );
@@ -67,32 +73,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 24,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    borderRadius: 18,
+    paddingLeft: 18,
+    paddingRight: 14,
+    paddingVertical: 16,
+    gap: 12,
+    shadowColor: '#1F2937',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.09,
+    shadowRadius: 10,
     elevation: 3,
   },
+  // Slim colored edge on the left, inset from the corners.
+  accent: {
+    position: 'absolute',
+    left: 0,
+    top: 16,
+    bottom: 16,
+    width: 4,
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 2,
+  },
   dropletBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: TEAL_TINT,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     flex: 1,
-    gap: 4,
+    gap: 3,
   },
   patientUid: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#111827',
     fontVariant: ['tabular-nums'],
   },
@@ -100,19 +115,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
   },
+  reasonChip: {
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 2,
+  },
+  reasonText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'capitalize',
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   time: {
     fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  rejectionReason: {
-    fontSize: 12,
-    color: '#B91C1C',
+    color: '#9CA3AF',
     fontWeight: '500',
   },
   arrowBadge: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
