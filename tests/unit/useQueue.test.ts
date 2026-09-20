@@ -44,6 +44,7 @@ import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { database } from '../../src/db/database';
 import { synchronize, LAST_SYNC_KEY } from '../../src/db/sync/syncManager';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
+import { clinicDayRange } from '../../src/lib/dateTime';
 import type { FilterOption } from '../../src/features/queue/types';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -313,7 +314,8 @@ describe('useQueue', () => {
           makeSpecimen({ id: 'spec-2', status: 'PROCESSING' }),
         ]);
       });
-      expect(result.current.items.map((i) => i.id)).toEqual(['spec-1', 'spec-2']);
+      // All lists In Progress before Assigned, whatever order the database emits.
+      expect(result.current.items.map((i) => i.id)).toEqual(['spec-2', 'spec-1']);
 
       // WatermelonDB's reactive query re-emits with spec-1 excluded once its
       // status moves past ASSIGNED/PROCESSING (e.g. confirmed or rejected).
@@ -389,29 +391,39 @@ describe('useQueue', () => {
   // QUEUE-04 (priority filtering) no longer applies — the priority filter
   // was removed since priorityLevel is hardcoded to ROUTINE on the backend.
   describe('filter query construction (QUEUE-03 / QUEUE-05)', () => {
-    it('QUEUE-03: DATE filter scopes to today via received_at gte/lte and sorts desc', () => {
+    it('QUEUE-03: DATE filter = received today OR In Progress (OR returned), sorted desc', () => {
       const { result } = renderHook(() => useQueue());
 
       act(() => {
         result.current.setFilter('DATE');
       });
 
+      // [base scope, date rule, sort]. The date rule is an OR so work already
+      // started stays visible whatever day it arrived; the real rows this returns
+      // are covered against an in-memory database in queueDateFilter.test.ts.
       const clauses = lastFilterQueryClauses();
-      expect(clauses).toHaveLength(4);
+      expect(clauses).toHaveLength(3);
       expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status' });
-      expect(clauses[1]).toMatchObject({ _type: 'where', field: 'received_at' });
-      expect((clauses[1] as any).value).toMatchObject({ _type: 'gte' });
-      expect(clauses[2]).toMatchObject({ _type: 'where', field: 'received_at' });
-      expect((clauses[2] as any).value).toMatchObject({ _type: 'lte' });
-      expect(clauses[3]).toMatchObject({ _type: 'sortBy', field: 'received_at', dir: 'desc' });
+      expect(clauses[2]).toMatchObject({ _type: 'sortBy', field: 'received_at', dir: 'desc' });
 
-      // Bounds are today's start/end, not an arbitrary window
-      const start = new Date((clauses[1] as any).value.v);
-      const end = new Date((clauses[2] as any).value.v);
-      const now = new Date();
-      expect(start.getDate()).toBe(now.getDate());
-      expect(start.getHours()).toBe(0);
-      expect(end.getHours()).toBe(23);
+      const dateRule = clauses[1] as any;
+      expect(dateRule._type).toBe('or');
+      const [receivedToday, ...startedWork] = dateRule.clauses;
+
+      // Received today: an AND of received_at >= start of today, <= end of today
+      expect(receivedToday._type).toBe('and');
+      const [gte, lte] = receivedToday.clauses;
+      expect(gte).toMatchObject({ _type: 'where', field: 'received_at' });
+      expect(gte.value).toMatchObject({ _type: 'gte' });
+      expect(lte).toMatchObject({ _type: 'where', field: 'received_at' });
+      expect(lte.value).toMatchObject({ _type: 'lte' });
+      // "Today" is the clinic's day (Manila), not the phone's — start/end of that day.
+      const expected = clinicDayRange();
+      expect(gte.value.v).toBe(expected.start);
+      expect(lte.value.v).toBe(expected.end);
+
+      // ...or currently In Progress (no returned samples tracked yet)
+      expect(startedWork).toEqual([{ _type: 'where', field: 'status', value: 'PROCESSING' }]);
     });
 
     it('QUEUE-05: LATEST sorts received_at desc, EARLIEST sorts asc — same base filter otherwise', () => {
@@ -735,5 +747,122 @@ describe('useQueue', () => {
 
       expect(result.current.lastSyncAt).toBe(new Date(persisted).getTime());
     });
+  });
+});
+
+// A returned sample belongs to Returned only. Its specimen usually still reads
+// ASSIGNED, so without an explicit exclusion it would also show under the Assigned
+// filter (and be counted there) while its card says RETURNED.
+describe('status filters keep each sample in one group', () => {
+  it.each<FilterOption>(['ASSIGNED', 'PROCESSING'])(
+    '%s excludes samples returned for correction',
+    (filter) => {
+      const { result } = renderHook(() => useQueue());
+
+      act(() => {
+        emitReturnedResults([{ specimenId: 'srv-9' }]);
+      });
+      act(() => {
+        result.current.setFilter(filter);
+      });
+
+      const clauses = lastFilterQueryClauses();
+      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status', value: filter });
+      expect(clauses).toContainEqual(
+        expect.objectContaining({
+          _type: 'where',
+          field: 'server_id',
+          value: expect.objectContaining({ _type: 'notIn', vals: ['srv-9'] }),
+        }),
+      );
+    },
+  );
+
+  it('excludes both finished and returned samples when both exist', () => {
+    const { result } = renderHook(() => useQueue());
+
+    act(() => {
+      emitReturnedResults([
+        { specimenId: 'srv-returned' },
+        { specimenId: 'srv-done', status: 'APPROVED' },
+      ]);
+    });
+    act(() => {
+      result.current.setFilter('ASSIGNED');
+    });
+
+    const notIn = lastFilterQueryClauses()
+      .filter((c) => (c as any).field === 'server_id')
+      .map((c) => (c as any).value.vals);
+    expect(notIn).toEqual(expect.arrayContaining([['srv-returned'], ['srv-done']]));
+  });
+});
+
+describe('ordering of the All list', () => {
+  // The database can't sort by "returned" (it's a flag on the result, not a column
+  // of the specimen), so All is ordered in the hook: Returned, In Progress, Assigned.
+  it('shows Returned, then In Progress, then Assigned — newest first within each', async () => {
+    const { result } = renderHook(() => useQueue());
+
+    act(() => {
+      emitReturnedResults([{ specimenId: 'srv-returned' }]);
+    });
+
+    // returnedServerIds changing re-subscribes the filter query, then the totals.
+    const filterCb = subscribeCalls[subscribeCalls.length - 2].cb;
+    await act(async () => {
+      filterCb([
+        makeSpecimen({
+          id: 'assigned-old',
+          serverId: 'srv-a1',
+          status: 'ASSIGNED',
+          receivedAt: '2026-09-10T08:00:00Z',
+        }),
+        makeSpecimen({
+          id: 'assigned-new',
+          serverId: 'srv-a2',
+          status: 'ASSIGNED',
+          receivedAt: '2026-09-20T08:00:00Z',
+        }),
+        makeSpecimen({
+          id: 'progress',
+          serverId: 'srv-p',
+          status: 'PROCESSING',
+          receivedAt: '2026-09-15T08:00:00Z',
+        }),
+        // Specimen still reads ASSIGNED — the returned flag comes from its result.
+        makeSpecimen({
+          id: 'returned',
+          serverId: 'srv-returned',
+          status: 'ASSIGNED',
+          receivedAt: '2026-09-01T08:00:00Z',
+        }),
+      ]);
+    });
+
+    expect(result.current.items.map((i) => i.id)).toEqual([
+      'returned',
+      'progress',
+      'assigned-new',
+      'assigned-old',
+    ]);
+  });
+
+  it('leaves the date-sorted filters in the order the database gave them', async () => {
+    const { result } = renderHook(() => useQueue());
+
+    act(() => {
+      result.current.setFilter('EARLIEST');
+    });
+    // A filter change re-subscribes only the filtered query, so it's the latest one.
+    const filterCb = subscribeCalls[subscribeCalls.length - 1].cb;
+    await act(async () => {
+      filterCb([
+        makeSpecimen({ id: 'older', status: 'ASSIGNED', receivedAt: '2026-09-01T08:00:00Z' }),
+        makeSpecimen({ id: 'newer', status: 'PROCESSING', receivedAt: '2026-09-20T08:00:00Z' }),
+      ]);
+    });
+
+    expect(result.current.items.map((i) => i.id)).toEqual(['older', 'newer']);
   });
 });
