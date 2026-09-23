@@ -10,6 +10,9 @@ interface Props {
   // The selected sample, or null when nothing is selected.
   item: QueueItem | null;
   proceedLabel: string;
+  // False once the result has left the MedTech's hands (e.g. a Supervisor returned it):
+  // the specimen can't be rejected any more, so the button isn't offered.
+  canReject?: boolean;
   onReject: () => void;
   onProceed: () => void;
   reduceMotion: boolean;
@@ -20,7 +23,14 @@ const SLIDE_DISTANCE = 190;
 // The bar for the selected sample: it slides up when a sample is picked and back down
 // when it's cleared. While it slides away it keeps showing the sample it was for, so
 // the content doesn't vanish before the bar does.
-export function QueueActionBar({ item, proceedLabel, onReject, onProceed, reduceMotion }: Props) {
+export function QueueActionBar({
+  item,
+  proceedLabel,
+  canReject = true,
+  onReject,
+  onProceed,
+  reduceMotion,
+}: Props) {
   const [lastItem, setLastItem] = useState<QueueItem | null>(item);
   const slide = useRef(new Animated.Value(item ? 1 : 0)).current;
 
@@ -85,9 +95,11 @@ export function QueueActionBar({ item, proceedLabel, onReject, onProceed, reduce
       </View>
 
       <View style={styles.buttons}>
-        <TouchableOpacity style={styles.rejectBtn} onPress={onReject} activeOpacity={0.8}>
-          <Text style={styles.rejectText}>Reject</Text>
-        </TouchableOpacity>
+        {canReject && (
+          <TouchableOpacity style={styles.rejectBtn} onPress={onReject} activeOpacity={0.8}>
+            <Text style={styles.rejectText}>Reject</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.proceedBtn} onPress={onProceed} activeOpacity={0.85}>
           <Text style={styles.proceedText}>{proceedLabel}</Text>
           <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />

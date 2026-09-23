@@ -3,8 +3,14 @@ import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
 import PendingSync from '@db/models/PendingSync';
 import apiClient from '@lib/apiClient';
+import { getErrorMessage } from '@lib/errorMessage';
 import { RejectionReason, PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+
+// What a reject attempt came to. The failure message is returned rather than only
+// stored in `error`: a caller that awaits reject() and then reads `error` gets the
+// value from the render that created its handler — never this attempt's.
+export type RejectResult = { status: 'rejected' } | { status: 'failed'; message: string };
 
 export function useRejectSpecimen(specimenId: string) {
   const [isLoading, setIsLoading] = useState(false);
@@ -12,7 +18,7 @@ export function useRejectSpecimen(specimenId: string) {
   const { isOnline } = useNetworkStatus();
 
   const reject = useCallback(
-    async (reason: RejectionReason, note?: string): Promise<boolean> => {
+    async (reason: RejectionReason, note?: string): Promise<RejectResult> => {
       setIsLoading(true);
       setError(null);
       try {
@@ -44,14 +50,16 @@ export function useRejectSpecimen(specimenId: string) {
             s.status = 'REJECTED';
             s.rejectionReason = reason;
             s.rejectionNote = note?.trim() || null;
-            s.rejectedAt = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).replace(' ', 'T') + '+08:00';
+            s.rejectedAt =
+              new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).replace(' ', 'T') +
+              '+08:00';
           });
         });
-        return true;
+        return { status: 'rejected' };
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to reject specimen';
+        const message = getErrorMessage(err, 'Failed to reject specimen');
         setError(message);
-        return false;
+        return { status: 'failed', message };
       } finally {
         setIsLoading(false);
       }

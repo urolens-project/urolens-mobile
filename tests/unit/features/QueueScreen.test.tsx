@@ -122,6 +122,27 @@ describe('the Proceed / Continue button', () => {
   });
 });
 
+describe('the Reject button in the preview bar', () => {
+  it.each(['ASSIGNED', 'PROCESSING'] as const)('is offered for a %s sample', (status) => {
+    const sample = item('A', { status });
+    setQueue([sample]);
+    const view = render(<QueueScreen />);
+    tapCard(view, sample);
+    expect(view.getByText('Reject')).toBeTruthy();
+  });
+
+  // A returned sample's result is with the Supervisor's workflow — the specimen can't
+  // be rejected any more, so the bar must not offer it (Sample Detail doesn't either).
+  it('is NOT offered for a returned sample, which can still be continued', () => {
+    const sample = item('A', { status: 'ASSIGNED', isReturnedForCorrection: true });
+    setQueue([sample]);
+    const view = render(<QueueScreen />);
+    tapCard(view, sample);
+    expect(view.queryByText('Reject')).toBeNull();
+    expect(view.getByText('Continue')).toBeTruthy();
+  });
+});
+
 describe('the fixed header of the Queue', () => {
   it('shows the title, the active count, the date, the role and the username', () => {
     setQueue([item('a1'), item('a2'), item('p1', { status: 'PROCESSING' })]);

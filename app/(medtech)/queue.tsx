@@ -21,6 +21,7 @@ import {
   rollAwayStyle,
 } from '../../src/features/queue/scrollEffects';
 import { QueueActionBar } from '../../src/features/queue/components/QueueActionBar';
+import { getSampleActions } from '../../src/features/queue/lib/sampleState';
 import { QueueEmptyState } from '../../src/features/queue/components/QueueEmptyState';
 import { QueueFilterBar } from '../../src/features/queue/components/QueueFilterBar';
 import { QueueHeader } from '../../src/features/queue/components/QueueHeader';
@@ -172,6 +173,14 @@ export default function QueueScreen() {
       ? 'Continue'
       : 'Proceed to Analysis';
 
+  // A returned sample's result is with the Supervisor's workflow, so it can't be rejected.
+  const canRejectSelected = selectedItem
+    ? getSampleActions(
+        selectedItem.status,
+        selectedItem.isReturnedForCorrection ? 'RETURNED_FOR_CORRECTION' : null,
+      ).canReject
+    : true;
+
   const handleItemPress = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
@@ -302,6 +311,7 @@ export default function QueueScreen() {
       <QueueActionBar
         item={selectedItem}
         proceedLabel={proceedLabel}
+        canReject={canRejectSelected}
         onReject={handleReject}
         onProceed={handleProceed}
         reduceMotion={reduceMotion}

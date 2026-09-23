@@ -10,39 +10,68 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
 import { Ionicons } from '@expo/vector-icons';
 import { database } from '@db/database';
+import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import ManualOverride from '@db/models/ManualOverride';
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
 import { useConfirmAction } from '@features/result-confirmation/hooks/useConfirmAction';
 import { ResultReviewScreen } from '@features/result-confirmation/components/ResultReviewScreen';
+import { buildFindingRows, type FindingRow } from '@features/result-confirmation/lib/findingRows';
+import {
+  getSmartDiagnosisState,
+  SMART_DIAGNOSIS_MESSAGES,
+} from '@features/result-confirmation/lib/smartDiagnosisState';
 import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
+import { confirmRetake } from '@features/image-retake/lib/confirmRetake';
 import { startAnalysis } from '@features/queue/lib/startAnalysis';
+import { getSampleActions, getSampleStatusLabel } from '@features/queue/lib/sampleState';
+import type { QueueItem } from '@features/queue/types';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import type { QueueItem } from '../../../src/features/queue/types';
+import { formatDateTime } from '@lib/dateTime';
 
 const TEAL = '#2E7D7A';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-PH', {
-    timeZone: 'Asia/Manila',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+// This screen shows a Specimen through the Queue's QueueItem shape. It doesn't derive
+// isReturnedForCorrection here — it reads the loaded analysis result directly.
+function toQueueItem(s: Specimen): QueueItem {
+  return {
+    id: s.id,
+    serverId: s.serverId,
+    sampleUid: s.sampleUid,
+    patientName: s.patientName,
+    patientUid: s.patientUid,
+    testType: s.testType,
+    status: s.status as QueueItem['status'],
+    priorityLevel: s.priorityLevel as QueueItem['priorityLevel'],
+    receivedAt: s.receivedAt,
+    medtechId: s.medtechId,
+    rejectionReason: s.rejectionReason,
+    rejectionNote: s.rejectionNote,
+    rejectedAt: s.rejectedAt,
+    syncedAt: s.syncedAt,
+    isReturnedForCorrection: false,
+  };
 }
 
-function formatParticleName(key: string): string {
-  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
+// The result columns this screen reads. WatermelonDB's plain `query.observe()` only
+// re-emits when rows are added or removed — not when a row is updated in place, which
+// is how a sync brings in a Supervisor's approval, return or escalation. Naming the
+// columns makes the screen follow those changes live.
+const RESULT_COLUMNS = [
+  'status',
+  'ai_findings_json',
+  'smart_diagnosis_json',
+  'smart_diagnosis_unavailable',
+  'is_synced',
+  'image_id',
+];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -60,6 +89,9 @@ const LEVEL_COLORS: Record<string, { bg: string; text: string }> = {
   MODERATE: { bg: '#FEF3C7', text: '#92400E' },
   LOW: { bg: '#D1FAE5', text: '#065F46' },
 };
+const LEVEL_LABELS: Record<string, string> = { HIGH: 'High', MODERATE: 'Moderate', LOW: 'Low' };
+// A condition the engine gave no level for is neither low nor normal — don't dress it as Low.
+const UNKNOWN_LEVEL_COLORS = { bg: '#F3F4F6', text: '#6B7280' };
 
 function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson }) {
   if (diagnosis.no_significant_indicators) {
@@ -77,18 +109,16 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson })
     { label: 'Nephrolithiasis', level: diagnosis.nephrolithiasis?.level },
   ];
 
-  const LEVEL_LABELS: Record<string, string> = { HIGH: 'High', MODERATE: 'Moderate', LOW: 'Low' };
-
   return (
     <View style={styles.diagnosisRows}>
       {conditions.map((c) => {
-        const colors = LEVEL_COLORS[c.level] ?? LEVEL_COLORS.LOW;
+        const colors = (c.level && LEVEL_COLORS[c.level]) || UNKNOWN_LEVEL_COLORS;
         return (
           <View key={c.label} style={styles.diagnosisRow}>
             <Text style={styles.diagnosisCondition}>{c.label}</Text>
             <View style={[styles.levelBadge, { backgroundColor: colors.bg }]}>
               <Text style={[styles.levelText, { color: colors.text }]}>
-                {LEVEL_LABELS[c.level] ?? c.level ?? '—'}
+                {(c.level && (LEVEL_LABELS[c.level] ?? c.level)) || '—'}
               </Text>
             </View>
           </View>
@@ -98,17 +128,21 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson })
   );
 }
 
-function AIFindingsSection({ findings }: { findings: Record<string, number> }) {
-  const entries = Object.entries(findings).filter(([, count]) => count > 0);
-  if (!entries.length) return null;
-
+function AIFindingsSection({ rows }: { rows: FindingRow[] }) {
   return (
     <View style={styles.findingsRows}>
-      {entries.map(([key, count]) => (
-        <View key={key} style={styles.findingRow}>
+      {rows.map((row) => (
+        <View key={row.key} style={styles.findingRow}>
           <View style={styles.findingDot} />
-          <Text style={styles.findingName}>{formatParticleName(key)}</Text>
-          <Text style={styles.findingCount}>{count}</Text>
+          <View style={styles.findingNameBlock}>
+            <Text style={styles.findingName}>{row.label}</Text>
+            {row.isOverridden && (
+              <View style={styles.overriddenBadge}>
+                <Text style={styles.overriddenBadgeText}>Overridden · AI: {row.aiCount}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.findingCount}>{row.count}</Text>
         </View>
       ))}
     </View>
@@ -117,11 +151,22 @@ function AIFindingsSection({ findings }: { findings: Record<string, number> }) {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-export default function SampleDetailScreen(): React.JSX.Element {
-  const { id: specimenId, resultId } = useLocalSearchParams<{
-    id: string;
-    resultId?: string;
-  }>();
+export default function SampleDetailRoute(): React.JSX.Element {
+  const { id, resultId } = useLocalSearchParams<{ id: string; resultId?: string }>();
+
+  // The (medtech) tabs keep this screen mounted while another tab is showing, so
+  // opening a different sample re-uses this same instance. Keying it on the specimen
+  // remounts it instead — nothing from the previous sample (its patient, its result,
+  // a "not found" state) can carry over into the next one.
+  return <SampleDetail key={id} specimenId={id} resultId={resultId} />;
+}
+
+interface SampleDetailProps {
+  specimenId: string;
+  resultId?: string;
+}
+
+function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.Element {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
 
@@ -131,59 +176,58 @@ export default function SampleDetailScreen(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  const { confirmResult: confirmAction, isConfirming, error: confirmError } = useConfirmAction();
+  const { confirmResult: confirmAction, isConfirming } = useConfirmAction();
 
-  // Both useEffect hooks must remain unconditional (Rules of Hooks).
-  // Internal guards make them no-ops when specimenId/serverId are absent.
+  // The three effects below must stay unconditional (Rules of Hooks). Internal
+  // guards make them no-ops when specimenId/serverId are absent.
   useEffect(() => {
-    if (!specimenId) return;
+    if (!specimenId) {
+      setNotFound(true);
+      setIsLoading(false);
+      return;
+    }
 
-    let sub: { unsubscribe: () => void } | null = null;
+    // `cancelled` covers the gap before find() resolves: if the screen unmounts in that
+    // window there is nothing to unsubscribe yet, and a late subscribe would leak.
+    let cancelled = false;
+    let subscription: { unsubscribe: () => void } | null = null;
 
     database
       .get<Specimen>('specimens')
       .find(specimenId)
-      .then((model) => {
-        sub = model.observe().subscribe((s) => {
-          setSpecimen({
-            id: s.id,
-            serverId: s.serverId,
-            sampleUid: s.sampleUid,
-            patientName: s.patientName,
-            patientUid: s.patientUid,
-            testType: s.testType,
-            status: s.status as QueueItem['status'],
-            priorityLevel: s.priorityLevel as QueueItem['priorityLevel'],
-            receivedAt: s.receivedAt,
-            medtechId: s.medtechId,
-            rejectionReason: s.rejectionReason,
-            rejectionNote: s.rejectionNote,
-            rejectedAt: s.rejectedAt,
-            syncedAt: s.syncedAt,
-            // Not derived here — this screen computes its own
-            // isReturnedForCorrection below, from the loaded analysisResult.
-            isReturnedForCorrection: false,
+      .then(
+        (model) => {
+          if (cancelled) return;
+          subscription = model.observe().subscribe((s) => {
+            setSpecimen(toQueueItem(s));
+            setIsLoading(false);
           });
+        },
+        () => {
+          if (cancelled) return;
+          setNotFound(true);
           setIsLoading(false);
-        });
-      })
-      .catch(() => {
-        setNotFound(true);
-        setIsLoading(false);
-      });
+        },
+      );
 
-    return () => sub?.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription?.unsubscribe();
+    };
   }, [specimenId]);
 
   useEffect(() => {
     if (!specimen?.serverId) return;
+    const specimenServerId = specimen.serverId;
 
     const subscription = database
       .get<AnalysisResult>('analysis_results')
-      .query(Q.where('specimen_id', specimen.serverId))
-      .observe()
+      .query(Q.where('specimen_id', specimenServerId))
+      .observeWithColumns(RESULT_COLUMNS)
       .subscribe((results) => {
-        setAnalysisResult(results[0] ?? null);
+        // The backend keeps one result per specimen; picking "the latest" is the same
+        // safety net the Queue uses if a sync ever leaves a stale duplicate behind.
+        setAnalysisResult(latestAnalysisResultsBySpecimen(results).get(specimenServerId) ?? null);
       });
 
     return () => subscription.unsubscribe();
@@ -195,7 +239,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
     const subscription = database
       .get<ManualOverride>('manual_overrides')
       .query(Q.where('result_id', analysisResult.serverId))
-      .observe()
+      .observeWithColumns(['parameter', 'corrected_value'])
       .subscribe((records) => {
         const map: Record<string, number> = {};
         for (const r of records) map[r.parameter] = r.correctedValue;
@@ -205,26 +249,18 @@ export default function SampleDetailScreen(): React.JSX.Element {
     return () => subscription.unsubscribe();
   }, [analysisResult?.serverId]);
 
-  // Route variation: resultId present → mount review screen directly
-  if (resultId) {
-    return (
-      <>
-        <Stack.Screen
-          options={{
-            title: 'Result Review',
-            headerBackTitle: 'Queue',
-          }}
-        />
-        <ResultReviewScreen resultId={resultId} specimenId={specimenId} />
-      </>
-    );
+  // Route variation: resultId present → mount review screen directly. A specimen
+  // that has since been rejected must not be reviewed or confirmed, so it falls
+  // through to the regular view, which shows the rejection instead.
+  if (resultId && specimen?.status !== 'REJECTED') {
+    return <ResultReviewScreen resultId={resultId} specimenId={specimenId} />;
   }
 
   async function handleConfirmResult() {
     if (!analysisResult) return;
-    const ok = await confirmAction(analysisResult);
-    if (!ok) {
-      Alert.alert('Confirmation Failed', confirmError ?? 'An unexpected error occurred.');
+    const outcome = await confirmAction(analysisResult);
+    if (outcome.status === 'failed') {
+      Alert.alert('Confirmation Failed', outcome.message);
     }
   }
 
@@ -236,17 +272,26 @@ export default function SampleDetailScreen(): React.JSX.Element {
       );
       return;
     }
-    // Tapping Begin is what makes the specimen In Progress. Best-effort:
-    // startAnalysis queues the change if the server can't be reached, and
-    // capture proceeds regardless.
-    try {
-      await startAnalysis({
-        specimenId,
-        serverId: specimen.serverId,
-        isOnline,
-      });
-    } catch {
-      // Local write failed — navigation proceeds regardless.
+
+    // Tapping Begin is what makes the specimen In Progress. One that already is
+    // (the MedTech backed out of capture earlier) has nothing left to tell the server.
+    // Otherwise startAnalysis queues the change if the server can't be reached, and
+    // capture proceeds regardless — but a server that refuses (say, the specimen was
+    // rejected elsewhere) is not a reason to open the camera.
+    if (specimen.status !== 'PROCESSING') {
+      try {
+        const outcome = await startAnalysis({
+          specimenId,
+          serverId: specimen.serverId,
+          isOnline,
+        });
+        if (!outcome.started) {
+          Alert.alert('Cannot Begin Analysis', outcome.message);
+          return;
+        }
+      } catch {
+        // Local write failed — navigation proceeds regardless.
+      }
     }
 
     router.push({
@@ -260,31 +305,18 @@ export default function SampleDetailScreen(): React.JSX.Element {
       Alert.alert('Not Synced', 'Specimen has not synced yet. Please wait.');
       return;
     }
+    const serverId = specimen.serverId;
 
-    const doRetake = () => {
+    confirmRetake(Object.keys(overrides).length > 0, () => {
       router.push({
         pathname: '/(medtech)/capture',
         params: {
-          specimenId: specimen.serverId,
+          specimenId: serverId,
           localSpecimenId: specimenId,
           existingImageId: analysisResult?.imageId ?? undefined,
         },
       });
-    };
-
-    if (Object.keys(overrides).length > 0) {
-      Alert.alert(
-        'Discard Overrides?',
-        'Retaking the image will run a new AI analysis. Your existing manual overrides will be removed.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Retake', style: 'destructive', onPress: doRetake },
-        ],
-      );
-      return;
-    }
-
-    doRetake();
+    });
   }
 
   function handleRejectSpecimen() {
@@ -319,14 +351,24 @@ export default function SampleDetailScreen(): React.JSX.Element {
   const pColor = priorityColors[specimen.priorityLevel ?? 'NORMAL'] ?? priorityColors.NORMAL;
 
   const isRejected = specimen.status === 'REJECTED';
-  const smartDiagnosis = analysisResult?.smartDiagnosis ?? null;
-  const aiFindings = { ...(analysisResult?.aiFindings ?? {}), ...overrides };
-  const resultStatus = analysisResult?.status;
-  const isPendingConfirm = resultStatus === 'PENDING_CONFIRM';
+  const resultStatus = analysisResult?.status ?? null;
+  const actions = getSampleActions(specimen.status, resultStatus);
   const isPendingApproval = resultStatus === 'PENDING_SUPERVISOR_APPROVAL';
   const isApproved = resultStatus === 'APPROVED';
   const isReleased = resultStatus === 'RELEASED';
   const isReturnedForCorrection = resultStatus === 'RETURNED_FOR_CORRECTION';
+  const isEscalated = resultStatus === 'CRITICAL_ESCALATED';
+
+  const smartDiagnosis = analysisResult?.smartDiagnosis ?? null;
+  const diagnosisState = analysisResult
+    ? getSmartDiagnosisState({
+        status: analysisResult.status,
+        smartDiagnosis,
+        unavailable: analysisResult.smartDiagnosisUnavailable,
+        isSynced: analysisResult.isSynced,
+      })
+    : 'AFTER_CONFIRMATION';
+  const findingRows = buildFindingRows(analysisResult?.aiFindings ?? {}, overrides);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -336,10 +378,13 @@ export default function SampleDetailScreen(): React.JSX.Element {
           style={styles.topBackBtn}
           onPress={() => router.back()}
           accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="chevron-back" size={24} color="#374151" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Sample Detail</Text>
+        <Text style={styles.topBarTitle} accessibilityRole="header">
+          Sample Detail
+        </Text>
         <View style={styles.topBackBtn} />
       </View>
 
@@ -364,7 +409,7 @@ export default function SampleDetailScreen(): React.JSX.Element {
           <View style={styles.divider} />
           <DetailRow label="Test Type" value={specimen.testType} />
           <View style={styles.divider} />
-          <DetailRow label="Status" value={specimen.status.replace('_', ' ')} />
+          <DetailRow label="Status" value={getSampleStatusLabel(specimen.status, resultStatus)} />
           <View style={styles.divider} />
           <DetailRow label="Received" value={formatDateTime(specimen.receivedAt)} />
         </View>
@@ -405,10 +450,16 @@ export default function SampleDetailScreen(): React.JSX.Element {
                 <Ionicons name="analytics-outline" size={16} color={TEAL} />
                 <Text style={styles.sectionSubTitle}>Smart Diagnosis</Text>
               </View>
-              {smartDiagnosis ? (
+              {smartDiagnosis && diagnosisState === 'READY' ? (
                 <SmartDiagnosisSection diagnosis={smartDiagnosis} />
               ) : (
-                <Text style={styles.emptyResultText}>Diagnosis not available.</Text>
+                <Text style={styles.emptyResultText}>
+                  {
+                    SMART_DIAGNOSIS_MESSAGES[
+                      diagnosisState === 'READY' ? 'UNAVAILABLE' : diagnosisState
+                    ]
+                  }
+                </Text>
               )}
             </View>
 
@@ -418,8 +469,8 @@ export default function SampleDetailScreen(): React.JSX.Element {
                 <Ionicons name="eye-outline" size={16} color={TEAL} />
                 <Text style={styles.sectionSubTitle}>AI Findings</Text>
               </View>
-              {Object.keys(aiFindings).length > 0 ? (
-                <AIFindingsSection findings={aiFindings} />
+              {findingRows.length > 0 ? (
+                <AIFindingsSection rows={findingRows} />
               ) : (
                 <Text style={styles.emptyResultText}>No particles detected.</Text>
               )}
@@ -427,30 +478,16 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
             <AIDisclaimer />
 
-            {/* Confirm + Retake — shown when pending initial confirmation */}
-            {isPendingConfirm && (
-              <View style={styles.resultActions}>
-                <TouchableOpacity
-                  style={styles.confirmBtn}
-                  onPress={handleConfirmResult}
-                  disabled={isConfirming}
-                  accessibilityRole="button"
-                  accessibilityLabel="Confirm analysis result"
-                >
-                  {isConfirming ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.confirmBtnText}>Confirm Result</Text>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.retakeBtn}
-                  onPress={handleRetakeImage}
-                  accessibilityRole="button"
-                  accessibilityLabel="Retake image"
-                >
-                  <Text style={styles.retakeBtnText}>Retake Image</Text>
-                </TouchableOpacity>
+            {/* Rejected — this result will not go to the Supervisor */}
+            {isRejected && (
+              <View style={styles.rejectedResultBanner}>
+                <Ionicons name="close-circle-outline" size={18} color="#B91C1C" />
+                <View style={styles.bannerTextBlock}>
+                  <Text style={styles.rejectedResultTitle}>Specimen Rejected</Text>
+                  <Text style={styles.rejectedResultBody}>
+                    This result cannot be confirmed and will not be sent for supervisor approval.
+                  </Text>
+                </View>
               </View>
             )}
 
@@ -466,16 +503,49 @@ export default function SampleDetailScreen(): React.JSX.Element {
                 </View>
               </View>
             )}
-            {isReturnedForCorrection && (
+
+            {/* Escalated — with the Supervisor for urgent attention */}
+            {isEscalated && (
+              <View style={styles.escalatedBanner}>
+                <Ionicons name="warning" size={18} color="#B91C1C" />
+                <View style={styles.bannerTextBlock}>
+                  <Text style={styles.escalatedTitle}>Critical / Escalated</Text>
+                  <Text style={styles.escalatedBody}>
+                    The supervisor has escalated this result for urgent review. No further action is
+                    needed from you.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Confirm + Retake — pending initial confirmation; Retake alone after a return */}
+            {(actions.canConfirm || actions.canRetake) && (
               <View style={styles.resultActions}>
-                <TouchableOpacity
-                  style={styles.retakeBtn}
-                  onPress={handleRetakeImage}
-                  accessibilityRole="button"
-                  accessibilityLabel="Retake image"
-                >
-                  <Text style={styles.retakeBtnText}>Retake Image</Text>
-                </TouchableOpacity>
+                {actions.canConfirm && (
+                  <TouchableOpacity
+                    style={styles.confirmBtn}
+                    onPress={handleConfirmResult}
+                    disabled={isConfirming}
+                    accessibilityRole="button"
+                    accessibilityLabel="Confirm analysis result"
+                  >
+                    {isConfirming ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.confirmBtnText}>Confirm Result</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+                {actions.canRetake && (
+                  <TouchableOpacity
+                    style={styles.retakeBtn}
+                    onPress={handleRetakeImage}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retake image"
+                  >
+                    <Text style={styles.retakeBtnText}>Retake Image</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
@@ -517,16 +587,18 @@ export default function SampleDetailScreen(): React.JSX.Element {
 
         {/* Action buttons */}
         <View style={styles.actions}>
-          {!analysisResult && (
+          {actions.canBeginAnalysis && (
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnPrimary]}
               onPress={handleBeginAnalysis}
               accessibilityRole="button"
             >
-              <Text style={styles.actionBtnPrimaryText}>Begin Analysis</Text>
+              <Text style={styles.actionBtnPrimaryText}>
+                {specimen.status === 'PROCESSING' ? 'Continue Analysis' : 'Begin Analysis'}
+              </Text>
             </TouchableOpacity>
           )}
-          {!isRejected && !isApproved && !isReleased && (
+          {actions.canReject && (
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnDanger]}
               onPress={handleRejectSpecimen}
@@ -632,7 +704,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
   },
-  emptyResultText: { fontSize: 13, color: '#9CA3AF' },
+  emptyResultText: { fontSize: 13, color: '#6B7280', lineHeight: 18 },
 
   // Smart diagnosis
   diagnosisRows: { gap: 8 },
@@ -647,24 +719,12 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
     flex: 1,
   },
-  diagnosisRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   levelBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   levelText: { fontSize: 11, fontWeight: '700' },
-  diagnosisScore: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-    width: 36,
-    textAlign: 'right',
-  },
   noIndicators: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -673,7 +733,7 @@ const styles = StyleSheet.create({
   noIndicatorsText: { fontSize: 13, color: '#065F46' },
 
   // AI findings
-  findingsRows: { gap: 6 },
+  findingsRows: { gap: 8 },
   findingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -685,8 +745,18 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: TEAL,
   },
-  findingName: { flex: 1, fontSize: 13, color: '#374151' },
+  findingNameBlock: { flex: 1, gap: 3 },
+  findingName: { fontSize: 13, color: '#374151' },
   findingCount: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
+  // Same look as the override badge on the review screen's parameter rows.
+  overriddenBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  overriddenBadgeText: { fontSize: 11, fontWeight: '500', color: '#5B21B6' },
 
   // Retake + Confirm row
   resultActions: { gap: 10, marginTop: 4 },
@@ -706,18 +776,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  confirmedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
-  },
-  confirmedText: { fontSize: 13, color: '#065F46', fontWeight: '500', flex: 1 },
 
   // Shared banner layout
   bannerTextBlock: { flex: 1, gap: 3 },
@@ -775,9 +833,40 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     marginTop: 4,
+    marginBottom: 10,
   },
   correctionTitle: { fontSize: 13, fontWeight: '700', color: '#92400E' },
   correctionBody: { fontSize: 12, color: '#B45309', lineHeight: 17 },
+
+  // Escalated by the supervisor
+  escalatedBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+  escalatedTitle: { fontSize: 13, fontWeight: '700', color: '#B91C1C' },
+  escalatedBody: { fontSize: 12, color: '#991B1B', lineHeight: 17 },
+
+  // Specimen rejected, result left behind
+  rejectedResultBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+  rejectedResultTitle: { fontSize: 13, fontWeight: '700', color: '#B91C1C' },
+  rejectedResultBody: { fontSize: 12, color: '#991B1B', lineHeight: 17 },
 
   // Action buttons
   actions: { gap: 10, marginTop: 4 },
