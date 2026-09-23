@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { confirmRetake } from '@features/image-retake/lib/confirmRetake';
+import { useHasManualOverrides } from '@features/manual-override/hooks/useHasManualOverrides';
 import { useResultConfirmation } from '../hooks/useResultConfirmation';
 import { AIDisclaimer } from './AIDisclaimer';
 import { AIFindingsPanel } from './AIFindingsPanel';
@@ -29,32 +32,35 @@ export function ResultReviewScreen({
   specimenId,
 }: ResultReviewScreenProps): React.JSX.Element {
   const { isOnline } = useNetworkStatus();
-  const {
-    result,
-    aiFindings,
-    isLoading,
-    isConfirming,
-    error,
-    confirmResult,
-  } = useResultConfirmation(resultId);
+  const insets = useSafeAreaInsets();
+  const hasOverrides = useHasManualOverrides(resultId);
+  const { result, aiFindings, isLoading, isConfirming, error, confirmResult } =
+    useResultConfirmation(resultId);
 
   const isConfirmed = result?.isConfirmed ?? false;
 
-  const handleOverride = useCallback((parameter: string, originalValue: number) => {
-    router.push({
-      pathname: '/(medtech)/sample/override/[id]',
-      params: { id: resultId, specimenId, parameter, originalValue: String(originalValue) },
-    });
-  }, [resultId, specimenId]);
+  const handleOverride = useCallback(
+    (parameter: string, originalValue: number) => {
+      router.push({
+        pathname: '/(medtech)/sample/override/[id]',
+        params: { id: resultId, specimenId, parameter, originalValue: String(originalValue) },
+      });
+    },
+    [resultId, specimenId],
+  );
 
+  // Retaking purges the MedTech's overrides, and this is the screen where they make
+  // them — so warn first, same as Sample Detail does.
   const handleRetake = () => {
-    router.push({
-      pathname: '/(medtech)/capture',
-      params: {
-        specimenId: result?.specimenId ?? '',
-        localSpecimenId: specimenId,
-        existingImageId: result?.imageId ?? undefined,
-      },
+    confirmRetake(hasOverrides, () => {
+      router.push({
+        pathname: '/(medtech)/capture',
+        params: {
+          specimenId: result?.specimenId ?? '',
+          localSpecimenId: specimenId,
+          existingImageId: result?.imageId ?? undefined,
+        },
+      });
     });
   };
 
@@ -85,16 +91,16 @@ export function ResultReviewScreen({
 
   const smartDiagnosis = result.smartDiagnosis
     ? {
-        goutScore:               result.smartDiagnosis.gout?.level,
-        gnScore:                 result.smartDiagnosis.glomerulonephritis?.level,
-        nephroScore:             result.smartDiagnosis.nephrolithiasis?.level,
+        goutScore: result.smartDiagnosis.gout?.level,
+        gnScore: result.smartDiagnosis.glomerulonephritis?.level,
+        nephroScore: result.smartDiagnosis.nephrolithiasis?.level,
         noSignificantIndicators: result.smartDiagnosis.no_significant_indicators,
-        evidenceMap:             {
-          gout:               result.smartDiagnosis.gout,
+        evidenceMap: {
+          gout: result.smartDiagnosis.gout,
           glomerulonephritis: result.smartDiagnosis.glomerulonephritis,
-          nephrolithiasis:    result.smartDiagnosis.nephrolithiasis,
+          nephrolithiasis: result.smartDiagnosis.nephrolithiasis,
         },
-        unavailable:             false,
+        unavailable: false,
       }
     : null;
 
@@ -102,7 +108,7 @@ export function ResultReviewScreen({
     <View style={styles.container}>
       {!isOnline && <OfflineBanner />}
 
-      <View style={styles.titleBar}>
+      <View style={[styles.titleBar, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={styles.titleBarBack}
           onPress={() =>
@@ -147,11 +153,9 @@ export function ResultReviewScreen({
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {error ? (
-        <Text style={styles.errorText}>{error}</Text>
-      ) : null}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <View style={styles.actionBar}>
+      <View style={[styles.actionBar, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
           style={styles.retakeButton}
           onPress={handleRetake}
@@ -178,7 +182,13 @@ export function ResultReviewScreen({
             onPress={confirmResult}
             disabled={isConfirming}
             accessible={true}
-            accessibilityLabel={isConfirming ? 'Running diagnosis' : isOnline ? 'Confirm Result' : 'Queue Confirmation'}
+            accessibilityLabel={
+              isConfirming
+                ? 'Running diagnosis'
+                : isOnline
+                  ? 'Confirm Result'
+                  : 'Queue Confirmation'
+            }
             accessibilityRole="button"
           >
             {isConfirming ? (
@@ -228,7 +238,6 @@ const styles = StyleSheet.create({
   titleBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 72,
     paddingBottom: 12,
     paddingHorizontal: 8,
     borderBottomWidth: 0.5,
@@ -267,7 +276,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 28,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(0,0,0,0.1)',

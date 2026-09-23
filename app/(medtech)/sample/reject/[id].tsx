@@ -17,7 +17,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
+import AnalysisResult from '@db/models/AnalysisResult';
+import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
 import { RejectionReason } from '@app-types/enums';
+import type { SpecimenStatus } from '@app-types/enums';
+import { getRejectBlockedReason } from '@features/queue/lib/sampleState';
 import { useRejectSpecimen } from '@src/features/specimen-rejection/hooks/useRejectSpecimen';
 import { RejectionReasonModal } from '@src/features/specimen-rejection/components/RejectionReasonModal';
 
@@ -28,13 +32,16 @@ export default function RejectSpecimenScreen() {
   const [specimenInfo, setSpecimenInfo] = useState<{
     sampleUid: string;
     patientUid: string;
+    serverId: string | null;
+    status: SpecimenStatus;
   } | null>(null);
+  const [resultStatus, setResultStatus] = useState<AnalysisResult['status'] | null>(null);
   const [isLoadingSpecimen, setIsLoadingSpecimen] = useState(true);
 
   const [selectedReason, setSelectedReason] = useState<RejectionReason | null>(null);
   const [note, setNote] = useState('');
 
-  const { reject, isLoading: isRejecting, error: rejectError } = useRejectSpecimen(id ?? '');
+  const { reject, isLoading: isRejecting } = useRejectSpecimen(id ?? '');
 
   useEffect(() => {
     if (!id) return;
@@ -42,12 +49,14 @@ export default function RejectSpecimenScreen() {
     const sub = database
       .get<Specimen>('specimens')
       .query(Q.where('id', id))
-      .observe()
+      .observeWithColumns(['status', 'server_id'])
       .subscribe((results) => {
         if (results[0]) {
           setSpecimenInfo({
             sampleUid: results[0].sampleUid,
             patientUid: results[0].patientUid,
+            serverId: results[0].serverId,
+            status: results[0].status as SpecimenStatus,
           });
         }
         setIsLoadingSpecimen(false);
@@ -55,14 +64,37 @@ export default function RejectSpecimenScreen() {
     return () => sub.unsubscribe();
   }, [id]);
 
+  // Whether the specimen can still be rejected depends on where its result has got to,
+  // so watch that too. This screen is also reachable straight from the Queue (and from a
+  // notification), not only from Sample Detail, so it enforces the rule itself.
+  const specimenServerId = specimenInfo?.serverId;
+  useEffect(() => {
+    if (!specimenServerId) return;
+
+    const sub = database
+      .get<AnalysisResult>('analysis_results')
+      .query(Q.where('specimen_id', specimenServerId))
+      .observeWithColumns(['status'])
+      .subscribe((results) => {
+        setResultStatus(
+          latestAnalysisResultsBySpecimen(results).get(specimenServerId)?.status ?? null,
+        );
+      });
+    return () => sub.unsubscribe();
+  }, [specimenServerId]);
+
+  const blockedReason = specimenInfo
+    ? getRejectBlockedReason(specimenInfo.status, resultStatus)
+    : null;
+
   async function handleConfirm() {
     if (!selectedReason) return;
 
-    const success = await reject(selectedReason, note);
-    if (success) {
+    const outcome = await reject(selectedReason, note);
+    if (outcome.status === 'rejected') {
       router.replace(`/(medtech)/sample/${id}`);
     } else {
-      Alert.alert('Rejection Failed', rejectError ?? 'An error occurred.');
+      Alert.alert('Rejection Failed', outcome.message);
     }
   }
 
@@ -105,15 +137,32 @@ export default function RejectSpecimenScreen() {
           </View>
         )}
 
-        {/* Reason selection + confirm */}
-        <RejectionReasonModal
-          selectedReason={selectedReason}
-          onSelectReason={setSelectedReason}
-          note={note}
-          onNoteChange={setNote}
-          onConfirm={handleConfirm}
-          isLoading={isRejecting}
-        />
+        {blockedReason ? (
+          <View style={styles.blockedCard} accessibilityRole="alert">
+            <Ionicons name="information-circle-outline" size={20} color="#92400E" />
+            <View style={styles.blockedText}>
+              <Text style={styles.blockedTitle}>Cannot reject this specimen</Text>
+              <Text style={styles.blockedBody}>{blockedReason}</Text>
+              <TouchableOpacity
+                style={styles.blockedBtn}
+                onPress={() => router.replace(`/(medtech)/sample/${id}`)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.blockedBtnText}>Back to sample</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          /* Reason selection + confirm */
+          <RejectionReasonModal
+            selectedReason={selectedReason}
+            onSelectReason={setSelectedReason}
+            note={note}
+            onNoteChange={setNote}
+            onConfirm={handleConfirm}
+            isLoading={isRejecting}
+          />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -177,4 +226,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
   },
+
+  blockedCard: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: '#FFFBEB',
+    marginHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: 16,
+  },
+  blockedText: { flex: 1, gap: 6 },
+  blockedTitle: { fontSize: 14, fontWeight: '700', color: '#92400E' },
+  blockedBody: { fontSize: 13, color: '#B45309', lineHeight: 19 },
+  blockedBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  blockedBtnText: { fontSize: 13, fontWeight: '600', color: '#92400E' },
 });

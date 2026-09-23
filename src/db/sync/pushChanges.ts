@@ -31,7 +31,7 @@ interface PushError {
 // timeout), the server had a problem (5xx), it asked us to slow down (429/408), or
 // the session needs a fresh login (401). Anything else — the server understood
 // and refused (validation, permission, wrong state) — will fail the same way again.
-function isTransient(err: unknown): boolean {
+export function isTransient(err: unknown): boolean {
   const { code, status } = (err ?? {}) as PushError;
   if (code === 'NETWORK_ERROR' || code === 'TIMEOUT') return true;
   if (status === undefined) return false;

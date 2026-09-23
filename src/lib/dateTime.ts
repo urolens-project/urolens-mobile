@@ -25,6 +25,20 @@ export function formatShortDateTime(iso: string | null | undefined): string {
   });
 }
 
+/** "Sep 20, 2026, 12:30 PM" — for detail views, where an older sample's year matters. */
+export function formatDateTime(iso: string | null | undefined): string {
+  const date = parse(iso);
+  if (!date) return '—';
+  return date.toLocaleString('en-US', {
+    timeZone: CLINIC_TIME_ZONE,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 /** "Sep 20" */
 export function formatShortDate(iso: string | null | undefined): string {
   const date = parse(iso);

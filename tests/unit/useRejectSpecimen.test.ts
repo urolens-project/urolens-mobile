@@ -5,7 +5,8 @@
  *  - Initial state (isLoading false)
  *  - Online path: calls API and updates local specimen status to REJECTED
  *  - Offline path: writes to pending_sync and updates local status (no API call)
- *  - Throws when specimen has no serverId
+ *  - Fails (with the message) when specimen has no serverId
+ *  - Returns the server's own message from a plain { code, message } API error
  *  - isLoading is true during reject and resets to false on success
  *  - isLoading resets to false even when API throws
  */
@@ -30,7 +31,10 @@ jest.mock('@app-types/enums', () => ({
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
 import { renderHook, act } from '@testing-library/react-native';
-import { useRejectSpecimen } from '../../src/features/specimen-rejection/hooks/useRejectSpecimen';
+import {
+  useRejectSpecimen,
+  type RejectResult,
+} from '../../src/features/specimen-rejection/hooks/useRejectSpecimen';
 import { database } from '../../src/db/database';
 import apiClient from '../../src/lib/apiClient';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
@@ -208,33 +212,74 @@ describe('useRejectSpecimen', () => {
   });
 
   describe('error cases', () => {
-    it('resolves false and sets error when specimen has no serverId', async () => {
+    it('resolves failed and sets error when specimen has no serverId', async () => {
       const specimen = makeSpecimen({ serverId: null });
       setupDb(specimen);
       const { result } = renderHook(() => useRejectSpecimen('local-1'));
 
-      let success: boolean | undefined;
+      let outcome: RejectResult | undefined;
       await act(async () => {
-        success = await result.current.reject(RejectionReason.OTHER);
+        outcome = await result.current.reject(RejectionReason.OTHER);
       });
 
-      expect(success).toBe(false);
+      expect(outcome).toEqual({
+        status: 'failed',
+        message: 'Specimen has not been synced to the server yet.',
+      });
       expect(result.current.error).toMatch(/Specimen has not been synced/);
     });
 
-    it('resolves false and resets isLoading to false when API throws', async () => {
+    it('resolves failed and resets isLoading to false when API throws', async () => {
       const specimen = makeSpecimen();
       setupDb(specimen);
       (apiClient.post as jest.Mock).mockRejectedValue(new Error('network'));
       const { result } = renderHook(() => useRejectSpecimen('local-1'));
 
-      let success: boolean | undefined;
+      let outcome: RejectResult | undefined;
       await act(async () => {
-        success = await result.current.reject(RejectionReason.OTHER);
+        outcome = await result.current.reject(RejectionReason.OTHER);
       });
 
-      expect(success).toBe(false);
+      expect(outcome).toEqual({ status: 'failed', message: 'network' });
       expect(result.current.isLoading).toBe(false);
+    });
+
+    it("returns the server's own message when the API rejects with a plain error object", async () => {
+      // apiClient rejects with { code, message, status }, not an Error — so the message
+      // must come back from the call itself; the caller can't rely on reading `error`
+      // after awaiting, which is a stale value from the render that made its handler.
+      const specimen = makeSpecimen();
+      setupDb(specimen);
+      const serverMessage =
+        "This specimen's result has already been submitted for supervisor review.";
+      (apiClient.post as jest.Mock).mockRejectedValue({
+        code: 'RESULT_ALREADY_SUBMITTED',
+        message: serverMessage,
+        status: 409,
+      });
+      const { result } = renderHook(() => useRejectSpecimen('local-1'));
+
+      let outcome: RejectResult | undefined;
+      await act(async () => {
+        outcome = await result.current.reject(RejectionReason.OTHER);
+      });
+
+      expect(outcome).toEqual({ status: 'failed', message: serverMessage });
+      expect(result.current.error).toBe(serverMessage);
+      expect(specimen.update).not.toHaveBeenCalled();
+    });
+
+    it('resolves rejected on success', async () => {
+      const specimen = makeSpecimen();
+      setupDb(specimen);
+      const { result } = renderHook(() => useRejectSpecimen('local-1'));
+
+      let outcome: RejectResult | undefined;
+      await act(async () => {
+        outcome = await result.current.reject(RejectionReason.OTHER);
+      });
+
+      expect(outcome).toEqual({ status: 'rejected' });
     });
   });
 

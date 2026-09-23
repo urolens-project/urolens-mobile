@@ -78,6 +78,21 @@ describe('confirmResultCore', () => {
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
+    // Bug: once the server had accepted the confirmation, a failed follow-up pull was
+    // reported as "Confirmation Failed" and the local status was never updated.
+    it('still succeeds when the server confirmed but the follow-up sync fails', async () => {
+      (synchronize as jest.Mock).mockRejectedValueOnce(new Error('network dropped'));
+      const result = makeResult();
+
+      await expect(confirmResultCore({ result, isOnline: true })).resolves.toBeUndefined();
+
+      expect(apiClient.post).toHaveBeenCalledWith('/results/server-1/confirm', {});
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const row: Record<string, unknown> = {};
+      mockUpdate.mock.calls[0][0](row);
+      expect(row.status).toBe(ResultStatus.PENDING_SUPERVISOR_APPROVAL);
+    });
+
     it('treats a 409 RESULT_ALREADY_CONFIRMED error as success (still syncs and updates status)', async () => {
       (apiClient.post as jest.Mock).mockRejectedValue({ code: 'RESULT_ALREADY_CONFIRMED' });
       const result = makeResult();
