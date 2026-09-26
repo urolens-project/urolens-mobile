@@ -15,6 +15,7 @@ import { Icon } from '@components/Icon';
 import type { RejectionReason } from '@app-types/enums';
 
 import { REJECTION_REASONS } from '../constants/rejectionReason.constant';
+import { RejectionReasonCard } from './RejectionReasonCard';
 
 export interface RejectionReasonModalProps {
   selectedReason: RejectionReason | null;
@@ -63,31 +64,14 @@ export function RejectionReasonModal({
       {/* Reason selection */}
       <Text style={styles.sectionTitle}>Select Rejection Reason</Text>
       <View style={styles.reasonList}>
-        {REJECTION_REASONS.map((r) => {
-          const isSelected = selectedReason === r.value;
-          return (
-            <TouchableOpacity
-              key={r.value}
-              style={[styles.reasonCard, isSelected && styles.reasonCardSelected]}
-              onPress={() => onSelectReason(r.value)}
-              activeOpacity={0.7}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: isSelected }}
-            >
-              <View style={styles.reasonCardInner}>
-                <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                  {isSelected && <View style={styles.radioInner} />}
-                </View>
-                <View style={styles.reasonText}>
-                  <Text style={[styles.reasonLabel, isSelected && styles.reasonLabelSelected]}>
-                    {r.label}
-                  </Text>
-                  <Text style={styles.reasonDesc}>{r.description}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+        {REJECTION_REASONS.map((r) => (
+          <RejectionReasonCard
+            key={r.value}
+            reason={r}
+            isSelected={selectedReason === r.value}
+            onSelect={() => onSelectReason(r.value)}
+          />
+        ))}
       </View>
 
       {/* Optional note */}
@@ -166,59 +150,6 @@ const styles = StyleSheet.create({
   reasonList: {
     gap: spacing.sm,
     marginBottom: spacing.xxl,
-  },
-  reasonCard: {
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.gray200,
-    padding: spacing.mlg,
-  },
-  reasonCardSelected: {
-    borderColor: colors.teal,
-    backgroundColor: colors.tealTint4,
-  },
-  reasonCardInner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-  },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10, // Half of width/height above — computed circle radius.
-    borderWidth: 2,
-    borderColor: colors.gray300,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 1, // TODO(theme): below spacing.xxs(2); left exact.
-    flexShrink: 0,
-  },
-  radioOuterSelected: {
-    borderColor: colors.teal,
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5, // Half of width/height above — computed circle radius.
-    backgroundColor: colors.teal,
-  },
-  reasonText: {
-    flex: 1,
-    gap: 2, // TODO(theme): below spacing.xxs(2)... exact (already the smallest step, left explicit).
-  },
-  reasonLabel: {
-    ...typography.subtitle,
-    fontWeight: fontWeight.semibold,
-    color: colors.gray800,
-  },
-  reasonLabelSelected: {
-    color: colors.teal,
-  },
-  reasonDesc: {
-    ...typography.body,
-    color: colors.gray500,
-    lineHeight: 18,
   },
 
   noteInput: {

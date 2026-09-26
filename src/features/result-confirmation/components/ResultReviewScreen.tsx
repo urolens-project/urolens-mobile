@@ -1,19 +1,12 @@
-import React, { useCallback } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
+import { useCallback } from 'react';
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { confirmRetake } from '@features/image-retake/lib/confirmRetake';
 import { useHasManualOverrides } from '@features/manual-override/hooks/useHasManualOverrides';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import { colors, radius, spacing } from '@src/theme';
+import { colors, spacing } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 import { OfflineBanner } from '@components/OfflineBanner';
@@ -21,6 +14,8 @@ import { OfflineBanner } from '@components/OfflineBanner';
 import { useResultConfirmation } from '../hooks/useResultConfirmation';
 import { AIDisclaimer } from './AIDisclaimer';
 import { AIFindingsPanel } from './AIFindingsPanel';
+import { ResultReviewActionBar } from './ResultReviewActionBar';
+import { ResultReviewTitleBar } from './ResultReviewTitleBar';
 import { SmartDiagnosisPanel } from './SmartDiagnosisPanel';
 
 export interface ResultReviewScreenProps {
@@ -57,9 +52,13 @@ export function ResultReviewScreen({
     [resultId, specimenId],
   );
 
+  const handleBack = useCallback((): void => {
+    router.replace({ pathname: '/(medtech)/sample/[id]', params: { id: specimenId } });
+  }, [specimenId]);
+
   // Retaking purges the MedTech's overrides, and this is the screen where they make
   // them — so warn first, same as Sample Detail does.
-  const handleRetake = (): void => {
+  const handleRetake = useCallback((): void => {
     confirmRetake(hasOverrides, () => {
       router.push({
         pathname: '/(medtech)/capture',
@@ -70,14 +69,11 @@ export function ResultReviewScreen({
         },
       });
     });
-  };
+  }, [hasOverrides, result?.specimenId, result?.imageId, specimenId]);
 
-  const handleContinue = (): void => {
-    router.replace({
-      pathname: '/(medtech)/sample/[id]',
-      params: { id: specimenId },
-    });
-  };
+  const handleContinue = useCallback((): void => {
+    router.replace({ pathname: '/(medtech)/sample/[id]', params: { id: specimenId } });
+  }, [specimenId]);
 
   if (isLoading) {
     return (
@@ -116,27 +112,7 @@ export function ResultReviewScreen({
     <View style={styles.container}>
       {!isOnline && <OfflineBanner />}
 
-      <View style={[styles.titleBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={styles.titleBarBack}
-          onPress={() =>
-            router.replace({
-              pathname: '/(medtech)/sample/[id]',
-              params: { id: specimenId },
-            })
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Back to sample detail"
-        >
-          <Icon name="chevron-back" size={26} color={colors.teal} />
-        </TouchableOpacity>
-        <View style={styles.titleBarContent}>
-          <Text style={styles.titleBarText}>Analysis Result</Text>
-          <Text style={styles.titleBarSub}>
-            {isConfirmed ? 'Submitted for Supervisor approval' : 'Pending your confirmation'}
-          </Text>
-        </View>
-      </View>
+      <ResultReviewTitleBar topInset={insets.top} isConfirmed={isConfirmed} onBack={handleBack} />
 
       <ScrollView
         style={styles.scroll}
@@ -163,55 +139,15 @@ export function ResultReviewScreen({
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <View style={[styles.actionBar, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity
-          style={styles.retakeButton}
-          onPress={handleRetake}
-          accessible={true}
-          accessibilityLabel="Retake image"
-          accessibilityRole="button"
-        >
-          <Text style={styles.retakeButtonText}>Retake Image</Text>
-        </TouchableOpacity>
-
-        {isConfirmed ? (
-          <TouchableOpacity
-            style={styles.confirmButton}
-            onPress={handleContinue}
-            accessible={true}
-            accessibilityLabel="Continue to sample detail"
-            accessibilityRole="button"
-          >
-            <Text style={styles.confirmButtonText}>Continue</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.confirmButton, isConfirming && styles.confirmButtonBusy]}
-            onPress={confirmResult}
-            disabled={isConfirming}
-            accessible={true}
-            accessibilityLabel={
-              isConfirming
-                ? 'Running diagnosis'
-                : isOnline
-                  ? 'Confirm Result'
-                  : 'Queue Confirmation'
-            }
-            accessibilityRole="button"
-          >
-            {isConfirming ? (
-              <View style={styles.confirmingRow}>
-                <ActivityIndicator size="small" color={colors.white} />
-                <Text style={styles.confirmButtonText}>Running diagnosis...</Text>
-              </View>
-            ) : (
-              <Text style={styles.confirmButtonText}>
-                {isOnline ? 'Confirm Result' : 'Queue Confirmation'}
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
+      <ResultReviewActionBar
+        bottomInset={insets.bottom}
+        isOnline={isOnline}
+        isConfirmed={isConfirmed}
+        isConfirming={isConfirming}
+        onRetake={handleRetake}
+        onConfirm={confirmResult}
+        onContinue={handleContinue}
+      />
     </View>
   );
 }
@@ -247,103 +183,8 @@ const styles = StyleSheet.create({
     // Clears the floating action bar at the bottom of the scroll content.
     height: 120,
   },
-  titleBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderBottomWidth: 0.5,
-    // TODO(theme): near-black hairline at 0.08 alpha not in palette.
-    borderBottomColor: 'rgba(0,0,0,0.08)',
-    backgroundColor: colors.cream,
-  },
-  titleBarBack: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  titleBarContent: {
-    flex: 1,
-    paddingRight: 44,
-  },
-  titleBarText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.ink,
-  },
-  titleBarSub: {
-    fontSize: 13,
-    color: colors.warmGray500,
-    marginTop: 2,
-  },
   scrollContent: {
     paddingBottom: spacing.xxl,
-  },
-  actionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    backgroundColor: colors.white,
-    borderTopWidth: 0.5,
-    // TODO(theme): near-black hairline at 0.1 alpha not in palette.
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  retakeButton: {
-    flex: 1,
-    paddingVertical: spacing.mlg,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.gray300,
-    alignItems: 'center',
-    backgroundColor: colors.white,
-  },
-  retakeButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: colors.gray700,
-  },
-  confirmButton: {
-    flex: 2,
-    paddingVertical: spacing.mlg,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-    backgroundColor: colors.teal,
-  },
-  confirmButtonBusy: {
-    opacity: 0.75,
-  },
-  confirmingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  confirmButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.white,
-  },
-  confirmedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    padding: spacing.md,
-    backgroundColor: colors.emerald50,
-    borderWidth: 1,
-    borderColor: colors.emerald200,
-    borderRadius: 10,
-  },
-  confirmedText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.emerald800,
   },
   errorText: {
     fontSize: 13,
