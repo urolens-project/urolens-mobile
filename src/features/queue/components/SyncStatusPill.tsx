@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+import { fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { PulseDot } from '@components/PulseDot';
 
