@@ -1,35 +1,48 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
 import { PulseDot } from '@components/PulseDot';
 import { formatShortDateTime } from '@lib/dateTime';
+
 import { QUEUE_STATUS_STYLES } from '../constants';
 import { getQueueStatus } from '../status';
 import { ITEM_HEIGHT } from '../scrollEffects';
 import type { QueueItem } from '../types';
 
-interface Props {
+export interface QueueItemCardProps {
   item: QueueItem;
   onPress: (id: string) => void;
   selected?: boolean;
-  // Lets the "in progress" dot pulse. Off for reduced motion or when the tab is out of view.
+  /** Lets the "in progress" dot pulse. Off for reduced motion or when the tab is out of view. */
   live?: boolean;
 }
 
-// Status-based, not priority-based: priorityLevel is hardcoded to ROUTINE
-// on the backend today (no code path there ever sets HIGH/NORMAL/LOW), so a
-// priority badge would show the same label on every card forever — worse
-// than uninformative, it implies a triage signal the system doesn't
-// actually compute.
-//
-// Every card in the Queue carries exactly one status badge, in the same colors as the
-// Status filter chips and the stats tiles (QUEUE_STATUS_STYLES). Which status a sample
-// has is decided in one place (getQueueStatus) — shared with the counts, filters and
-// sort — so RETURNED always wins over IN PROGRESS, which wins over ASSIGNED.
-function QueueItemCardComponent({ item, onPress, selected = false, live = true }: Props) {
+const CARD_RADIUS = radius.xxl;
+
+/**
+ * @description One row of the Queue list. Status-based, not priority-based: priorityLevel
+ * is hardcoded to ROUTINE on the backend today, so a priority badge would show the same
+ * label on every card forever. Every card carries exactly one status badge, in the same
+ * colors as the Status filter chips and the stats tiles (QUEUE_STATUS_STYLES) — which
+ * status a sample has is decided in one place (getQueueStatus), shared with the counts,
+ * filters and sort, so RETURNED always wins over IN PROGRESS, which wins over ASSIGNED.
+ * @param item - The queue sample to render.
+ * @param onPress - Called with the sample's id when the card is tapped.
+ * @param selected - Lifts the card and draws a ring in its status color.
+ * @param live - Lets the "in progress" dot pulse.
+ */
+function QueueItemCardComponent({
+  item,
+  onPress,
+  selected = false,
+  live = true,
+}: QueueItemCardProps): React.JSX.Element {
   const status = getQueueStatus(item);
   const style = status ? QUEUE_STATUS_STYLES[status] : null;
-  const accent = style?.color ?? '#2E7D7A';
+  const accent = style?.color ?? colors.teal;
 
   // Selecting a card lifts it slightly and draws a ring in its status color.
   const lift = useRef(new Animated.Value(selected ? 1 : 0)).current;
@@ -47,11 +60,13 @@ function QueueItemCardComponent({ item, onPress, selected = false, live = true }
   };
   const ringStyle = { opacity: lift };
 
+  const handlePress = useCallback((): void => onPress(item.id), [item.id, onPress]);
+
   return (
     <Animated.View style={wrapStyle}>
       <TouchableOpacity
         style={styles.card}
-        onPress={() => onPress(item.id)}
+        onPress={handlePress}
         activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}${
@@ -62,8 +77,8 @@ function QueueItemCardComponent({ item, onPress, selected = false, live = true }
 
         {/* Brand mark — every sample is a urine specimen, so a droplet (in the
             sample's status color) marks each card. */}
-        <View style={[styles.dropletBadge, { backgroundColor: style?.tint ?? '#E0F2F1' }]}>
-          <Ionicons name="water" size={20} color={accent} />
+        <View style={[styles.dropletBadge, { backgroundColor: style?.tint ?? colors.tealTint }]}>
+          <Icon name="water" size={20} color={accent} />
         </View>
 
         <View style={styles.content}>
@@ -93,8 +108,8 @@ function QueueItemCardComponent({ item, onPress, selected = false, live = true }
           </Text>
         </View>
 
-        <View style={[styles.arrowBadge, { backgroundColor: style?.wash ?? '#EEF7F6' }]}>
-          <Ionicons name="chevron-forward" size={15} color={accent} />
+        <View style={[styles.arrowBadge, { backgroundColor: style?.wash ?? colors.tealTint2 }]}>
+          <Icon name="chevron-forward" size={15} color={accent} />
         </View>
       </TouchableOpacity>
 
@@ -106,21 +121,19 @@ function QueueItemCardComponent({ item, onPress, selected = false, live = true }
   );
 }
 
-const CARD_RADIUS = 20;
-
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: CARD_RADIUS,
-    paddingLeft: 16,
-    paddingRight: 12,
-    paddingVertical: 18,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.md,
+    paddingVertical: 18, // TODO(theme): 18 sits between spacing.lg(16)/xl(20); left exact to avoid nudging card height.
     // Rows scroll-react by position (see scrollEffects), which relies on a known height.
     minHeight: ITEM_HEIGHT,
-    gap: 10,
-    shadowColor: '#1F2937',
+    gap: spacing.smd,
+    shadowColor: colors.gray800,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.09,
     shadowRadius: 10,
@@ -130,10 +143,10 @@ const styles = StyleSheet.create({
   accent: {
     position: 'absolute',
     left: 0,
-    top: 18,
+    top: 18, // TODO(theme): paired with `bottom` below to inset from rounded corners; not a spacing token.
     bottom: 18,
-    width: 4,
-    borderTopRightRadius: 2,
+    width: spacing.xs,
+    borderTopRightRadius: 2, // TODO(theme): sub-4px decorative radius, no token this small.
     borderBottomRightRadius: 2,
   },
   ring: {
@@ -144,48 +157,48 @@ const styles = StyleSheet.create({
   dropletBadge: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: 21, // Exactly half of width/height above — a computed circle radius, not a design-scale value.
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     flex: 1,
-    gap: 5,
+    gap: 5, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 6, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
   },
   patientUid: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
+    ...typography.subtitle,
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
     fontVariant: ['tabular-nums'],
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   subtitle: {
-    fontSize: 12,
-    color: '#6B7280',
+    ...typography.caption,
+    color: colors.gray500,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    gap: 5, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3, // TODO(theme): between spacing.xxs(2)/xs(4); left exact.
+    borderRadius: radius.sm,
   },
   badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
+    ...typography.micro,
+    fontWeight: fontWeight.bold,
     letterSpacing: 0.3,
   },
   arrowBadge: {
     width: 26,
     height: 26,
-    borderRadius: 13,
+    borderRadius: 13, // Half of width/height above — computed circle radius.
     justifyContent: 'center',
     alignItems: 'center',
   },

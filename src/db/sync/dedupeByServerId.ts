@@ -15,7 +15,7 @@ function syncedAtMs(record: DedupableRecord): number {
 }
 
 /**
- * Collapses local rows that share the same server_id down to one,
+ * @description Collapses local rows that share the same server_id down to one,
  * permanently deleting the rest. Defends against a sync bug where
  * processCreates() could insert a second local row for a specimen the
  * client already had (e.g. a replayed/resent "created" batch) instead of
@@ -32,6 +32,7 @@ function syncedAtMs(record: DedupableRecord): number {
  * Must run inside an active database.write() — it mutates records. A
  * no-op once a table is already clean, so it's safe to run on every sync
  * rather than as a one-time migration.
+ * @param tableName - WatermelonDB table to dedupe (e.g. 'specimens').
  */
 export async function dedupeByServerId(tableName: string): Promise<number> {
   const collection = database.get(tableName);

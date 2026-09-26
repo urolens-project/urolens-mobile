@@ -4,16 +4,25 @@ import type { StyleProp, TextStyle } from 'react-native';
 
 const DURATION_MS = 650;
 
-interface Props {
+export interface AnimatedCountProps {
   value: number;
   style?: StyleProp<TextStyle>;
   reduceMotion?: boolean;
 }
 
-// A number that counts up (or down) to a new value and gives a little pop when it
-// changes, so live data visibly moves instead of jumping. The first render shows
-// the value straight away; it only animates on a change.
-export function AnimatedCount({ value, style, reduceMotion = false }: Props) {
+/**
+ * @description A number that counts up (or down) to a new value and gives a little pop
+ * when it changes, so live data visibly moves instead of jumping. The first render
+ * shows the value straight away; it only animates on a change.
+ * @param value - Target number to display.
+ * @param style - Text style applied to the rendered digits.
+ * @param reduceMotion - Skips the count animation and pop when true.
+ */
+export function AnimatedCount({
+  value,
+  style,
+  reduceMotion = false,
+}: AnimatedCountProps): React.JSX.Element {
   const [shown, setShown] = useState(value);
   // What's on screen right now, so a change that arrives mid-count continues from
   // there instead of restarting from the old number.

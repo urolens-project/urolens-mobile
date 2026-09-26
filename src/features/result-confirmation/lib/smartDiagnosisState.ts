@@ -12,7 +12,7 @@ import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
  */
 export type SmartDiagnosisState = 'READY' | 'AFTER_CONFIRMATION' | 'AWAITING_SYNC' | 'UNAVAILABLE';
 
-interface Input {
+interface GetSmartDiagnosisStateParams {
   status: `${ResultStatus}`;
   smartDiagnosis: SmartDiagnosisJson | null;
   /** The result row's own `smart_diagnosis_unavailable` flag. */
@@ -21,12 +21,17 @@ interface Input {
   isSynced: boolean;
 }
 
+/**
+ * @description Derives which of the four Smart Diagnosis states (see `SmartDiagnosisState`
+ * above) applies to a result, so the panel can show the right message instead of a blank.
+ * @param params - Result status, diagnosis payload, and sync/unavailability flags.
+ */
 export function getSmartDiagnosisState({
   status,
   smartDiagnosis,
   unavailable,
   isSynced,
-}: Input): SmartDiagnosisState {
+}: GetSmartDiagnosisStateParams): SmartDiagnosisState {
   if (unavailable || smartDiagnosis?.unavailable) return 'UNAVAILABLE';
   if (smartDiagnosis) return 'READY';
   if (status === 'PENDING_CONFIRM' || status === 'RETURNED_FOR_CORRECTION') {

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,28 +10,49 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAuth } from '../hooks/useAuth';
+
 import { appInfo } from '@lib/appInfo';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
-const TEAL = '#2E7D7A';
+import { Icon } from '@components/Icon';
 
-const ENV_COLORS = {
-  production: { bg: '#DCFCE7', fg: '#166534' },
-  staging: { bg: '#FEF3C7', fg: '#92400E' },
-  development: { bg: '#E0E7FF', fg: '#3730A3' },
-} as const;
+import { useAuth } from '../hooks/useAuth';
+import { ENV_COLORS } from '../constants/envColors.constant';
 
-export function LoginForm() {
+/**
+ * @description Login screen for laboratory staff: username/password fields, a
+ * "keep me logged in" toggle, and build/environment info in the footer.
+ */
+export function LoginForm(): React.JSX.Element {
+  // 1. Store / service hooks
+  const { login, isSubmitting, error } = useAuth();
+
+  // 3. State & derived
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(false);
-  const passwordRef = useRef<TextInput>(null);
-  const { login, isSubmitting, error } = useAuth();
   const envColors = ENV_COLORS[appInfo.environment];
 
-  const handleSubmit = () => login(username, password, keepLoggedIn);
+  // 4. Refs
+  const passwordRef = useRef<TextInput>(null);
+
+  // 6. Handlers
+  const handleSubmit = useCallback((): void => {
+    void login(username, password, keepLoggedIn);
+  }, [login, username, password, keepLoggedIn]);
+
+  const handleUsernameSubmit = useCallback((): void => {
+    passwordRef.current?.focus();
+  }, []);
+
+  const handleTogglePassword = useCallback((): void => {
+    setShowPassword((v) => !v);
+  }, []);
+
+  const handleToggleKeepLoggedIn = useCallback((): void => {
+    setKeepLoggedIn((v) => !v);
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -43,21 +64,21 @@ export function LoginForm() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <View style={styles.header}>
           <View style={styles.iconBox}>
-            <MaterialCommunityIcons name="microscope" size={38} color="#FFFFFF" />
+            <Icon name="microscope" family="material-community" size={38} color={colors.white} />
           </View>
           <Text style={styles.appTitle}>UroLens</Text>
           <Text style={styles.appSubtitle}>Clinical Laboratory Management System</Text>
         </View>
 
-        {/* ── Card ── */}
+        {/* Card */}
         <View style={styles.card}>
           {/* Username */}
           <Text style={styles.label}>Username</Text>
           <View style={styles.inputRow}>
-            <Ionicons name="person-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+            <Icon name="person-outline" size={18} color={colors.gray400} style={styles.inputIcon} />
             <TextInput
               style={styles.textInput}
               value={username}
@@ -68,9 +89,9 @@ export function LoginForm() {
               textContentType="username"
               returnKeyType="next"
               blurOnSubmit={false}
-              onSubmitEditing={() => passwordRef.current?.focus()}
+              onSubmitEditing={handleUsernameSubmit}
               placeholder="Enter laboratory ID"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.gray400}
               editable={!isSubmitting}
               accessibilityLabel="Username"
             />
@@ -84,10 +105,10 @@ export function LoginForm() {
             </TouchableOpacity>
           </View>
           <View style={[styles.inputRow, error ? styles.inputRowError : null]}>
-            <Ionicons
+            <Icon
               name="lock-closed-outline"
               size={18}
-              color="#9CA3AF"
+              color={colors.gray400}
               style={styles.inputIcon}
             />
             <TextInput
@@ -102,48 +123,48 @@ export function LoginForm() {
               textContentType="password"
               returnKeyType="go"
               placeholder="Enter password"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.gray400}
               editable={!isSubmitting}
               onSubmitEditing={handleSubmit}
               accessibilityLabel="Password"
             />
             <TouchableOpacity
-              onPress={() => setShowPassword((v) => !v)}
+              onPress={handleTogglePassword}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
               accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             >
-              <Ionicons
+              <Icon
                 name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 size={20}
-                color="#6B7280"
+                color={colors.gray500}
               />
             </TouchableOpacity>
           </View>
 
           {/* Error message */}
-          {error ? (
+          {error && (
             <View
               style={styles.errorRow}
               accessibilityRole="alert"
               accessibilityLiveRegion="polite"
             >
-              <Ionicons name="alert-circle" size={16} color="#DC2626" />
+              <Icon name="alert-circle" size={16} color={colors.red600} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
-          ) : null}
+          )}
 
           {/* Keep logged in */}
           <TouchableOpacity
             style={styles.keepRow}
-            onPress={() => setKeepLoggedIn((v) => !v)}
+            onPress={handleToggleKeepLoggedIn}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: keepLoggedIn }}
             accessibilityHint="Stay signed in after the app is closed"
             disabled={isSubmitting}
           >
             <View style={[styles.checkbox, keepLoggedIn && styles.checkboxChecked]}>
-              {keepLoggedIn ? <Ionicons name="checkmark" size={12} color="#FFFFFF" /> : null}
+              {keepLoggedIn && <Icon name="checkmark" size={12} color={colors.white} />}
             </View>
             <Text style={styles.keepText}>Keep me logged in for this shift</Text>
           </TouchableOpacity>
@@ -158,14 +179,14 @@ export function LoginForm() {
             accessibilityHint="Signs in with the entered username and password"
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={colors.white} />
             ) : (
               <Text style={styles.buttonText}>Login →</Text>
             )}
           </TouchableOpacity>
         </View>
 
-        {/* ── Footer ── */}
+        {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.authorizedNotice}>Authorized laboratory personnel only.</Text>
           <View style={styles.buildRow}>
@@ -186,96 +207,96 @@ export function LoginForm() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.gray100,
   },
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: spacing.huge,
   },
 
   // Header
   header: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: spacing.xxxl,
   },
   iconBox: {
     width: 72,
     height: 72,
-    borderRadius: 18,
-    backgroundColor: TEAL,
+    borderRadius: radius.xxl,
+    backgroundColor: colors.teal,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: spacing.mlg,
   },
   appTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: TEAL,
+    ...typography.hero,
+    fontWeight: fontWeight.extrabold,
+    color: colors.teal,
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   appSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
+    ...typography.body,
+    color: colors.gray500,
     textAlign: 'center',
   },
 
   // Card
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
+    backgroundColor: colors.white,
+    borderRadius: radius.xl,
+    padding: spacing.xxl,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowRadius: radius.sm,
     elevation: 3,
   },
 
   // Labels
   label: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
+    ...typography.body,
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
+    marginBottom: spacing.sm,
   },
   passwordLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   forgotText: {
-    fontSize: 13,
-    color: TEAL,
-    fontWeight: '500',
+    ...typography.body,
+    color: colors.teal,
+    fontWeight: fontWeight.medium,
   },
 
   // Inputs
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
+    backgroundColor: colors.gray100,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
-    paddingHorizontal: 12,
+    borderColor: colors.gray100,
+    paddingHorizontal: spacing.md,
     height: 50,
   },
   inputRowError: {
-    borderColor: '#DC2626',
-    backgroundColor: '#FFF5F5',
+    borderColor: colors.red600,
+    backgroundColor: colors.redTint2,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: spacing.smd,
   },
   textInput: {
     flex: 1,
-    fontSize: 15,
-    color: '#111827',
+    fontSize: typography.subtitle.fontSize,
+    color: colors.gray900,
     height: '100%',
   },
 
@@ -283,13 +304,13 @@ const styles = StyleSheet.create({
   errorRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginTop: 8,
-    gap: 6,
+    marginTop: spacing.sm,
+    gap: spacing.sm,
   },
   errorText: {
     flex: 1,
-    fontSize: 13,
-    color: '#DC2626',
+    ...typography.body,
+    color: colors.red600,
     lineHeight: 18,
   },
 
@@ -297,33 +318,33 @@ const styles = StyleSheet.create({
   keepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 24,
-    gap: 10,
+    marginTop: spacing.xl,
+    marginBottom: spacing.xxl,
+    gap: spacing.smd,
   },
   checkbox: {
     width: 18,
     height: 18,
-    borderRadius: 4,
+    borderRadius: radius.xs,
     borderWidth: 1.5,
-    borderColor: '#9CA3AF',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.gray400,
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: TEAL,
-    borderColor: TEAL,
+    backgroundColor: colors.teal,
+    borderColor: colors.teal,
   },
   keepText: {
-    fontSize: 13,
-    color: '#6B7280',
+    ...typography.body,
+    color: colors.gray500,
   },
 
   // Button
   button: {
-    backgroundColor: TEAL,
-    borderRadius: 10,
+    backgroundColor: colors.teal,
+    borderRadius: radius.md,
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
@@ -332,45 +353,45 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    color: colors.white,
+    ...typography.title,
+    fontWeight: fontWeight.bold,
     letterSpacing: 0.3,
   },
 
   // Footer
   footer: {
     alignItems: 'center',
-    marginTop: 32,
-    gap: 10,
+    marginTop: spacing.xxxl,
+    gap: spacing.smd,
   },
   authorizedNotice: {
-    fontSize: 12,
-    color: '#6B7280',
+    ...typography.caption,
+    color: colors.gray500,
     textAlign: 'center',
   },
   buildRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   buildText: {
-    fontSize: 12,
-    color: '#6B7280',
+    ...typography.caption,
+    color: colors.gray500,
   },
   envPill: {
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
   },
   envText: {
-    fontSize: 11,
-    fontWeight: '700',
+    ...typography.micro,
+    fontWeight: fontWeight.bold,
     letterSpacing: 0.3,
   },
   copyright: {
-    fontSize: 11,
-    color: '#9CA3AF',
+    ...typography.micro,
+    color: colors.gray400,
     textAlign: 'center',
   },
 });

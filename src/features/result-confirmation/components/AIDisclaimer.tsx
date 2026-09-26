@@ -1,10 +1,12 @@
-// Path: urolens-mobile/src/features/result-confirmation/components/AIDisclaimer.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-// Mandatory compliance component per SRS.
-// Must appear at the top of ResultReviewScreen.
-// Never conditionally hide or remove.
+import { colors, radius, spacing } from '@src/theme';
+
+/**
+ * @description Mandatory compliance notice per SRS. Must appear at the top of
+ * ResultReviewScreen; never conditionally hide or remove it.
+ */
 export function AIDisclaimer(): React.JSX.Element {
   return (
     <View
@@ -25,27 +27,27 @@ export function AIDisclaimer(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#EEF9F8',
+    backgroundColor: colors.tealTint5,
     borderLeftWidth: 3,
-    borderLeftColor: '#2E7D7A',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 4,
+    borderLeftColor: colors.teal,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.mlg,
+    paddingVertical: spacing.smd,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2E7D7A',
+    color: colors.teal,
     letterSpacing: 0.3,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
     textTransform: 'uppercase',
   },
   body: {
     fontSize: 12,
     lineHeight: 17,
-    color: '#3D7874',
+    color: colors.tealDark,
   },
 });

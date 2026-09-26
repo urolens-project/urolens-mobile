@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,12 +10,15 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import type { Ionicons } from '@expo/vector-icons';
+
 import apiClient from '@lib/apiClient';
 import { navigateToSpecimenByServerId } from '@lib/notifications/notificationHandler';
+import { useAsyncAction } from '@hooks/useAsyncAction';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
-const TEAL = '#2E7D7A';
+import { Icon } from '@components/Icon';
 
 // Exactly what GET /notifications returns (the backend's NotificationOut, camelCase).
 // Note the push-notification payload is a different thing and IS snake_case
@@ -28,7 +32,11 @@ interface NotificationItem {
   createdAt: string;
 }
 
-function notificationIcon(type: string): React.ComponentProps<typeof Ionicons>['name'] {
+/**
+ * @description Maps a notification type to its Ionicons glyph.
+ * @param type - Raw `notificationType` field from the API.
+ */
+function notificationIcon(type: string): ComponentProps<typeof Ionicons>['name'] {
   switch (type) {
     case 'SAMPLE_ASSIGNED':
       return 'flask-outline';
@@ -43,6 +51,10 @@ function notificationIcon(type: string): React.ComponentProps<typeof Ionicons>['
   }
 }
 
+/**
+ * @description Formats an ISO timestamp as a short relative time, e.g. "5m ago".
+ * @param iso - ISO 8601 timestamp string.
+ */
 function formatTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -53,23 +65,22 @@ function formatTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function NotificationCard({
-  item,
-  onPress,
-}: {
+interface NotificationCardProps {
   item: NotificationItem;
   onPress: (item: NotificationItem) => void;
-}) {
+}
+
+function NotificationCard({ item, onPress }: NotificationCardProps): React.JSX.Element {
   return (
     <Pressable
       style={[styles.card, !item.isRead && styles.cardUnread]}
       onPress={() => onPress(item)}
     >
       <View style={styles.iconWrap}>
-        <Ionicons
+        <Icon
           name={notificationIcon(item.notificationType)}
           size={22}
-          color={item.isRead ? '#9CA3AF' : TEAL}
+          color={item.isRead ? colors.gray400 : colors.teal}
         />
       </View>
       <View style={styles.cardBody}>
@@ -81,38 +92,35 @@ function NotificationCard({
   );
 }
 
-export default function AlertsScreen() {
+/**
+ * @description Notifications tab: lists assignment/result alerts and marks them read on tap.
+ */
+export default function AlertsScreen(): React.JSX.Element {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const res = await apiClient.get<NotificationItem[]>('/notifications');
-      setNotifications(res.data);
-      setError(null);
-    } catch {
-      setError('Could not load notifications.');
-    }
+  const fetchNotifications = useCallback(async (signal: AbortSignal): Promise<void> => {
+    const res = await apiClient.get<NotificationItem[]>('/notifications', { signal });
+    setNotifications(res.data);
   }, []);
+  const { run: refetch, isLoading, error } = useAsyncAction('Alerts', fetchNotifications);
 
   useEffect(() => {
-    fetchNotifications().finally(() => setLoading(false));
-  }, [fetchNotifications]);
+    refetch().finally(() => setHasLoadedOnce(true));
+  }, [refetch]);
 
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchNotifications();
-    setRefreshing(false);
-  }, [fetchNotifications]);
+  const handleRefresh = useCallback((): void => {
+    void refetch();
+  }, [refetch]);
 
-  const markReadAndNavigate = useCallback(async (item: NotificationItem) => {
+  const markReadAndNavigate = useCallback((item: NotificationItem): void => {
     if (!item.isRead) {
       setNotifications((prev) =>
         prev.map((n) => (n.notificationId === item.notificationId ? { ...n, isRead: true } : n)),
       );
-      apiClient.patch(`/notifications/${item.notificationId}/read`).catch(() => {});
+      apiClient
+        .patch(`/notifications/${item.notificationId}/read`)
+        .catch((err: unknown) => console.error('[Alerts] failed to mark read', err));
     }
 
     switch (item.notificationType) {
@@ -132,11 +140,11 @@ export default function AlertsScreen() {
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  if (loading) {
+  if (isLoading && !hasLoadedOnce) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={TEAL} />
+          <ActivityIndicator size="large" color={colors.teal} />
         </View>
       </SafeAreaView>
     );
@@ -155,8 +163,8 @@ export default function AlertsScreen() {
 
       {error ? (
         <View style={styles.centered}>
-          <Ionicons name="cloud-offline-outline" size={40} color="#9CA3AF" />
-          <Text style={styles.errorText}>{error}</Text>
+          <Icon name="cloud-offline-outline" size={40} color={colors.gray400} />
+          <Text style={styles.errorText}>{error.message || 'Could not load notifications.'}</Text>
           <Pressable style={styles.retryBtn} onPress={handleRefresh}>
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
@@ -167,14 +175,18 @@ export default function AlertsScreen() {
           keyExtractor={(item) => item.notificationId}
           renderItem={({ item }) => <NotificationCard item={item} onPress={markReadAndNavigate} />}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} />
+            <RefreshControl
+              refreshing={isLoading && hasLoadedOnce}
+              onRefresh={handleRefresh}
+              tintColor={colors.teal}
+            />
           }
           contentContainerStyle={
             notifications.length === 0 ? styles.emptyContainer : styles.listContent
           }
           ListEmptyComponent={
             <View style={styles.centered}>
-              <Ionicons name="notifications-off-outline" size={48} color="#D1D5DB" />
+              <Icon name="notifications-off-outline" size={48} color={colors.gray300} />
               <Text style={styles.emptyTitle}>No alerts yet</Text>
               <Text style={styles.emptySub}>
                 Sample assignments and result updates will appear here.
@@ -188,74 +200,80 @@ export default function AlertsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F3F4F6' },
+  safe: { flex: 1, backgroundColor: colors.gray100 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    gap: 10,
+    borderBottomColor: colors.gray200,
+    gap: spacing.smd,
   },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: '#111827' },
+  headerTitle: { ...typography.headingLg, color: colors.gray900 },
   badge: {
-    backgroundColor: TEAL,
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    minWidth: 20,
+    backgroundColor: colors.teal,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    minWidth: spacing.xl,
     alignItems: 'center',
   },
-  badgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  listContent: { paddingVertical: 8 },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 10 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#374151' },
-  emptySub: { fontSize: 13, color: '#6B7280', textAlign: 'center' },
-  errorText: { fontSize: 14, color: '#6B7280', textAlign: 'center' },
-  retryBtn: {
-    marginTop: 4,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: TEAL,
+  badgeText: { ...typography.caption, color: colors.white, fontWeight: fontWeight.bold },
+  listContent: { paddingVertical: spacing.sm },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xxxl,
+    gap: spacing.smd,
   },
-  retryText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
+  emptyTitle: { ...typography.titleLg, color: colors.gray700 },
+  emptySub: { ...typography.body, color: colors.gray500, textAlign: 'center' },
+  errorText: { ...typography.bodyLg, color: colors.gray500, textAlign: 'center' },
+  retryBtn: {
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.teal,
+  },
+  retryText: { ...typography.bodyLg, color: colors.white, fontWeight: fontWeight.semibold },
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 12,
-    marginVertical: 4,
-    borderRadius: 12,
-    padding: 14,
-    gap: 12,
-    shadowColor: '#000',
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.xs,
+    borderRadius: radius.lg,
+    padding: spacing.mlg,
+    gap: spacing.md,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
-  cardUnread: { borderLeftWidth: 3, borderLeftColor: TEAL },
+  cardUnread: { borderLeftWidth: 3, borderLeftColor: colors.teal },
   iconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F0FAFA',
+    borderRadius: radius.pill,
+    backgroundColor: colors.tealTintLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cardBody: { flex: 1, gap: 4 },
-  message: { fontSize: 14, color: '#374151', lineHeight: 20 },
-  messageUnread: { fontWeight: '600', color: '#111827' },
-  time: { fontSize: 12, color: '#9CA3AF' },
+  cardBody: { flex: 1, gap: spacing.xs },
+  message: { ...typography.bodyLg, color: colors.gray700, lineHeight: 20 },
+  messageUnread: { fontWeight: fontWeight.semibold, color: colors.gray900 },
+  time: { ...typography.caption, color: colors.gray400 },
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: TEAL,
-    marginTop: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.teal,
+    marginTop: spacing.xs,
   },
 });

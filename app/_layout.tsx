@@ -6,11 +6,13 @@ import { Stack } from 'expo-router';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '@db/database';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
+import { colors } from '@src/theme';
 
 // DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
 if (__DEV__ && Platform.OS !== 'web') {
@@ -25,7 +27,11 @@ if (__DEV__ && Platform.OS !== 'web') {
   });
 }
 
-export default function RootLayout() {
+/**
+ * @description App root: wires up the DB provider, gesture root, and route stack, and
+ * bootstraps the auth store from persisted tokens before the initial route resolves.
+ */
+export default function RootLayout(): React.JSX.Element {
   const { isLoading, setAuthenticated, clearAuth } = useAuthStore();
   const [hasMounted, setHasMounted] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -41,7 +47,7 @@ export default function RootLayout() {
 
     let isCurrent = true;
 
-    const bootstrapAuth = async () => {
+    const bootstrapAuth = async (): Promise<void> => {
       try {
         const [token, userId, role, username] = await Promise.all([
           tokenStorage.getToken(),
@@ -64,7 +70,7 @@ export default function RootLayout() {
       }
     };
 
-    bootstrapAuth();
+    void bootstrapAuth();
 
     return () => {
       isCurrent = false;
@@ -80,7 +86,7 @@ export default function RootLayout() {
   return (
     <DatabaseProvider database={database}>
       <SafeAreaProvider>
-        <GestureHandlerRootView style={{ flex: 1 }}>
+        <GestureHandlerRootView style={styles.root}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(medtech)" />
@@ -88,7 +94,7 @@ export default function RootLayout() {
           </Stack>
           {isBootstrapping && (
             <View style={styles.bootstrapOverlay}>
-              <ActivityIndicator size="large" color="#FFFFFF" />
+              <ActivityIndicator size="large" color={colors.white} />
             </View>
           )}
         </GestureHandlerRootView>
@@ -98,9 +104,10 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   bootstrapOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#1E3A5F',
+    backgroundColor: colors.navy,
     justifyContent: 'center',
     alignItems: 'center',
   },

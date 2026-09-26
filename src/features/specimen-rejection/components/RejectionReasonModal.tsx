@@ -1,48 +1,22 @@
 import React, { useRef } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  TextInput,
-  ScrollView,
   ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { RejectionReason } from '@app-types/enums';
 
-const TEAL = '#2E7D7A';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
-interface ReasonOption {
-  value: RejectionReason;
-  label: string;
-  description: string;
-}
+import { Icon } from '@components/Icon';
+import type { RejectionReason } from '@app-types/enums';
 
-const REASONS: ReasonOption[] = [
-  {
-    value: RejectionReason.INSUFFICIENT_VOLUME,
-    label: 'Insufficient Volume',
-    description: 'Sample volume is below the minimum required threshold.',
-  },
-  {
-    value: RejectionReason.WRONG_CONTAINER,
-    label: 'Wrong Container',
-    description: 'Sample collected in an incompatible or incorrect container.',
-  },
-  {
-    value: RejectionReason.UNLABELED,
-    label: 'Unlabeled Specimen',
-    description: 'Sample container is missing required patient identification.',
-  },
-  {
-    value: RejectionReason.OTHER,
-    label: 'Other',
-    description: 'Another reason not listed above — specify in the notes field.',
-  },
-];
+import { REJECTION_REASONS } from '../constants/rejectionReason.constant';
 
-interface Props {
+export interface RejectionReasonModalProps {
   selectedReason: RejectionReason | null;
   onSelectReason: (r: RejectionReason) => void;
   note: string;
@@ -51,6 +25,16 @@ interface Props {
   isLoading: boolean;
 }
 
+/**
+ * @description Reason picker and note field for rejecting a specimen. Confirming is
+ * disabled until a reason is picked; rejection is framed as permanent up front.
+ * @param selectedReason - The currently selected rejection reason, if any.
+ * @param onSelectReason - Called when a reason card is picked.
+ * @param note - Current free-text note.
+ * @param onNoteChange - Called as the note is edited.
+ * @param onConfirm - Called when Confirm Rejection is pressed.
+ * @param isLoading - Shows a spinner and disables Confirm while the rejection is in flight.
+ */
 export function RejectionReasonModal({
   selectedReason,
   onSelectReason,
@@ -58,7 +42,7 @@ export function RejectionReasonModal({
   onNoteChange,
   onConfirm,
   isLoading,
-}: Props) {
+}: RejectionReasonModalProps): React.JSX.Element {
   const scrollRef = useRef<ScrollView>(null);
 
   return (
@@ -70,7 +54,7 @@ export function RejectionReasonModal({
     >
       {/* Warning banner */}
       <View style={styles.warningBanner}>
-        <Ionicons name="warning-outline" size={18} color="#92400E" />
+        <Icon name="warning-outline" size={18} color={colors.amber800} />
         <Text style={styles.warningText}>
           Rejecting a specimen is permanent and cannot be undone.
         </Text>
@@ -79,7 +63,7 @@ export function RejectionReasonModal({
       {/* Reason selection */}
       <Text style={styles.sectionTitle}>Select Rejection Reason</Text>
       <View style={styles.reasonList}>
-        {REASONS.map((r) => {
+        {REJECTION_REASONS.map((r) => {
           const isSelected = selectedReason === r.value;
           return (
             <TouchableOpacity
@@ -113,7 +97,7 @@ export function RejectionReasonModal({
         value={note}
         onChangeText={onNoteChange}
         placeholder="Add additional context or details..."
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor={colors.gray400}
         multiline
         numberOfLines={3}
         maxLength={500}
@@ -134,10 +118,10 @@ export function RejectionReasonModal({
         accessibilityState={{ disabled: !selectedReason || isLoading }}
       >
         {isLoading ? (
-          <ActivityIndicator color="#FFFFFF" size="small" />
+          <ActivityIndicator color={colors.white} size="small" />
         ) : (
           <>
-            <Ionicons name="close-circle-outline" size={20} color="#FFFFFF" />
+            <Icon name="close-circle-outline" size={20} color={colors.white} />
             <Text style={styles.confirmBtnText}>Confirm Rejection</Text>
           </>
         )}
@@ -148,128 +132,128 @@ export function RejectionReasonModal({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.huge,
   },
 
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: '#FEF3C7',
+    gap: spacing.smd,
+    backgroundColor: colors.amber100,
     borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 24,
+    borderColor: colors.amber200,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.xxl,
   },
   warningText: {
     flex: 1,
-    fontSize: 13,
-    color: '#92400E',
+    ...typography.body,
+    color: colors.amber800,
     lineHeight: 18,
   },
 
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
+    ...typography.body,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray500,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 10,
+    marginBottom: spacing.smd,
   },
 
   reasonList: {
-    gap: 8,
-    marginBottom: 24,
+    gap: spacing.sm,
+    marginBottom: spacing.xxl,
   },
   reasonCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    padding: 14,
+    borderColor: colors.gray200,
+    padding: spacing.mlg,
   },
   reasonCardSelected: {
-    borderColor: TEAL,
-    backgroundColor: '#F0F9F8',
+    borderColor: colors.teal,
+    backgroundColor: colors.tealTint4,
   },
   reasonCardInner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: spacing.md,
   },
   radioOuter: {
     width: 20,
     height: 20,
-    borderRadius: 10,
+    borderRadius: 10, // Half of width/height above — computed circle radius.
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: colors.gray300,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 1,
+    marginTop: 1, // TODO(theme): below spacing.xxs(2); left exact.
     flexShrink: 0,
   },
   radioOuterSelected: {
-    borderColor: TEAL,
+    borderColor: colors.teal,
   },
   radioInner: {
     width: 10,
     height: 10,
-    borderRadius: 5,
-    backgroundColor: TEAL,
+    borderRadius: 5, // Half of width/height above — computed circle radius.
+    backgroundColor: colors.teal,
   },
   reasonText: {
     flex: 1,
-    gap: 2,
+    gap: 2, // TODO(theme): below spacing.xxs(2)... exact (already the smallest step, left explicit).
   },
   reasonLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
+    ...typography.subtitle,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray800,
   },
   reasonLabelSelected: {
-    color: TEAL,
+    color: colors.teal,
   },
   reasonDesc: {
-    fontSize: 13,
-    color: '#6B7280',
+    ...typography.body,
+    color: colors.gray500,
     lineHeight: 18,
   },
 
   noteInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 12,
+    borderColor: colors.gray200,
+    padding: spacing.md,
     fontSize: 14,
-    color: '#1F2937',
+    color: colors.gray800,
     minHeight: 88,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   charCount: {
-    fontSize: 12,
-    color: '#9CA3AF',
+    ...typography.caption,
+    color: colors.gray400,
     textAlign: 'right',
-    marginBottom: 28,
+    marginBottom: spacing.xxxl,
   },
 
   confirmBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#B91C1C',
-    borderRadius: 12,
-    paddingVertical: 15,
+    gap: spacing.sm,
+    backgroundColor: colors.red700,
+    borderRadius: radius.lg,
+    paddingVertical: 15, // TODO(theme): between spacing.mlg(14)/lg(16); left exact.
   },
   confirmBtnDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: colors.gray300,
   },
   confirmBtnText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: fontWeight.semibold,
+    color: colors.white,
   },
 });

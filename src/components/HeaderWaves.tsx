@@ -1,8 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
-export const TEAL = '#2E7D7A';
-export const TEAL_LIGHT = '#5FA9A5';
+import { colors, spacing } from '@src/theme';
+
+/** @deprecated Import `colors.teal` from '@src/theme' directly in new code. */
+export const TEAL = colors.teal;
+/** @deprecated Import `colors.tealLight` from '@src/theme' directly in new code. */
+export const TEAL_LIGHT = colors.tealLight;
 
 // The curved edge is the underside of a very large circle. Its centre sits off
 // to one side of the screen, so the lowest point of the header is off-centre
@@ -58,7 +62,7 @@ export const COMPACT_WAVES: WavePreset = {
   backFrom: -62,
 };
 
-interface Props {
+export interface HeaderWavesProps {
   width: number;
   height: number;
   preset: WavePreset;
@@ -85,7 +89,7 @@ const FLOW = {
 // One wave's endless there-and-back motion, 0 → 1 → 0 with easing at both ends. The
 // loop does not reset between rounds, so it never jumps. Eases in from the resting
 // midpoint first, so switching flow on doesn't snap the wave.
-function useFlow(active: boolean, duration: number) {
+function useFlow(active: boolean, duration: number): Animated.Value {
   const flow = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
@@ -125,6 +129,17 @@ function useFlow(active: boolean, duration: number) {
   return flow;
 }
 
+/**
+ * @description Renders the two-circle "wave" curve used behind headers, entering with
+ * an animated slide-in and optionally drifting/bobbing forever afterward.
+ * @param width - Header width, drives the wave diameters.
+ * @param height - Header height, positions the waves relative to its bottom edge.
+ * @param preset - Diameter/center/timing values for a specific header shape.
+ * @param topInset - Safe-area top inset so the status-bar area stays covered.
+ * @param enter - 0→1 entrance progress for the front wave.
+ * @param enterBack - 0→1 entrance progress for the back wave.
+ * @param flow - Keeps the waves drifting/bobbing after they enter. Defaults to false.
+ */
 export function HeaderWaves({
   width,
   height,
@@ -133,7 +148,7 @@ export function HeaderWaves({
   enter,
   enterBack,
   flow = false,
-}: Props) {
+}: HeaderWavesProps): React.JSX.Element {
   const frontDiameter = width * preset.frontDiameter;
   const backDiameter = width * preset.backDiameter;
 
@@ -186,7 +201,7 @@ export function HeaderWaves({
   return (
     <>
       {/* Solid strip so the status-bar area is always fully covered. */}
-      <View style={[styles.topFill, { height: topInset + 40 }]} />
+      <View style={[styles.topFill, { height: topInset + spacing.huge }]} />
 
       <Animated.View
         style={[

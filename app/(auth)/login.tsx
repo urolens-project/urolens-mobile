@@ -1,6 +1,8 @@
-import React from 'react';
 import { LoginForm } from '@features/auth/components/LoginForm';
 
-export default function LoginScreen() {
+/**
+ * @description Route entry for /login. Renders the auth feature's login form.
+ */
+export default function LoginScreen(): React.JSX.Element {
   return <LoginForm />;
 }

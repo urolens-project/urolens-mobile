@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
@@ -9,8 +10,9 @@ import AnalysisResult from '@db/models/AnalysisResult';
 import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { clinicDayRange } from '@lib/dateTime';
+
 import { orderByStatus } from '../status';
-import type { QueueItem, FilterOption, PriorityLevel, SpecimenStatus } from '../types';
+import type { FilterOption, PriorityLevel, QueueItem, SpecimenStatus } from '../types';
 
 // The Queue's own actionable statuses (SRS UC 2.2 + product decision). A
 // sample returned for correction (UC 3.4) is included separately below since
@@ -128,7 +130,13 @@ function dateClause(returnedServerIds: string[]): Q.Clause {
   return Q.or(receivedToday, ...startedWork);
 }
 
-// Exported for tests.
+/**
+ * @description The WatermelonDB query clauses for a given Queue filter. Exported for
+ * tests.
+ * @param filter - The active queue filter.
+ * @param returnedServerIds - Server ids currently flagged returned-for-correction.
+ * @param finishedServerIds - Server ids whose latest result means the MedTech is done.
+ */
 export function buildQuery(
   filter: FilterOption,
   returnedServerIds: string[],
@@ -181,7 +189,14 @@ export interface UseQueueResult {
   lastSyncAt: number | null;
 }
 
+/**
+ * @description Loads the medtech's queue from the local DB and keeps it in sync: three
+ * live WatermelonDB subscriptions (filtered list, unfiltered totals, and each
+ * specimen's latest result) plus a manual `refresh` that triggers a sync.
+ */
 export function useQueue(): UseQueueResult {
+  const { isOnline } = useNetworkStatus();
+
   const [items, setItems] = useState<QueueItem[]>([]);
   const [allItems, setAllItems] = useState<QueueItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -190,9 +205,8 @@ export function useQueue(): UseQueueResult {
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [returnedServerIds, setReturnedServerIds] = useState<string[]>([]);
   const [finishedServerIds, setFinishedServerIds] = useState<string[]>([]);
-  const { isOnline } = useNetworkStatus();
 
-  const loadLastSyncAt = useCallback(async () => {
+  const loadLastSyncAt = useCallback(async (): Promise<void> => {
     const raw = await AsyncStorage.getItem(LAST_SYNC_KEY);
     setLastSyncAt(raw ? new Date(raw).getTime() : null);
   }, []);
@@ -276,7 +290,7 @@ export function useQueue(): UseQueueResult {
     }
   }, [isOnline, loadLastSyncAt]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<void> => {
     if (!isOnline) return;
     setIsRefreshing(true);
     try {

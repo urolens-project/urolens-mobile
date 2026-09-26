@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   FlatList,
@@ -10,38 +10,42 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useReports } from '../../src/features/reports/hooks/useReports';
-import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
+
 import { useAuthStore } from '@lib/auth/authStore';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+import { DropReveal, useReduceMotion } from '@components/DropReveal';
+
+import { useReports } from '@features/reports/hooks/useReports';
 import {
   CARD_RADIUS,
   ReportCategoryCard,
-} from '../../src/features/reports/components/ReportCategoryCard';
-import { ReportItemCard } from '../../src/features/reports/components/ReportItemCard';
-import { CategoryHeader } from '../../src/features/reports/components/CategoryHeader';
-import { CurvedHeader } from '../../src/features/reports/components/CurvedHeader';
-import { ReportIllustration } from '../../src/features/reports/components/ReportIllustration';
-import { DropReveal, useReduceMotion } from '@components/DropReveal';
-import { REPORT_CATEGORY_STYLES } from '../../src/features/reports/constants';
-import type { ReportCategory } from '../../src/features/reports/types';
-
-const TEAL = '#2E7D7A';
+} from '@features/reports/components/ReportCategoryCard';
+import { ReportItemCard } from '@features/reports/components/ReportItemCard';
+import { CategoryHeader } from '@features/reports/components/CategoryHeader';
+import { CurvedHeader } from '@features/reports/components/CurvedHeader';
+import { ReportIllustration } from '@features/reports/components/ReportIllustration';
+import { REPORT_CATEGORY_STYLES } from '@features/reports/constants';
+import type { ReportCategory } from '@features/reports/types';
 
 // Number of list items that get the drop-in entrance; anything further down
 // is just shown, so scrolling a long list never re-triggers animation.
 const ANIMATED_ITEMS = 8;
 const ITEM_STAGGER_MS = 90;
 
+interface EmptyCategoryStateProps {
+  category: ReportCategory;
+  isOnline: boolean;
+  reduceMotion: boolean;
+}
+
 function EmptyCategoryState({
   category,
   isOnline,
   reduceMotion,
-}: {
-  category: ReportCategory;
-  isOnline: boolean;
-  reduceMotion: boolean;
-}) {
+}: EmptyCategoryStateProps): React.JSX.Element {
   return (
     <View style={styles.empty}>
       <View style={styles.emptyArt}>
@@ -62,13 +66,16 @@ function EmptyCategoryState({
   );
 }
 
-function ItemSeparator() {
+function ItemSeparator(): React.JSX.Element {
   return <View style={styles.separator} />;
 }
 
-// This screen is read-only — cards open the existing (also read-only, for
-// these statuses) sample detail view; nothing here mutates a sample.
-export default function ReportsScreen() {
+/**
+ * @description Reports tab: category landing grid that drills into a per-category list.
+ * Read-only — cards open the existing (also read-only, for these statuses) sample
+ * detail view; nothing here mutates a sample.
+ */
+export default function ReportsScreen(): React.JSX.Element {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
   const { sections, isLoading, totalCount, refresh, isRefreshing } = useReports();
@@ -109,11 +116,12 @@ export default function ReportsScreen() {
   );
 
   const handleItemPress = useCallback(
-    (id: string) => {
+    (id: string): void => {
       router.push(`/(medtech)/sample/${id}`);
     },
     [router],
   );
+  const handleCategoryBack = useCallback((): void => setSelectedCategory(null), []);
 
   // ── Drilled into one category ──────────────────────────────────────────
   if (selectedCategory && selectedSection) {
@@ -125,7 +133,7 @@ export default function ReportsScreen() {
           title={selectedSection.title}
           count={selectedSection.data.length}
           topInset={insets.top}
-          onBack={() => setSelectedCategory(null)}
+          onBack={handleCategoryBack}
           playKey={playKey}
           reduceMotion={reduceMotion}
         />
@@ -150,7 +158,7 @@ export default function ReportsScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={refresh}
-              tintColor={TEAL}
+              tintColor={colors.teal}
               enabled={isOnline}
             />
           }
@@ -190,7 +198,7 @@ export default function ReportsScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={refresh}
-            tintColor={TEAL}
+            tintColor={colors.teal}
             enabled={isOnline}
           />
         }
@@ -219,7 +227,7 @@ export default function ReportsScreen() {
 
         {!isOnline && (
           <View style={styles.offlineNote}>
-            <Ionicons name="cloud-offline-outline" size={16} color="#92400E" />
+            <Icon name="cloud-offline-outline" size={16} color={colors.amber800} />
             <Text style={styles.offlineNoteText}>Offline — showing cached data</Text>
           </View>
         )}
@@ -231,45 +239,45 @@ export default function ReportsScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.gray100,
   },
   // Category list (full-width stacked cards)
   categoryScroll: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 32,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.mlg,
+    paddingBottom: spacing.xxxl,
   },
   categoryList: {
     flexDirection: 'column',
-    gap: 14,
+    gap: spacing.mlg,
   },
   offlineNote: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: spacing.sm,
     alignSelf: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.amber100,
     borderWidth: 1,
-    borderColor: '#FDE68A',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 18,
+    borderColor: colors.amber200,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.xxl,
+    marginTop: spacing.xl,
   },
   offlineNoteText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#92400E',
+    ...typography.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.amber800,
   },
 
   // Drilldown list
   list: {
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 28,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
   },
   separator: {
-    height: 12,
+    height: spacing.md,
   },
   listEmpty: {
     flex: 1,
@@ -277,22 +285,21 @@ const styles = StyleSheet.create({
 
   empty: {
     alignItems: 'center',
-    paddingTop: 36,
-    gap: 10,
-    paddingHorizontal: 32,
+    paddingTop: spacing.xxxl,
+    gap: spacing.smd,
+    paddingHorizontal: spacing.xxxl,
   },
   emptyArt: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
     transform: [{ scale: 1.25 }],
   },
   emptyTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
+    ...typography.titleLg,
+    color: colors.gray900,
   },
   emptySub: {
-    fontSize: 14,
-    color: '#9CA3AF',
+    ...typography.bodyLg,
+    color: colors.gray400,
     textAlign: 'center',
   },
 });

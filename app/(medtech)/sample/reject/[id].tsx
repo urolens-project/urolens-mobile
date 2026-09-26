@@ -1,5 +1,4 @@
-// app/(medtech)/sample/reject/[id].tsx
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,19 +12,28 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Q } from '@nozbe/watermelondb';
+
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
 import { RejectionReason } from '@app-types/enums';
 import type { SpecimenStatus } from '@app-types/enums';
-import { getRejectBlockedReason } from '@features/queue/lib/sampleState';
-import { useRejectSpecimen } from '@src/features/specimen-rejection/hooks/useRejectSpecimen';
-import { RejectionReasonModal } from '@src/features/specimen-rejection/components/RejectionReasonModal';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
-export default function RejectSpecimenScreen() {
+import { Icon } from '@components/Icon';
+
+import { getRejectBlockedReason } from '@features/queue/lib/sampleState';
+import { useRejectSpecimen } from '@features/specimen-rejection/hooks/useRejectSpecimen';
+import { RejectionReasonModal } from '@features/specimen-rejection/components/RejectionReasonModal';
+
+/**
+ * @description Route entry for /sample/reject/:id. Loads the specimen and its latest
+ * result via live WatermelonDB queries, blocks rejection when the workflow disallows
+ * it, and otherwise renders the rejection reason form.
+ */
+export default function RejectSpecimenScreen(): React.JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -87,7 +95,7 @@ export default function RejectSpecimenScreen() {
     ? getRejectBlockedReason(specimenInfo.status, resultStatus)
     : null;
 
-  async function handleConfirm() {
+  const handleConfirm = useCallback(async (): Promise<void> => {
     if (!selectedReason) return;
 
     const outcome = await reject(selectedReason, note);
@@ -96,29 +104,35 @@ export default function RejectSpecimenScreen() {
     } else {
       Alert.alert('Rejection Failed', outcome.message);
     }
-  }
+  }, [selectedReason, note, reject, router, id]);
+
+  const handleBack = useCallback((): void => router.back(), [router]);
+  const handleBackToSample = useCallback(
+    (): void => router.replace(`/(medtech)/sample/${id}`),
+    [router, id],
+  );
 
   if (isLoadingSpecimen) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color="#B91C1C" />
+        <ActivityIndicator size="large" color={colors.red700} />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F3F4F6" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.gray100} />
 
       {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => router.back()}
+          onPress={handleBack}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={24} color="#374151" />
+          <Icon name="chevron-back" size={24} color={colors.gray700} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Reject Specimen</Text>
         {/* Spacer to center title */}
@@ -139,13 +153,13 @@ export default function RejectSpecimenScreen() {
 
         {blockedReason ? (
           <View style={styles.blockedCard} accessibilityRole="alert">
-            <Ionicons name="information-circle-outline" size={20} color="#92400E" />
+            <Icon name="information-circle-outline" size={20} color={colors.amber800} />
             <View style={styles.blockedText}>
               <Text style={styles.blockedTitle}>Cannot reject this specimen</Text>
               <Text style={styles.blockedBody}>{blockedReason}</Text>
               <TouchableOpacity
                 style={styles.blockedBtn}
-                onPress={() => router.replace(`/(medtech)/sample/${id}`)}
+                onPress={handleBackToSample}
                 accessibilityRole="button"
               >
                 <Text style={styles.blockedBtnText}>Back to sample</Text>
@@ -171,7 +185,7 @@ export default function RejectSpecimenScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.gray100,
   },
   flex: {
     flex: 1,
@@ -180,15 +194,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.gray100,
   },
 
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-    backgroundColor: '#F3F4F6',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.gray100,
   },
   backBtn: {
     width: 40,
@@ -199,56 +213,55 @@ const styles = StyleSheet.create({
   topBarTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1F2937',
+    ...typography.titleLg,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray800,
   },
 
   specimenCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 20,
-    borderRadius: 12,
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderColor: colors.gray200,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.mlg,
   },
   specimenUid: {
     fontFamily: 'Courier',
-    fontSize: 12,
-    color: '#6B7280',
+    ...typography.caption,
+    color: colors.gray500,
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   specimenName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
+    ...typography.titleLg,
+    color: colors.gray800,
   },
 
   blockedCard: {
     flexDirection: 'row',
-    gap: 10,
-    backgroundColor: '#FFFBEB',
-    marginHorizontal: 16,
-    borderRadius: 12,
+    gap: spacing.smd,
+    backgroundColor: colors.amber50,
+    marginHorizontal: spacing.lg,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#FDE68A',
-    padding: 16,
+    borderColor: colors.amber200,
+    padding: spacing.lg,
   },
-  blockedText: { flex: 1, gap: 6 },
-  blockedTitle: { fontSize: 14, fontWeight: '700', color: '#92400E' },
-  blockedBody: { fontSize: 13, color: '#B45309', lineHeight: 19 },
+  blockedText: { flex: 1, gap: spacing.sm },
+  blockedTitle: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.amber800 },
+  blockedBody: { ...typography.body, color: colors.amber700, lineHeight: 19 },
   blockedBtn: {
     alignSelf: 'flex-start',
-    marginTop: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.mlg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.amber200,
   },
-  blockedBtnText: { fontSize: 13, fontWeight: '600', color: '#92400E' },
+  blockedBtnText: { ...typography.body, fontWeight: fontWeight.semibold, color: colors.amber800 },
 });

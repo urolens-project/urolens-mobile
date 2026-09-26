@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
+import { radius as radiusTokens } from '@src/theme';
+
 const STAGGER_MS = 170;
 const FALL_MS = 360;
 const SPLASH_MS = 720;
@@ -13,7 +15,7 @@ const RIPPLE_SIZE = 64;
 const LANDING_X = '24%';
 const LANDING_Y = '42%';
 
-// Users who ask the OS to reduce motion get the cards with no animation.
+/** @description Whether the OS-level "reduce motion" accessibility setting is on. */
 export function useReduceMotion(): boolean {
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -32,7 +34,7 @@ export function useReduceMotion(): boolean {
   return reduceMotion;
 }
 
-interface Props {
+export interface DropRevealProps {
   // Position in the list — drives the stagger.
   index: number;
   // Changes each time the screen is entered, replaying the animation.
@@ -47,19 +49,27 @@ interface Props {
   children: React.ReactNode;
 }
 
-// Reveals its child as a drop of liquid: a drop falls in, lands, sends out a
-// ripple, and the card springs up out of the splash. All opacity/transform
-// animations, so they run on the native driver and stay smooth.
+/**
+ * @description Reveals its child as a drop of liquid: a drop falls in, lands, sends
+ * out a ripple, and the card springs up out of the splash. All opacity/transform
+ * animations, so they run on the native driver and stay smooth.
+ * @param index - Position in the list — drives the stagger delay.
+ * @param playKey - Changes each time the screen is entered, replaying the animation.
+ * @param reduceMotion - Skips straight to the finished state when true.
+ * @param accent - Color of the drop and its ripple.
+ * @param radius - Corner radius of the ripple clip, matching the card's own radius.
+ * @param staggerMs - Delay between consecutive items.
+ */
 export function DropReveal({
   index,
   playKey,
   reduceMotion,
   accent,
-  radius = 24,
+  radius = radiusTokens.xxxl,
   staggerMs = STAGGER_MS,
   style,
   children,
-}: Props) {
+}: DropRevealProps): React.JSX.Element {
   const fall = useRef(new Animated.Value(0)).current;
   const splash = useRef(new Animated.Value(0)).current;
   const reveal = useRef(new Animated.Value(0)).current;

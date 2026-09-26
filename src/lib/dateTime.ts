@@ -12,7 +12,10 @@ function parse(iso: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** "Sep 20, 12:30 PM" */
+/**
+ * @description Formats an ISO timestamp for compact display, e.g. "Sep 20, 12:30 PM".
+ * @param iso - ISO timestamp, or null/undefined to render as "—".
+ */
 export function formatShortDateTime(iso: string | null | undefined): string {
   const date = parse(iso);
   if (!date) return '—';
@@ -25,7 +28,11 @@ export function formatShortDateTime(iso: string | null | undefined): string {
   });
 }
 
-/** "Sep 20, 2026, 12:30 PM" — for detail views, where an older sample's year matters. */
+/**
+ * @description Formats an ISO timestamp with the year, e.g. "Sep 20, 2026, 12:30 PM" —
+ * for detail views, where an older sample's year matters.
+ * @param iso - ISO timestamp, or null/undefined to render as "—".
+ */
 export function formatDateTime(iso: string | null | undefined): string {
   const date = parse(iso);
   if (!date) return '—';
@@ -39,7 +46,10 @@ export function formatDateTime(iso: string | null | undefined): string {
   });
 }
 
-/** "Sep 20" */
+/**
+ * @description Formats an ISO timestamp as a short date, e.g. "Sep 20".
+ * @param iso - ISO timestamp, or null/undefined to render as "—".
+ */
 export function formatShortDate(iso: string | null | undefined): string {
   const date = parse(iso);
   if (!date) return '—';
@@ -50,7 +60,10 @@ export function formatShortDate(iso: string | null | undefined): string {
   });
 }
 
-/** "Sep 20, 2026" — today's date at the clinic. */
+/**
+ * @description Formats today's date at the clinic, e.g. "Sep 20, 2026".
+ * @param now - Reference instant. Defaults to the current time.
+ */
 export function formatClinicToday(now: Date = new Date()): string {
   return now.toLocaleDateString('en-US', {
     timeZone: CLINIC_TIME_ZONE,
@@ -60,11 +73,17 @@ export function formatClinicToday(now: Date = new Date()): string {
   });
 }
 
+export interface ClinicDayRange {
+  start: string;
+  end: string;
+}
+
 /**
- * Start and end of the clinic's current day, as UTC ISO strings — the bounds
- * for "received today" (received_at is stored in UTC).
+ * @description Start and end of the clinic's current day, as UTC ISO strings — the
+ * bounds for "received today" (received_at is stored in UTC).
+ * @param now - Reference instant. Defaults to the current time.
  */
-export function clinicDayRange(now: Date = new Date()): { start: string; end: string } {
+export function clinicDayRange(now: Date = new Date()): ClinicDayRange {
   const clinicDate = new Date(now.getTime() + CLINIC_UTC_OFFSET_MS).toISOString().slice(0, 10);
   return {
     start: new Date(`${clinicDate}T00:00:00.000+08:00`).toISOString(),

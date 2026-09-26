@@ -11,8 +11,14 @@ interface ConfirmResultParams {
   isOnline: boolean;
 }
 
-// Single source of truth for "confirm a result" — used by both the post-capture
-// review screen and the queue-revisit screen so their behavior can't drift apart.
+/**
+ * @description Single source of truth for "confirm a result" — used by both the
+ * post-capture review screen and the queue-revisit screen so their behavior can't
+ * drift apart. Confirms on the server when online, otherwise queues a pending sync,
+ * then updates the local record either way.
+ * @param result - The analysis result to confirm.
+ * @param isOnline - Whether the device currently has connectivity.
+ */
 export async function confirmResultCore({ result, isOnline }: ConfirmResultParams): Promise<void> {
   const serverId = result.serverId;
 

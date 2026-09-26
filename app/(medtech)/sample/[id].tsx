@@ -1,5 +1,4 @@
-// Path: urolens-mobile/app/(medtech)/sample/[id].tsx
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,12 +11,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
-import { Ionicons } from '@expo/vector-icons';
+
 import { database } from '@db/database';
 import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import ManualOverride from '@db/models/ManualOverride';
+import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { formatDateTime } from '@lib/dateTime';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
 import { useConfirmAction } from '@features/result-confirmation/hooks/useConfirmAction';
 import { ResultReviewScreen } from '@features/result-confirmation/components/ResultReviewScreen';
@@ -26,20 +32,19 @@ import {
   getSmartDiagnosisState,
   SMART_DIAGNOSIS_MESSAGES,
 } from '@features/result-confirmation/lib/smartDiagnosisState';
-import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
 import { confirmRetake } from '@features/image-retake/lib/confirmRetake';
 import { startAnalysis } from '@features/queue/lib/startAnalysis';
 import { getSampleActions, getSampleStatusLabel } from '@features/queue/lib/sampleState';
 import type { QueueItem } from '@features/queue/types';
-import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import { formatDateTime } from '@lib/dateTime';
-
-const TEAL = '#2E7D7A';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// This screen shows a Specimen through the Queue's QueueItem shape. It doesn't derive
-// isReturnedForCorrection here — it reads the loaded analysis result directly.
+/**
+ * @description Adapts a Specimen model to the Queue's QueueItem shape so this screen can
+ * reuse Queue's status/action helpers. Doesn't derive isReturnedForCorrection here — it
+ * reads the loaded analysis result directly.
+ * @param s - WatermelonDB Specimen model instance.
+ */
 function toQueueItem(s: Specimen): QueueItem {
   return {
     id: s.id,
@@ -75,7 +80,12 @@ const RESULT_COLUMNS = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+interface DetailRowProps {
+  label: string;
+  value: string;
+}
+
+function DetailRow({ label, value }: DetailRowProps): React.JSX.Element {
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -85,19 +95,23 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 const LEVEL_COLORS: Record<string, { bg: string; text: string }> = {
-  HIGH: { bg: '#FEE2E2', text: '#B91C1C' },
-  MODERATE: { bg: '#FEF3C7', text: '#92400E' },
-  LOW: { bg: '#D1FAE5', text: '#065F46' },
+  HIGH: { bg: colors.red100, text: colors.red700 },
+  MODERATE: { bg: colors.amber100, text: colors.amber800 },
+  LOW: { bg: colors.emerald100, text: colors.emerald800 },
 };
 const LEVEL_LABELS: Record<string, string> = { HIGH: 'High', MODERATE: 'Moderate', LOW: 'Low' };
 // A condition the engine gave no level for is neither low nor normal — don't dress it as Low.
-const UNKNOWN_LEVEL_COLORS = { bg: '#F3F4F6', text: '#6B7280' };
+const UNKNOWN_LEVEL_COLORS = { bg: colors.gray100, text: colors.gray500 };
 
-function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson }) {
+interface SmartDiagnosisSectionProps {
+  diagnosis: SmartDiagnosisJson;
+}
+
+function SmartDiagnosisSection({ diagnosis }: SmartDiagnosisSectionProps): React.JSX.Element {
   if (diagnosis.no_significant_indicators) {
     return (
       <View style={styles.noIndicators}>
-        <Ionicons name="checkmark-circle-outline" size={16} color="#065F46" />
+        <Icon name="checkmark-circle-outline" size={16} color={colors.emerald800} />
         <Text style={styles.noIndicatorsText}>No significant diagnostic indicators found.</Text>
       </View>
     );
@@ -112,12 +126,12 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson })
   return (
     <View style={styles.diagnosisRows}>
       {conditions.map((c) => {
-        const colors = (c.level && LEVEL_COLORS[c.level]) || UNKNOWN_LEVEL_COLORS;
+        const levelColors = (c.level && LEVEL_COLORS[c.level]) || UNKNOWN_LEVEL_COLORS;
         return (
           <View key={c.label} style={styles.diagnosisRow}>
             <Text style={styles.diagnosisCondition}>{c.label}</Text>
-            <View style={[styles.levelBadge, { backgroundColor: colors.bg }]}>
-              <Text style={[styles.levelText, { color: colors.text }]}>
+            <View style={[styles.levelBadge, { backgroundColor: levelColors.bg }]}>
+              <Text style={[styles.levelText, { color: levelColors.text }]}>
                 {(c.level && (LEVEL_LABELS[c.level] ?? c.level)) || '—'}
               </Text>
             </View>
@@ -128,7 +142,11 @@ function SmartDiagnosisSection({ diagnosis }: { diagnosis: SmartDiagnosisJson })
   );
 }
 
-function AIFindingsSection({ rows }: { rows: FindingRow[] }) {
+interface AIFindingsSectionProps {
+  rows: FindingRow[];
+}
+
+function AIFindingsSection({ rows }: AIFindingsSectionProps): React.JSX.Element {
   return (
     <View style={styles.findingsRows}>
       {rows.map((row) => (
@@ -151,6 +169,10 @@ function AIFindingsSection({ rows }: { rows: FindingRow[] }) {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
+/**
+ * @description Route entry for /sample/:id. Keyed on the specimen id so switching
+ * samples while this tab stays mounted always remounts fresh state.
+ */
 export default function SampleDetailRoute(): React.JSX.Element {
   const { id, resultId } = useLocalSearchParams<{ id: string; resultId?: string }>();
 
@@ -166,6 +188,10 @@ interface SampleDetailProps {
   resultId?: string;
 }
 
+/**
+ * @description Sample detail: specimen info, analysis result review, and the actions
+ * available at the specimen's current stage (begin analysis, retake, reject).
+ */
 function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.Element {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
@@ -249,22 +275,15 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
     return () => subscription.unsubscribe();
   }, [analysisResult?.serverId]);
 
-  // Route variation: resultId present → mount review screen directly. A specimen
-  // that has since been rejected must not be reviewed or confirmed, so it falls
-  // through to the regular view, which shows the rejection instead.
-  if (resultId && specimen?.status !== 'REJECTED') {
-    return <ResultReviewScreen resultId={resultId} specimenId={specimenId} />;
-  }
-
-  async function handleConfirmResult() {
+  const handleConfirmResult = useCallback(async (): Promise<void> => {
     if (!analysisResult) return;
     const outcome = await confirmAction(analysisResult);
     if (outcome.status === 'failed') {
       Alert.alert('Confirmation Failed', outcome.message);
     }
-  }
+  }, [analysisResult, confirmAction]);
 
-  async function handleBeginAnalysis() {
+  const handleBeginAnalysis = useCallback(async (): Promise<void> => {
     if (!specimen?.serverId) {
       Alert.alert(
         'Not Synced',
@@ -289,8 +308,9 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
           Alert.alert('Cannot Begin Analysis', outcome.message);
           return;
         }
-      } catch {
+      } catch (err: unknown) {
         // Local write failed — navigation proceeds regardless.
+        console.error('[SampleDetail] failed to record begin-analysis locally', err);
       }
     }
 
@@ -298,9 +318,9 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
       pathname: '/(medtech)/capture',
       params: { specimenId: specimen.serverId, localSpecimenId: specimenId },
     });
-  }
+  }, [specimen, specimenId, isOnline, router]);
 
-  function handleRetakeImage() {
+  const handleRetakeImage = useCallback((): void => {
     if (!specimen?.serverId) {
       Alert.alert('Not Synced', 'Specimen has not synced yet. Please wait.');
       return;
@@ -317,16 +337,25 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
         },
       });
     });
-  }
+  }, [specimen, specimenId, overrides, analysisResult, router]);
 
-  function handleRejectSpecimen() {
+  const handleRejectSpecimen = useCallback((): void => {
     router.push(`/(medtech)/sample/reject/${specimenId}`);
+  }, [router, specimenId]);
+
+  const handleBack = useCallback((): void => router.back(), [router]);
+
+  // Route variation: resultId present → mount review screen directly. A specimen
+  // that has since been rejected must not be reviewed or confirmed, so it falls
+  // through to the regular view, which shows the rejection instead.
+  if (resultId && specimen?.status !== 'REJECTED') {
+    return <ResultReviewScreen resultId={resultId} specimenId={specimenId} />;
   }
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={TEAL} />
+        <ActivityIndicator size="large" color={colors.teal} />
       </SafeAreaView>
     );
   }
@@ -335,7 +364,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
     return (
       <SafeAreaView style={styles.center}>
         <Text style={styles.notFoundText}>Sample not found.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
           <Text style={styles.backBtnText}>Go back</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -343,10 +372,10 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
   }
 
   const priorityColors: Record<string, { bg: string; text: string }> = {
-    HIGH: { bg: '#FCEBEB', text: '#A32D2D' },
-    NORMAL: { bg: '#EAF3DE', text: '#3B6D11' },
-    LOW: { bg: '#F1EFE8', text: '#5F5E5A' },
-    ROUTINE: { bg: '#E8F5E9', text: '#2E7D32' },
+    HIGH: { bg: colors.redTint4, text: colors.redDeep },
+    NORMAL: { bg: colors.greenTint2, text: colors.greenDeep },
+    LOW: { bg: colors.creamAlt, text: colors.warmGray600 },
+    ROUTINE: { bg: colors.greenTint3, text: colors.greenDeep2 },
   };
   const pColor = priorityColors[specimen.priorityLevel ?? 'NORMAL'] ?? priorityColors.NORMAL;
 
@@ -376,11 +405,11 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.topBackBtn}
-          onPress={() => router.back()}
+          onPress={handleBack}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={24} color="#374151" />
+          <Icon name="chevron-back" size={24} color={colors.gray700} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle} accessibilityRole="header">
           Sample Detail
@@ -418,7 +447,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
         {isRejected && (
           <View style={styles.rejectionCard}>
             <View style={styles.rejectionHeader}>
-              <Ionicons name="close-circle" size={16} color="#B91C1C" />
+              <Icon name="close-circle" size={16} color={colors.red700} />
               <Text style={styles.rejectionTitle}>Specimen Rejected</Text>
             </View>
             {specimen.rejectionReason && (
@@ -447,7 +476,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
             {/* Smart Diagnosis */}
             <View style={styles.card}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="analytics-outline" size={16} color={TEAL} />
+                <Icon name="analytics-outline" size={16} color={colors.teal} />
                 <Text style={styles.sectionSubTitle}>Smart Diagnosis</Text>
               </View>
               {smartDiagnosis && diagnosisState === 'READY' ? (
@@ -466,7 +495,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
             {/* AI Findings */}
             <View style={styles.card}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="eye-outline" size={16} color={TEAL} />
+                <Icon name="eye-outline" size={16} color={colors.teal} />
                 <Text style={styles.sectionSubTitle}>AI Findings</Text>
               </View>
               {findingRows.length > 0 ? (
@@ -481,7 +510,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
             {/* Rejected — this result will not go to the Supervisor */}
             {isRejected && (
               <View style={styles.rejectedResultBanner}>
-                <Ionicons name="close-circle-outline" size={18} color="#B91C1C" />
+                <Icon name="close-circle-outline" size={18} color={colors.red700} />
                 <View style={styles.bannerTextBlock}>
                   <Text style={styles.rejectedResultTitle}>Specimen Rejected</Text>
                   <Text style={styles.rejectedResultBody}>
@@ -494,7 +523,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
             {/* Returned for correction — supervisor rejected, medtech must fix */}
             {isReturnedForCorrection && (
               <View style={styles.correctionBanner}>
-                <Ionicons name="alert-circle" size={18} color="#92400E" />
+                <Icon name="alert-circle" size={18} color={colors.amber800} />
                 <View style={styles.bannerTextBlock}>
                   <Text style={styles.correctionTitle}>Returned for Correction</Text>
                   <Text style={styles.correctionBody}>
@@ -507,7 +536,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
             {/* Escalated — with the Supervisor for urgent attention */}
             {isEscalated && (
               <View style={styles.escalatedBanner}>
-                <Ionicons name="warning" size={18} color="#B91C1C" />
+                <Icon name="warning" size={18} color={colors.red700} />
                 <View style={styles.bannerTextBlock}>
                   <Text style={styles.escalatedTitle}>Critical / Escalated</Text>
                   <Text style={styles.escalatedBody}>
@@ -530,7 +559,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
                     accessibilityLabel="Confirm analysis result"
                   >
                     {isConfirming ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ActivityIndicator size="small" color={colors.white} />
                     ) : (
                       <Text style={styles.confirmBtnText}>Confirm Result</Text>
                     )}
@@ -552,7 +581,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
             {/* Awaiting supervisor review */}
             {isPendingApproval && (
               <View style={styles.pendingBanner}>
-                <Ionicons name="time-outline" size={16} color="#1E40AF" />
+                <Icon name="time-outline" size={16} color={colors.blue800} />
                 <Text style={styles.pendingText}>Awaiting supervisor review.</Text>
               </View>
             )}
@@ -560,7 +589,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
             {/* Approved by supervisor */}
             {isApproved && (
               <View style={styles.approvedBanner}>
-                <Ionicons name="checkmark-circle" size={18} color="#065F46" />
+                <Icon name="checkmark-circle" size={18} color={colors.emerald800} />
                 <View style={styles.bannerTextBlock}>
                   <Text style={styles.approvedTitle}>Approved by Supervisor</Text>
                   <Text style={styles.approvedBody}>
@@ -573,7 +602,7 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
             {/* Released to patient */}
             {isReleased && (
               <View style={styles.releasedBanner}>
-                <Ionicons name="send" size={16} color="#065F46" />
+                <Icon name="send" size={16} color={colors.emerald800} />
                 <View style={styles.bannerTextBlock}>
                   <Text style={styles.approvedTitle}>Result Released</Text>
                   <Text style={styles.approvedBody}>
@@ -615,17 +644,17 @@ function SampleDetail({ specimenId, resultId }: SampleDetailProps): React.JSX.El
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F6F3' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F6F3' },
-  scroll: { padding: 16, paddingBottom: 40 },
+  safe: { flex: 1, backgroundColor: colors.cream },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.cream },
+  scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
 
   // Top bar
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    backgroundColor: '#F7F6F3',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.smd,
+    backgroundColor: colors.cream,
   },
   topBackBtn: {
     width: 40,
@@ -636,279 +665,285 @@ const styles = StyleSheet.create({
   topBarTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1A1A1A',
+    ...typography.titleLg,
+    color: colors.ink,
   },
 
   // Specimen header
-  cardHeader: { marginBottom: 16 },
+  cardHeader: { marginBottom: spacing.lg },
   cardHeaderTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   sampleUid: {
     fontFamily: 'Courier',
-    fontSize: 12,
-    color: '#888780',
+    ...typography.caption,
+    color: colors.warmGray500,
     letterSpacing: 0.5,
   },
-  priorityBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  priorityText: { fontSize: 12, fontWeight: '500' },
-  patientName: { fontSize: 24, fontWeight: '600', color: '#1A1A1A', marginTop: 2 },
+  priorityBadge: {
+    paddingHorizontal: spacing.smd,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+  },
+  priorityText: { ...typography.caption, fontWeight: fontWeight.medium },
+  patientName: {
+    fontSize: 24,
+    fontWeight: fontWeight.semibold,
+    color: colors.ink,
+    marginTop: spacing.xxs,
+  },
 
   // Cards
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderRadius: radius.xl,
     borderWidth: 0.5,
     borderColor: 'rgba(0,0,0,0.1)',
-    padding: 16,
-    marginBottom: 12,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: spacing.smd,
   },
-  detailLabel: { fontSize: 14, color: '#888780' },
+  detailLabel: { ...typography.bodyLg, color: colors.warmGray500 },
   detailValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1A1A1A',
+    ...typography.bodyLg,
+    fontWeight: fontWeight.medium,
+    color: colors.ink,
     textAlign: 'right',
     flex: 1,
-    marginLeft: 16,
+    marginLeft: spacing.lg,
   },
   divider: { height: 0.5, backgroundColor: 'rgba(0,0,0,0.08)' },
 
   // Analysis results section
-  resultsSection: { marginBottom: 12 },
+  resultsSection: { marginBottom: spacing.md },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 10,
+    ...typography.titleLg,
+    fontWeight: fontWeight.bold,
+    color: colors.ink,
+    marginBottom: spacing.smd,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 12,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   sectionSubTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    ...typography.label,
+    color: colors.gray700,
   },
-  emptyResultText: { fontSize: 13, color: '#6B7280', lineHeight: 18 },
+  emptyResultText: { ...typography.body, color: colors.gray500, lineHeight: 18 },
 
   // Smart diagnosis
-  diagnosisRows: { gap: 8 },
+  diagnosisRows: { gap: spacing.sm },
   diagnosisRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   diagnosisCondition: {
-    fontSize: 14,
-    color: '#1A1A1A',
+    ...typography.bodyLg,
+    color: colors.ink,
     textTransform: 'capitalize',
     flex: 1,
   },
   levelBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.sm,
   },
-  levelText: { fontSize: 11, fontWeight: '700' },
+  levelText: { ...typography.micro, fontWeight: fontWeight.bold },
   noIndicators: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.sm,
   },
-  noIndicatorsText: { fontSize: 13, color: '#065F46' },
+  noIndicatorsText: { ...typography.body, color: colors.emerald800 },
 
   // AI findings
-  findingsRows: { gap: 8 },
+  findingsRows: { gap: spacing.sm },
   findingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   findingDot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
-    backgroundColor: TEAL,
+    borderRadius: radius.pill,
+    backgroundColor: colors.teal,
   },
-  findingNameBlock: { flex: 1, gap: 3 },
-  findingName: { fontSize: 13, color: '#374151' },
-  findingCount: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
+  findingNameBlock: { flex: 1, gap: spacing.xxs },
+  findingName: { ...typography.body, color: colors.gray700 },
+  findingCount: { ...typography.body, fontWeight: fontWeight.bold, color: colors.ink },
   // Same look as the override badge on the review screen's parameter rows.
   overriddenBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#EDE9FE',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 5,
+    backgroundColor: colors.violet100,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.xs,
   },
-  overriddenBadgeText: { fontSize: 11, fontWeight: '500', color: '#5B21B6' },
+  overriddenBadgeText: { ...typography.micro, fontWeight: fontWeight.medium, color: colors.violet800 },
 
   // Retake + Confirm row
-  resultActions: { gap: 10, marginTop: 4 },
+  resultActions: { gap: spacing.smd, marginTop: spacing.xs },
   retakeBtn: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingVertical: 13,
+    borderColor: colors.gray300,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.mlg,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
-  retakeBtnText: { color: '#374151', fontSize: 15, fontWeight: '600' },
+  retakeBtnText: { ...typography.subtitle, fontWeight: fontWeight.semibold, color: colors.gray700 },
   confirmBtn: {
-    backgroundColor: TEAL,
-    borderRadius: 12,
-    paddingVertical: 14,
+    backgroundColor: colors.teal,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.mlg,
     alignItems: 'center',
   },
-  confirmBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  confirmBtnText: { ...typography.subtitle, fontWeight: fontWeight.bold, color: colors.white },
 
   // Shared banner layout
-  bannerTextBlock: { flex: 1, gap: 3 },
+  bannerTextBlock: { flex: 1, gap: spacing.xxs },
 
   // Awaiting supervisor review
   pendingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#EFF6FF',
+    gap: spacing.sm,
+    backgroundColor: colors.blue50,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
+    borderColor: colors.blue200,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.xs,
   },
-  pendingText: { fontSize: 13, color: '#1E40AF', fontWeight: '500', flex: 1 },
+  pendingText: { ...typography.body, fontWeight: fontWeight.medium, color: colors.blue800, flex: 1 },
 
   // Approved by supervisor
   approvedBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: '#ECFDF5',
+    gap: spacing.smd,
+    backgroundColor: colors.emerald50,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
+    borderColor: colors.emerald200,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.xs,
   },
-  approvedTitle: { fontSize: 13, fontWeight: '700', color: '#065F46' },
-  approvedBody: { fontSize: 12, color: '#047857', lineHeight: 17 },
+  approvedTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.emerald800 },
+  approvedBody: { ...typography.caption, color: colors.emerald700, lineHeight: 17 },
 
   // Released to patient
   releasedBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: '#F0FDF4',
+    gap: spacing.smd,
+    backgroundColor: colors.green50,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
+    borderColor: colors.green200,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.xs,
   },
 
   // Returned for correction
   correctionBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: '#FFFBEB',
+    gap: spacing.smd,
+    backgroundColor: colors.amber50,
     borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
-    marginBottom: 10,
+    borderColor: colors.amber200,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.xs,
+    marginBottom: spacing.smd,
   },
-  correctionTitle: { fontSize: 13, fontWeight: '700', color: '#92400E' },
-  correctionBody: { fontSize: 12, color: '#B45309', lineHeight: 17 },
+  correctionTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.amber800 },
+  correctionBody: { ...typography.caption, color: colors.amber700, lineHeight: 17 },
 
   // Escalated by the supervisor
   escalatedBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: '#FEF2F2',
+    gap: spacing.smd,
+    backgroundColor: colors.red50,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
+    borderColor: colors.red200,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.xs,
   },
-  escalatedTitle: { fontSize: 13, fontWeight: '700', color: '#B91C1C' },
-  escalatedBody: { fontSize: 12, color: '#991B1B', lineHeight: 17 },
+  escalatedTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.red700 },
+  escalatedBody: { ...typography.caption, color: colors.red800, lineHeight: 17 },
 
   // Specimen rejected, result left behind
   rejectedResultBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: '#FEF2F2',
+    gap: spacing.smd,
+    backgroundColor: colors.red50,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
+    borderColor: colors.red200,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.xs,
   },
-  rejectedResultTitle: { fontSize: 13, fontWeight: '700', color: '#B91C1C' },
-  rejectedResultBody: { fontSize: 12, color: '#991B1B', lineHeight: 17 },
+  rejectedResultTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.red700 },
+  rejectedResultBody: { ...typography.caption, color: colors.red800, lineHeight: 17 },
 
   // Action buttons
-  actions: { gap: 10, marginTop: 4 },
+  actions: { gap: spacing.smd, marginTop: spacing.xs },
   actionBtn: {
-    borderRadius: 12,
-    paddingVertical: 15,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.mlg,
     alignItems: 'center',
     borderWidth: 1,
   },
-  actionBtnPrimary: { backgroundColor: TEAL, borderColor: TEAL },
-  actionBtnPrimaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  actionBtnDanger: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
-  actionBtnDangerText: { color: '#B91C1C', fontSize: 16, fontWeight: '600' },
+  actionBtnPrimary: { backgroundColor: colors.teal, borderColor: colors.teal },
+  actionBtnPrimaryText: { ...typography.title, color: colors.white },
+  actionBtnDanger: { backgroundColor: colors.red50, borderColor: colors.red200 },
+  actionBtnDangerText: { ...typography.title, color: colors.red700 },
 
   // Rejection card
   rejectionCard: {
-    backgroundColor: '#FEF2F2',
-    borderRadius: 14,
+    backgroundColor: colors.red50,
+    borderRadius: radius.xl,
     borderWidth: 0.5,
-    borderColor: '#FECACA',
-    padding: 16,
-    marginBottom: 12,
+    borderColor: colors.red200,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
   },
   rejectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   rejectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#B91C1C',
+    ...typography.label,
+    color: colors.red700,
   },
 
   // Not found
-  notFoundText: { fontSize: 17, color: '#5F5E5A', marginBottom: 16 },
+  notFoundText: { fontSize: 17, color: colors.warmGray600, marginBottom: spacing.lg },
   backBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#185FA5',
-    borderRadius: 8,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.smd,
+    backgroundColor: colors.blueAlt,
+    borderRadius: radius.sm,
   },
-  backBtnText: { color: '#FFFFFF', fontWeight: '500' },
+  backBtnText: { color: colors.white, fontWeight: fontWeight.medium },
 });

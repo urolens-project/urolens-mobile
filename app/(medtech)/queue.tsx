@@ -1,37 +1,39 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Animated, View, FlatList, RefreshControl, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
+
 import { useAuthStore } from '@lib/auth/authStore';
-import { DropReveal, useReduceMotion } from '@components/DropReveal';
-import { RiseIn } from '@components/RiseIn';
-import { useQueue } from '../../src/features/queue/hooks/useQueue';
-import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { useSyncStatus } from '@hooks/useSyncStatus';
 import { formatClinicToday } from '@lib/dateTime';
-import { QUEUE_STATUS_STYLES } from '../../src/features/queue/constants';
-import { getQueueStatus } from '../../src/features/queue/status';
-import { getSyncPill } from '../../src/features/queue/syncPill';
+import { colors, spacing } from '@src/theme';
+
+import { DropReveal, useReduceMotion } from '@components/DropReveal';
+import { RiseIn } from '@components/RiseIn';
+
+import { useQueue } from '@features/queue/hooks/useQueue';
+import { QUEUE_STATUS_STYLES } from '@features/queue/constants';
+import { getQueueStatus } from '@features/queue/status';
+import { getSyncPill } from '@features/queue/syncPill';
 import {
   ITEM_GAP,
   ITEM_STRIDE,
   getStickyRest,
   getWheelRange,
   rollAwayStyle,
-} from '../../src/features/queue/scrollEffects';
-import { QueueActionBar } from '../../src/features/queue/components/QueueActionBar';
-import { getSampleActions } from '../../src/features/queue/lib/sampleState';
-import { QueueEmptyState } from '../../src/features/queue/components/QueueEmptyState';
-import { QueueFilterBar } from '../../src/features/queue/components/QueueFilterBar';
-import { QueueHeader } from '../../src/features/queue/components/QueueHeader';
-import { QueueItemCard } from '../../src/features/queue/components/QueueItemCard';
-import { QueueStatsCard } from '../../src/features/queue/components/QueueStatsCard';
-import { StickyFilters } from '../../src/features/queue/components/StickyFilters';
-import { SyncStatusPill } from '../../src/features/queue/components/SyncStatusPill';
-import type { QueueItem } from '../../src/features/queue/types';
-
-const TEAL = '#2E7D7A';
+} from '@features/queue/scrollEffects';
+import { QueueActionBar } from '@features/queue/components/QueueActionBar';
+import { getSampleActions } from '@features/queue/lib/sampleState';
+import { QueueEmptyState } from '@features/queue/components/QueueEmptyState';
+import { QueueFilterBar } from '@features/queue/components/QueueFilterBar';
+import { QueueHeader } from '@features/queue/components/QueueHeader';
+import { QueueItemCard } from '@features/queue/components/QueueItemCard';
+import { QueueStatsCard } from '@features/queue/components/QueueStatsCard';
+import { StickyFilters } from '@features/queue/components/StickyFilters';
+import { SyncStatusPill } from '@features/queue/components/SyncStatusPill';
+import type { QueueItem } from '@features/queue/types';
 
 // Number of rows that get the drop-in entrance; anything further down is just shown,
 // so scrolling a long list never re-triggers animation.
@@ -50,6 +52,10 @@ const FILTERS_BOTTOM_SPACE = 6;
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as unknown as typeof FlatList;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+/**
+ * @description Formats a last-sync epoch timestamp as a short relative label.
+ * @param lastSyncAt - Epoch ms of the last successful sync, or null if never synced.
+ */
 function formatLastSync(lastSyncAt: number | null): string {
   if (!lastSyncAt) return 'Not yet synced';
   const diffMin = Math.floor((Date.now() - lastSyncAt) / 60000);
@@ -60,12 +66,16 @@ function formatLastSync(lastSyncAt: number | null): string {
   return `${Math.floor(diffHr / 24)}d ago`;
 }
 
-function ItemSeparator() {
+function ItemSeparator(): React.JSX.Element {
   return <View style={styles.separator} />;
 }
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
-export default function QueueScreen() {
+/**
+ * @description Queue tab: the medtech's assigned/in-progress/returned specimen list,
+ * with sticky filters, sync status, and a bottom action bar for the selected item.
+ */
+export default function QueueScreen(): React.JSX.Element {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isOnline } = useNetworkStatus();
@@ -181,23 +191,23 @@ export default function QueueScreen() {
       ).canReject
     : true;
 
-  const handleItemPress = useCallback((id: string) => {
+  const handleItemPress = useCallback((id: string): void => {
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
 
   // Opens the sample detail. The sample only becomes In Progress once the
   // MedTech taps "Begin Analysis" there (see features/queue/lib/startAnalysis).
-  function handleProceed() {
+  const handleProceed = useCallback((): void => {
     if (!selectedItem) return;
     router.push({
       pathname: '/(medtech)/sample/[id]',
       params: { id: selectedItem.id },
     });
-  }
+  }, [router, selectedItem]);
 
-  function handleReject() {
+  const handleReject = useCallback((): void => {
     if (selectedItem) router.push(`/(medtech)/sample/reject/${selectedItem.id}`);
-  }
+  }, [router, selectedItem]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
@@ -230,7 +240,7 @@ export default function QueueScreen() {
                   index={index}
                   playKey={playKey}
                   reduceMotion={reduceMotion || index >= ANIMATED_ROWS}
-                  accent={status ? QUEUE_STATUS_STYLES[status].color : TEAL}
+                  accent={status ? QUEUE_STATUS_STYLES[status].color : colors.teal}
                   radius={CARD_RADIUS}
                   staggerMs={ROW_STAGGER_MS}
                 >
@@ -251,7 +261,7 @@ export default function QueueScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={refresh}
-              tintColor={TEAL}
+              tintColor={colors.teal}
               enabled={isOnline}
             />
           }
@@ -324,14 +334,14 @@ export default function QueueScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.gray100,
   },
   // Holds the list and the filters laid over it.
   listArea: {
     flex: 1,
   },
   list: {
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
     paddingTop: LIST_PADDING_TOP,
     paddingBottom: 140,
   },
@@ -342,7 +352,7 @@ const styles = StyleSheet.create({
     gap: BLOCK_GAP,
   },
   pillRow: {
-    paddingHorizontal: 2,
+    paddingHorizontal: spacing.xxs,
   },
   separator: {
     height: ITEM_GAP,

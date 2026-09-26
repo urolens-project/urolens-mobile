@@ -1,6 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { tokenStorage } from '@lib/auth/tokenStorage';
-import { useAuthStore } from '@lib/auth/authStore';
+import { authStoreApi } from '@lib/auth/authStore';
 import { router } from 'expo-router';
 import { ApiError } from '@app-types/domain';
 
@@ -15,7 +15,7 @@ export const apiClient = axios.create({
   },
 });
 
-// Errors with no server response: distinguish a timeout from being unreachable.
+/** @description Errors with no server response: distinguish a timeout from being unreachable. */
 function describeTransportError(error: AxiosError): ApiError {
   if (!error.response) {
     if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
@@ -38,17 +38,17 @@ apiClient.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error),
+  (error: unknown): Promise<never> => Promise.reject(error),
 );
 
 // Handle 401 — clear auth and redirect to login
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError) => {
+  async (error: AxiosError): Promise<never> => {
     const isLoginRequest = error.config?.url?.includes('/auth/login');
     if (error.response?.status === 401 && !isLoginRequest) {
       await tokenStorage.clearAll();
-      useAuthStore.getState().clearAuth();
+      authStoreApi.clearAuth();
       router.replace('/(auth)/login');
     }
     const data = error.response?.data as { error?: ApiError } | undefined;

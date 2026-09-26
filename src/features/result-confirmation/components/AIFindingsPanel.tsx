@@ -1,22 +1,32 @@
-// Path: urolens-mobile/src/features/result-confirmation/components/AIFindingsPanel.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 import { Q } from '@nozbe/watermelondb';
 import { useDatabase } from '@nozbe/watermelondb/hooks';
 import ManualOverride from '@db/models/ManualOverride';
+import { colors, radius, spacing } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
 import { ParameterRow } from './ParameterRow';
 import type { AIFindingEntry } from '../types';
 
-const TEAL = '#2E7D7A';
-
-interface AIFindingsPanelProps {
-  resultId: string;           // server_id of the AnalysisResult
+export interface AIFindingsPanelProps {
+  /** server_id of the AnalysisResult. */
+  resultId: string;
   findings: AIFindingEntry[];
   onOverride: (parameter: string, originalValue: number) => void;
   isConfirmed: boolean;
 }
 
+/**
+ * @description Card listing every AI-detected particle for a result, with a live count
+ * of MedTech-overridden parameters from the local `manual_overrides` table.
+ * @param resultId - Server id of the analysis result these findings belong to.
+ * @param findings - AI findings to render as rows.
+ * @param onOverride - Called with a parameter name and its original AI count.
+ * @param isConfirmed - Hides override controls once the result is confirmed.
+ */
 function AIFindingsPanelComponent({
   resultId,
   findings,
@@ -49,7 +59,7 @@ function AIFindingsPanelComponent({
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="eye-outline" size={16} color={TEAL} />
+          <Icon name="eye-outline" size={16} color={colors.teal} />
           <Text style={styles.title}>AI Findings</Text>
         </View>
         {anomalousCount > 0 && (
@@ -63,7 +73,7 @@ function AIFindingsPanelComponent({
 
       {findings.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="flask-outline" size={32} color="#C9C7C1" />
+          <Icon name="flask-outline" size={32} color={colors.warmGray200} />
           <Text style={styles.emptyTitle}>No particles detected</Text>
           <Text style={styles.emptyBody}>AI analysis returned no findings for this image.</Text>
         </View>
@@ -86,61 +96,63 @@ function AIFindingsPanelComponent({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
     borderWidth: 0.5,
+    // TODO(theme): near-black hairline at 0.1 alpha not in palette.
     borderColor: 'rgba(0,0,0,0.1)',
-    marginHorizontal: 16,
-    marginTop: 12,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
     overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.mlg,
     borderBottomWidth: 0.5,
+    // TODO(theme): near-black hairline at 0.08 alpha not in palette.
     borderBottomColor: 'rgba(0,0,0,0.08)',
-    backgroundColor: '#F7F6F3',
+    backgroundColor: colors.cream,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: colors.ink,
   },
   anomalousPill: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
+    backgroundColor: colors.amber100,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderRadius: 10,
   },
   anomalousPillText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#92400E',
+    color: colors.amber800,
   },
   list: {},
   empty: {
     alignItems: 'center',
     paddingVertical: 28,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
     gap: 6,
   },
   emptyTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#888780',
-    marginTop: 4,
+    color: colors.warmGray500,
+    marginTop: spacing.xs,
   },
   emptyBody: {
     fontSize: 13,
-    color: '#C9C7C1',
+    color: colors.warmGray200,
     textAlign: 'center',
     lineHeight: 18,
   },
