@@ -28,7 +28,7 @@ function notificationIcon(type: string): ComponentProps<typeof Ionicons>['name']
 }
 
 /**
- * @description Formats an ISO timestamp as a short relative time, e.g. "5m ago".
+ * @description Formats an ISO timestamp as a short relative time, e.g. "5m ago". 
  * @param iso - ISO 8601 timestamp string.
  */
 function formatTime(iso: string): string {
