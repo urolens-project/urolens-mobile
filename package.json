@@ -7,6 +7,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "ios:device": "bash scripts/run-ios-device.sh",
+    "ios:device:release": "CONFIGURATION=Release bash scripts/run-ios-device.sh",
     "test": "jest --watchAll=false",
     "test:ci": "jest --watchAll=false --coverage",
     "test:coverage": "jest --watchAll=false --coverage",
