@@ -20,8 +20,8 @@ Notifications.setNotificationHandler({
 });
 
 /**
- * Requests notification permission and registers the Expo push token with the
- * backend. Silently skips on iOS free-account / simulator (APNs not available).
+ * @description Requests notification permission and registers the Expo push token
+ * with the backend. Silently skips on iOS free-account / simulator (APNs unavailable).
  */
 export async function registerForPushNotifications(): Promise<void> {
   if (Platform.OS === 'android') {
@@ -63,14 +63,14 @@ export async function registerForPushNotifications(): Promise<void> {
 }
 
 /**
- * `sample/[id]`'s route param is the local WatermelonDB row id, but a
- * notification's `entity_id` is a server id (the backend has no concept of
- * a device's local ids) — resolve the local record first, then navigate.
- * Used for both push-notification taps and taps in the Alerts list.
- *
- * `entity_id` may be the specimen's server id or the analysis result's — the
- * two kinds of notification the backend sends use one each — so a result id is
- * followed to its specimen. Falls back to the Queue when nothing matches.
+ * @description `sample/[id]`'s route param is the local WatermelonDB row id, but a
+ * notification's `entity_id` is a server id (the backend has no concept of a device's
+ * local ids) — resolves the local record first, then navigates. Used for both
+ * push-notification taps and taps in the Alerts list. `entity_id` may be the
+ * specimen's server id or the analysis result's — the two kinds of notification the
+ * backend sends use one each — so a result id is followed to its specimen. Falls back
+ * to the Queue when nothing matches.
+ * @param serverId - Server id from the notification payload's `entity_id`.
  */
 export async function navigateToSpecimenByServerId(serverId: string | undefined): Promise<void> {
   if (!serverId) {
@@ -101,11 +101,10 @@ export async function navigateToSpecimenByServerId(serverId: string | undefined)
 }
 
 /**
- * Attaches notification listeners to the app.
- * Returns a cleanup function — call it in the layout useEffect cleanup.
- *
- * Received listener  → triggers a sync so local DB stays current.
- * Response listener  → navigates to the correct screen on tap.
+ * @description Attaches notification listeners to the app: the received listener
+ * triggers a sync so the local DB stays current, and the response listener navigates
+ * to the correct screen on tap. Returns a cleanup function — call it in the layout
+ * useEffect cleanup.
  */
 export function registerNotificationListeners(): () => void {
   const receivedSub = Notifications.addNotificationReceivedListener(() => {

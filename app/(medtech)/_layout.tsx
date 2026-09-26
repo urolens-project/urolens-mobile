@@ -1,20 +1,26 @@
-import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, View, Text } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AppState, AppStateStatus, View, Text, StyleSheet } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
-import NetInfo from '@react-native-community/netinfo';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import NetInfo from '@react-native-community/netinfo';
 import { useAuthStore } from '@lib/auth/authStore';
 import { UserRole } from '@app-types/enums';
-import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
 import { synchronize } from '@db/sync/syncManager';
 import {
   registerForPushNotifications,
   registerNotificationListeners,
 } from '@lib/notifications/notificationHandler';
+import { colors, radius } from '@src/theme';
 
-const TEAL = '#2E7D7A';
+import { Icon } from '@components/Icon';
 
+import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
+
+/**
+ * @description Initials shown on the profile tab avatar, e.g. "Jane Doe" -> "JD".
+ * @param username - Signed-in user's display name, if known.
+ */
 function getInitials(username: string | null): string {
   if (!username) return '?';
   const parts = username.split(/[\s._-]+/).filter(Boolean);
@@ -22,33 +28,27 @@ function getInitials(username: string | null): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function TabProfileAvatar({ focused }: { focused: boolean }) {
+interface TabProfileAvatarProps {
+  focused: boolean;
+}
+
+function TabProfileAvatar({ focused }: TabProfileAvatarProps): React.JSX.Element {
   const { username } = useAuthStore();
   return (
-    <View
-      style={{
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        backgroundColor: focused ? TEAL : '#E5E7EB',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
-    >
-      <Text
-        style={{
-          fontSize: 10,
-          fontWeight: '700',
-          color: focused ? '#FFFFFF' : '#6B7280',
-        }}
-      >
+    <View style={[avatarStyles.container, focused && avatarStyles.containerActive]}>
+      <Text style={[avatarStyles.initials, focused && avatarStyles.initialsActive]}>
         {getInitials(username)}
       </Text>
     </View>
   );
 }
 
-export default function MedTechLayout() {
+/**
+ * @description Layout for the (medtech) tab group. Redirects unauthenticated or
+ * non-medtech sessions to login, keeps the local DB synced while active, and renders
+ * the bottom tab bar (detail routes are hidden tabs reachable via push navigation).
+ */
+export default function MedTechLayout(): React.JSX.Element {
   const { isAuthenticated, role } = useAuthStore();
   const wasConnected = useRef<boolean | null>(null);
   const insets = useSafeAreaInsets();
@@ -93,11 +93,11 @@ export default function MedTechLayout() {
         backBehavior="history"
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: TEAL,
-          tabBarInactiveTintColor: '#9CA3AF',
+          tabBarActiveTintColor: colors.teal,
+          tabBarInactiveTintColor: colors.gray400,
           tabBarStyle: {
-            backgroundColor: '#FFFFFF',
-            borderTopColor: '#E5E7EB',
+            backgroundColor: colors.white,
+            borderTopColor: colors.gray200,
             borderTopWidth: 1,
             height: 56 + insets.bottom,
             paddingBottom: insets.bottom + 8,
@@ -113,7 +113,7 @@ export default function MedTechLayout() {
           name="queue"
           options={{
             title: 'Queue',
-            tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
+            tabBarIcon: ({ color, size }) => <Icon name="list" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -121,7 +121,7 @@ export default function MedTechLayout() {
           options={{
             title: 'Reports',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="document-text-outline" size={size} color={color} />
+              <Icon name="document-text-outline" size={size} color={color} />
             ),
           }}
         />
@@ -130,7 +130,7 @@ export default function MedTechLayout() {
           options={{
             title: 'Alerts',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="notifications-outline" size={size} color={color} />
+              <Icon name="notifications-outline" size={size} color={color} />
             ),
           }}
         />
@@ -161,3 +161,17 @@ export default function MedTechLayout() {
     </>
   );
 }
+
+const avatarStyles = StyleSheet.create({
+  container: {
+    width: 26,
+    height: 26,
+    borderRadius: radius.pill,
+    backgroundColor: colors.gray200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  containerActive: { backgroundColor: colors.teal },
+  initials: { fontSize: 10, fontWeight: '700', color: colors.gray500 },
+  initialsActive: { color: colors.white },
+});

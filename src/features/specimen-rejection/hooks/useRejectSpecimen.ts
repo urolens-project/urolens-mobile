@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
 import PendingSync from '@db/models/PendingSync';
 import apiClient from '@lib/apiClient';
 import { getErrorMessage } from '@lib/errorMessage';
-import { RejectionReason, PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
+import { PendingSyncAction, PendingSyncStatus, RejectionReason } from '@app-types/enums';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 // What a reject attempt came to. The failure message is returned rather than only
@@ -12,10 +13,23 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 // value from the render that created its handler — never this attempt's.
 export type RejectResult = { status: 'rejected' } | { status: 'failed'; message: string };
 
-export function useRejectSpecimen(specimenId: string) {
+export interface UseRejectSpecimenResult {
+  reject: (reason: RejectionReason, note?: string) => Promise<RejectResult>;
+  isLoading: boolean;
+  error: string | null;
+}
+
+/**
+ * @description Rejects a specimen: posts to the server when online, or queues the
+ * rejection for the next sync when offline, and marks the specimen REJECTED locally
+ * either way so the Queue reflects it immediately.
+ * @param specimenId - Local WatermelonDB id of the specimen to reject.
+ */
+export function useRejectSpecimen(specimenId: string): UseRejectSpecimenResult {
+  const { isOnline } = useNetworkStatus();
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isOnline } = useNetworkStatus();
 
   const reject = useCallback(
     async (reason: RejectionReason, note?: string): Promise<RejectResult> => {

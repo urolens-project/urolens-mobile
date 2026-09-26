@@ -31,11 +31,13 @@ const SUBMITTED_RESULT_STATUSES: readonly ResultState[] = [
 ];
 
 /**
- * Why a specimen can't be rejected right now, in words fit to show the MedTech — or
- * null when it can. This is the one rule for Reject; it mirrors the server
+ * @description Why a specimen can't be rejected right now, in words fit to show the
+ * MedTech — or null when it can. This is the one rule for Reject; it mirrors the server
  * (specimen_service.rejectSpecimen), so the app never offers what the API refuses.
  * Reject is only for a specimen still in the MedTech's hands: no result yet, or a
  * result awaiting their own confirmation.
+ * @param specimenStatus - The specimen's current status.
+ * @param resultStatus - The specimen's latest analysis result status, if any.
  */
 export function getRejectBlockedReason(
   specimenStatus: SpecimenStatus,
@@ -54,13 +56,15 @@ export function getRejectBlockedReason(
 }
 
 /**
- * Which actions the Sample Detail screen offers for a specimen. Every rule here
- * mirrors a server guard, so the screen never offers something the API will refuse:
+ * @description Which actions the Sample Detail screen offers for a specimen. Every rule
+ * here mirrors a server guard, so the screen never offers something the API will refuse:
  *
  *  - A rejected specimen is closed: nothing can be done with it, and its result
  *    must never be confirmed or sent on to the Supervisor.
  *  - Reject follows getRejectBlockedReason.
  *  - Begin Analysis is only for a specimen with no result yet.
+ * @param specimenStatus - The specimen's current status.
+ * @param resultStatus - The specimen's latest analysis result status, if any.
  */
 export function getSampleActions(
   specimenStatus: SpecimenStatus,
@@ -99,9 +103,11 @@ const SPECIMEN_STATUS_LABELS: Partial<Record<SpecimenStatus, string>> = {
 };
 
 /**
- * The one status line shown on Sample Detail, in the same words the Queue uses.
- * A rejected specimen wins, then whatever stage the result has reached, then the
+ * @description The one status line shown on Sample Detail, in the same words the Queue
+ * uses. A rejected specimen wins, then whatever stage the result has reached, then the
  * specimen's own status.
+ * @param specimenStatus - The specimen's current status.
+ * @param resultStatus - The specimen's latest analysis result status, if any.
  */
 export function getSampleStatusLabel(
   specimenStatus: SpecimenStatus,

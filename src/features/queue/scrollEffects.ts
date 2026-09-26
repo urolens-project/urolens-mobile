@@ -16,15 +16,17 @@ export interface ScrollRange {
 }
 
 /**
- * The scroll positions between which a row rolls away under the pinned filters, like a
- * wheel turning it out of sight.
+ * @description The scroll positions between which a row rolls away under the pinned
+ * filters, like a wheel turning it out of sight.
  *
  * A row's on-screen top is `rowTop - scrollY`. It starts rolling when that reaches
  * `pinBottom + zone` (still fully visible, just above the filters) and is completely
  * behind them once its bottom edge reaches `pinBottom`.
  *
- * @param rowTop     the row's top in scroll-content coordinates
- * @param pinBottom  the bottom edge of the pinned filters, in the list's own coordinates
+ * @param rowTop - The row's top in scroll-content coordinates.
+ * @param pinBottom - The bottom edge of the pinned filters, in the list's own coordinates.
+ * @param rowHeight - Row height; defaults to ITEM_HEIGHT.
+ * @param zone - How far above the pin a row starts rolling; defaults to WHEEL_ZONE.
  */
 export function getWheelRange(
   rowTop: number,
@@ -39,9 +41,12 @@ export function getWheelRange(
 }
 
 /**
- * Where the filters sit before any scrolling, in the list's own coordinates: below the
- * list's top padding and the block that scrolls away above them. Scrolling this far is
- * exactly when they reach the top and pin.
+ * @description Where the filters sit before any scrolling, in the list's own
+ * coordinates: below the list's top padding and the block that scrolls away above them.
+ * Scrolling this far is exactly when they reach the top and pin.
+ * @param listPaddingTop - The list's top content padding.
+ * @param topBlockHeight - Height of the block that scrolls away above the filters.
+ * @param gap - Gap between that block and the filters.
  */
 export function getStickyRest(listPaddingTop: number, topBlockHeight: number, gap: number): number {
   return listPaddingTop + topBlockHeight + gap;
@@ -53,12 +58,23 @@ function safeRange({ start, end }: ScrollRange): number[] {
   return [start, Math.max(end, start + 1)];
 }
 
+export interface RollAwayStyle {
+  opacity: Animated.AnimatedInterpolation<number>;
+  transform: (
+    | { perspective: number }
+    | { rotateX: Animated.AnimatedInterpolation<string> }
+    | { scale: Animated.AnimatedInterpolation<number> }
+  )[];
+}
+
 /**
- * The look of something rolling away over `range`: it tilts back like the top of a wheel
- * turning away, shrinks a little and fades. Driven by the scroll position, so it follows
- * the finger exactly and runs on the native thread.
+ * @description The look of something rolling away over `range`: it tilts back like the
+ * top of a wheel turning away, shrinks a little and fades. Driven by the scroll
+ * position, so it follows the finger exactly and runs on the native thread.
+ * @param scrollY - The list's scroll position.
+ * @param range - The scroll range to animate over, from getWheelRange.
  */
-export function rollAwayStyle(scrollY: Animated.Value, range: ScrollRange) {
+export function rollAwayStyle(scrollY: Animated.Value, range: ScrollRange): RollAwayStyle {
   const inputRange = safeRange(range);
   return {
     opacity: scrollY.interpolate({ inputRange, outputRange: [1, 0.2], extrapolate: 'clamp' }),

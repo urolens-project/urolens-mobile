@@ -11,15 +11,22 @@ export interface FindingRow {
   isOverridden: boolean;
 }
 
+/**
+ * @description Converts a raw particle key (e.g. `epithelial_cells`) into a display
+ * name (e.g. `Epithelial Cells`).
+ * @param key - Raw particle key from the AI findings map.
+ */
 export function formatParticleName(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**
- * The rows for the AI Findings list. The AI engine only reports classes it
- * detected, so a class with a zero count is hidden — unless the MedTech set it
- * to zero themselves: that is a correction (usually a false positive removed)
- * and has to stay visible, marked as an override, not silently disappear.
+ * @description Builds the rows for the AI Findings list. The AI engine only reports
+ * classes it detected, so a class with a zero count is hidden — unless the MedTech set
+ * it to zero themselves: that is a correction (usually a false positive removed) and
+ * has to stay visible, marked as an override, not silently disappear.
+ * @param aiFindings - Raw particle counts as reported by the AI engine.
+ * @param overrides - MedTech corrections, keyed the same way as `aiFindings`.
  */
 export function buildFindingRows(
   aiFindings: Record<string, number>,

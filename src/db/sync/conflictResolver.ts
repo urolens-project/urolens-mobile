@@ -16,6 +16,10 @@ export interface ConflictContext {
   localRecord: Record<string, unknown>;
 }
 
+/**
+ * @description Decides which side wins for one conflicting field, per the rules above.
+ * @param ctx - Table/column/values involved in the conflict.
+ */
 export function resolveConflict(ctx: ConflictContext): ConflictStrategy {
   // Rule 1: status is always authoritative on the server
   if (ctx.column === 'status') {
@@ -35,6 +39,12 @@ export function resolveConflict(ctx: ConflictContext): ConflictStrategy {
   return 'SERVER_WINS';
 }
 
+/**
+ * @description Picks the winning value for a resolved conflict.
+ * @param strategy - Outcome of `resolveConflict`.
+ * @param serverValue - Value from the server.
+ * @param clientValue - Value from the local record.
+ */
 export function applyResolution(
   strategy: ConflictStrategy,
   serverValue: unknown,

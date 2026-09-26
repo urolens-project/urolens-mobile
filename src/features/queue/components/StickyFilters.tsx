@@ -2,20 +2,30 @@ import React from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 
-interface Props {
+import { colors, spacing } from '@src/theme';
+
+export interface StickyFiltersProps {
   scrollY: Animated.Value;
-  // Where the filters rest before any scrolling (list coordinates). Scrolling this far is
-  // when they reach the top; from then on they stay put while the list moves under them.
+  /**
+   * Where the filters rest before any scrolling (list coordinates). Scrolling this far is
+   * when they reach the top; from then on they stay put while the list moves under them.
+   */
   restY: number;
-  // Reports the bar's height (it grows when a filter row opens) so the list can leave room.
+  /** Reports the bar's height (it grows when a filter row opens) so the list can leave room. */
   onHeight: (height: number) => void;
   children: React.ReactNode;
 }
 
-// The filter bar, pinned. It's laid over the list rather than inside it, and follows the
-// scroll up until it reaches the top, then holds there — the rows roll away underneath.
-// Opaque, so nothing shows through it.
-export function StickyFilters({ scrollY, restY, onHeight, children }: Props) {
+/**
+ * @description The filter bar, pinned. It's laid over the list rather than inside it, and
+ * follows the scroll up until it reaches the top, then holds there — the rows roll away
+ * underneath. Opaque, so nothing shows through it.
+ * @param scrollY - The list's scroll position.
+ * @param restY - Where the bar rests before scrolling.
+ * @param onHeight - Called with the bar's measured height.
+ * @param children - The filter chips to render inside the pinned bar.
+ */
+export function StickyFilters({ scrollY, restY, onHeight, children }: StickyFiltersProps): React.JSX.Element {
   const rest = Math.max(restY, 1);
 
   // Follows the list on the way up (and when pulled down past the top); clamps once pinned.
@@ -52,10 +62,10 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
     elevation: 10,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.gray100,
   },
   inner: {
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
   },
   edge: {
     position: 'absolute',
@@ -64,7 +74,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: 1,
     backgroundColor: 'rgba(31,41,55,0.08)',
-    shadowColor: '#1F2937',
+    shadowColor: colors.gray800,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 6,

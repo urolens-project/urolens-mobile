@@ -1,17 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
 import { formatShortDateTime } from '@lib/dateTime';
+
 import { QUEUE_STATUS_STYLES } from '../constants';
 import { getQueueStatus } from '../status';
 import type { QueueItem } from '../types';
 
-interface Props {
-  // The selected sample, or null when nothing is selected.
+export interface QueueActionBarProps {
+  /** The selected sample, or null when nothing is selected. */
   item: QueueItem | null;
   proceedLabel: string;
-  // False once the result has left the MedTech's hands (e.g. a Supervisor returned it):
-  // the specimen can't be rejected any more, so the button isn't offered.
+  /**
+   * False once the result has left the MedTech's hands (e.g. a Supervisor returned it):
+   * the specimen can't be rejected any more, so the button isn't offered.
+   */
   canReject?: boolean;
   onReject: () => void;
   onProceed: () => void;
@@ -20,9 +26,17 @@ interface Props {
 
 const SLIDE_DISTANCE = 190;
 
-// The bar for the selected sample: it slides up when a sample is picked and back down
-// when it's cleared. While it slides away it keeps showing the sample it was for, so
-// the content doesn't vanish before the bar does.
+/**
+ * @description The bar for the selected sample: it slides up when a sample is picked and
+ * back down when it's cleared. While it slides away it keeps showing the sample it was
+ * for, so the content doesn't vanish before the bar does.
+ * @param item - The selected sample, or null.
+ * @param proceedLabel - Label for the primary action button.
+ * @param canReject - Whether the Reject button is offered.
+ * @param onReject - Called when Reject is pressed.
+ * @param onProceed - Called when the primary action is pressed.
+ * @param reduceMotion - Skips the slide animation.
+ */
 export function QueueActionBar({
   item,
   proceedLabel,
@@ -30,7 +44,7 @@ export function QueueActionBar({
   onReject,
   onProceed,
   reduceMotion,
-}: Props) {
+}: QueueActionBarProps): React.JSX.Element | null {
   const [lastItem, setLastItem] = useState<QueueItem | null>(item);
   const slide = useRef(new Animated.Value(item ? 1 : 0)).current;
 
@@ -66,8 +80,8 @@ export function QueueActionBar({
   if (!shown) return null;
 
   const status = getQueueStatus(shown);
-  const accent = status ? QUEUE_STATUS_STYLES[status].color : '#2E7D7A';
-  const tint = status ? QUEUE_STATUS_STYLES[status].tint : '#E0F2F1';
+  const accent = status ? QUEUE_STATUS_STYLES[status].color : colors.teal;
+  const tint = status ? QUEUE_STATUS_STYLES[status].tint : colors.tealTint;
 
   const barStyle = {
     opacity: slide.interpolate({ inputRange: [0, 0.6], outputRange: [0, 1], extrapolate: 'clamp' }),
@@ -82,7 +96,7 @@ export function QueueActionBar({
 
       <View style={styles.info}>
         <View style={[styles.infoIcon, { backgroundColor: tint }]}>
-          <Ionicons name="water" size={18} color={accent} />
+          <Icon name="water" size={18} color={accent} />
         </View>
         <View style={styles.infoText}>
           <Text style={styles.title} numberOfLines={1}>
@@ -102,7 +116,7 @@ export function QueueActionBar({
         )}
         <TouchableOpacity style={styles.proceedBtn} onPress={onProceed} activeOpacity={0.85}>
           <Text style={styles.proceedText}>{proceedLabel}</Text>
-          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+          <Icon name="arrow-forward" size={18} color={colors.white} />
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -115,13 +129,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: 18,
-    paddingTop: 8,
+    paddingHorizontal: 18, // TODO(theme): between spacing.lg(16)/xl(20); left exact.
+    paddingTop: spacing.sm,
     paddingBottom: Platform.OS === 'ios' ? 28 : 18,
-    shadowColor: '#1F2937',
+    shadowColor: colors.gray800,
     shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.12,
     shadowRadius: 14,
@@ -131,20 +145,20 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 38,
     height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E5E7EB',
-    marginBottom: 12,
+    borderRadius: 2, // TODO(theme): sub-4px decorative radius, no token this small.
+    backgroundColor: colors.gray200,
+    marginBottom: spacing.md,
   },
   info: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 14,
+    gap: spacing.md,
+    marginBottom: spacing.mlg,
   },
   infoIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 20, // Half of width/height above — computed circle radius.
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -152,52 +166,52 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
+    ...typography.subtitle,
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
   },
   sub: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
+    ...typography.body,
+    color: colors.gray500,
+    marginTop: spacing.xxs,
   },
   buttons: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.smd,
   },
   rejectBtn: {
     flex: 1,
     height: 48,
-    borderRadius: 24,
+    borderRadius: radius.xxxl,
     borderWidth: 1.5,
-    borderColor: '#DC2626',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.red600,
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
   rejectText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#DC2626',
+    ...typography.subtitle,
+    fontWeight: fontWeight.bold,
+    color: colors.red600,
   },
   proceedBtn: {
     flex: 2,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: '#2E7D7A',
+    borderRadius: radius.xxxl,
+    backgroundColor: colors.teal,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    shadowColor: '#2E7D7A',
+    gap: spacing.sm,
+    shadowColor: colors.teal,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   proceedText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    ...typography.subtitle,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
   },
 });
