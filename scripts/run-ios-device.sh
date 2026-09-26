@@ -4,11 +4,17 @@
 
 set -e
 
-DEVICE_UDID="FF888CF0-B419-50CE-8566-F435BC9E9919"
+DEVICE_UDID="${DEVICE_UDID:-00008140-000435922184801C}"
 BUNDLE_ID="edu.citu.urolens.mobile"
 SCHEME="UroLens"
 WORKSPACE="ios/UroLens.xcworkspace"
-CONFIGURATION="Debug"
+CONFIGURATION="${CONFIGURATION:-Debug}"
+
+# ── 0. Strip push entitlement ──────────────────────────────────────────────────
+# The personal team's provisioning profile has no Push Notifications capability,
+# so signing fails if expo-notifications' aps-environment entitlement is present.
+ENTITLEMENTS="ios/UroLens/UroLens.entitlements"
+/usr/libexec/PlistBuddy -c "Delete :aps-environment" "$ENTITLEMENTS" 2>/dev/null || true
 
 # ── 1. Pod install ─────────────────────────────────────────────────────────────
 echo "▶ Running pod install..."
@@ -29,7 +35,7 @@ xcodebuild \
 
 # ── 3. Locate the built .app ───────────────────────────────────────────────────
 APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "${SCHEME}.app" \
-  -path "*/${CONFIGURATION}-iphoneos/*" 2>/dev/null | head -1)
+  -path "*/Build/Products/${CONFIGURATION}-iphoneos/*" -not -path "*/Index.noindex/*" 2>/dev/null | head -1)
 
 if [ -z "$APP_PATH" ]; then
   echo "❌ Could not find built .app in DerivedData" >&2
@@ -49,4 +55,8 @@ xcrun devicectl device process launch \
   --device "$DEVICE_UDID" \
   "$BUNDLE_ID"
 
-echo "✅ Done — make sure 'npx expo start' is running for the JS bundle."
+if [ "$CONFIGURATION" = "Debug" ]; then
+  echo "✅ Done — make sure 'npx expo start' is running for the JS bundle."
+else
+  echo "✅ Done — $CONFIGURATION build has the JS bundled in; no Metro needed."
+fi
