@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
-interface Props {
+export interface RiseInProps {
   // Wait this long before rising, to stagger a stack of these.
   delay?: number;
   // Changes each time the screen is entered, replaying the entrance.
@@ -13,8 +13,14 @@ interface Props {
   children: React.ReactNode;
 }
 
-// Fades in while springing up a short way. For blocks that aren't list rows (rows
-// use DropReveal); reduced motion shows them in place.
+/**
+ * @description Fades in while springing up a short way. For blocks that aren't list
+ * rows (rows use DropReveal); reduced motion shows them in place.
+ * @param delay - Milliseconds to wait before rising, to stagger a stack of these.
+ * @param playKey - Changes each time the screen is entered, replaying the entrance.
+ * @param reduceMotion - Skips straight to the finished state when true.
+ * @param distance - Pixels risen from, defaults to 18.
+ */
 export function RiseIn({
   delay = 0,
   playKey = 0,
@@ -22,7 +28,7 @@ export function RiseIn({
   distance = 18,
   style,
   children,
-}: Props) {
+}: RiseInProps): React.JSX.Element {
   const rise = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {

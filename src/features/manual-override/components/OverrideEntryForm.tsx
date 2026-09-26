@@ -1,5 +1,5 @@
 // Path: urolens-mobile/src/features/manual-override/components/OverrideEntryForm.tsx
-import React, { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,14 @@ import {
   StyleSheet,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
 import { useManualOverride } from '../hooks/useManualOverride';
 
-const TEAL = '#2E7D7A';
-const BG = '#F7F6F3';
-
-interface OverrideEntryFormProps {
+export interface OverrideEntryFormProps {
   resultId: string;
   specimenId: string;
   parameter: string;
@@ -29,16 +30,26 @@ function formatParameter(raw: string): string {
   return raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * @description Form for a medtech to manually correct one AI-reported parameter value,
+ * preserving the original AI value and requiring a rationale for the correction.
+ * @param resultId - Server id of the analysis result being corrected.
+ * @param specimenId - Local specimen id, used to navigate back to the sample detail screen.
+ * @param parameter - Machine name of the parameter being overridden (e.g. "RBC").
+ * @param originalAiValue - The AI-reported value, shown read-only for reference.
+ */
 export function OverrideEntryForm({
   resultId,
   specimenId,
   parameter,
   originalAiValue,
 }: OverrideEntryFormProps): React.JSX.Element {
+  // 1. Store / service hooks
   const { isSubmitting, error, submitOverride } = useManualOverride();
+
+  // 3. State & derived
   const [correctedValue, setCorrectedValue] = useState('');
   const [rationale, setRationale] = useState('');
-
   const correctedNum = parseFloat(correctedValue);
   const isValid =
     correctedValue.trim().length > 0 &&
@@ -46,7 +57,8 @@ export function OverrideEntryForm({
     correctedNum >= 0 &&
     rationale.trim().length > 0;
 
-  const handleSubmit = async () => {
+  // 6. Handlers
+  const handleSubmit = useCallback(async (): Promise<void> => {
     if (!isValid || isSubmitting) return;
     const success = await submitOverride(resultId, {
       parameter,
@@ -60,14 +72,14 @@ export function OverrideEntryForm({
         params: { id: specimenId, resultId },
       });
     }
-  };
+  }, [isValid, isSubmitting, submitOverride, resultId, parameter, originalAiValue, correctedNum, rationale, specimenId]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback((): void => {
     router.replace({
       pathname: '/(medtech)/sample/[id]',
       params: { id: specimenId, resultId },
     });
-  };
+  }, [specimenId, resultId]);
 
   return (
     <View style={styles.flex}>
@@ -79,7 +91,7 @@ export function OverrideEntryForm({
           accessibilityLabel="Go back to Analysis Result"
           accessibilityRole="button"
         >
-          <Ionicons name="chevron-back" size={26} color={TEAL} />
+          <Icon name="chevron-back" size={26} color={colors.teal} />
         </TouchableOpacity>
         <View style={styles.titleContent}>
           <Text style={styles.titleText}>Override Parameter</Text>
@@ -122,7 +134,7 @@ export function OverrideEntryForm({
               value={correctedValue}
               onChangeText={setCorrectedValue}
               placeholder="Enter corrected count"
-              placeholderTextColor="#AEABA5"
+              placeholderTextColor={colors.warmGray400}
               keyboardType="numeric"
               returnKeyType="next"
               accessibilityLabel="Corrected value"
@@ -139,7 +151,7 @@ export function OverrideEntryForm({
               value={rationale}
               onChangeText={setRationale}
               placeholder="Explain why you are overriding this value (required)"
-              placeholderTextColor="#AEABA5"
+              placeholderTextColor={colors.warmGray400}
               multiline
               numberOfLines={4}
               returnKeyType="done"
@@ -151,7 +163,12 @@ export function OverrideEntryForm({
 
           {/* Preservation notice */}
           <View style={styles.notice}>
-            <Ionicons name="information-circle-outline" size={16} color={TEAL} style={styles.noticeIcon} />
+            <Icon
+              name="information-circle-outline"
+              size={16}
+              color={colors.teal}
+              style={styles.noticeIcon}
+            />
             <Text style={styles.noticeText}>
               Both the original AI value ({originalAiValue}) and your corrected value will
               be stored and visible to the Supervisor.
@@ -160,7 +177,12 @@ export function OverrideEntryForm({
 
           {error && (
             <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle-outline" size={15} color="#DC2626" style={styles.noticeIcon} />
+              <Icon
+                name="alert-circle-outline"
+                size={15}
+                color={colors.red600}
+                style={styles.noticeIcon}
+              />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -176,7 +198,7 @@ export function OverrideEntryForm({
             accessibilityRole="button"
           >
             {isSubmitting ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={colors.white} />
             ) : (
               <Text style={styles.submitButtonText}>Submit Override</Text>
             )}
@@ -204,162 +226,160 @@ const styles = StyleSheet.create({
   titleBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(0,0,0,0.08)',
-    backgroundColor: BG,
-    gap: 4,
+    backgroundColor: colors.cream,
+    gap: spacing.xs,
   },
   backButton: {
-    padding: 8,
+    padding: spacing.sm,
   },
   titleContent: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   titleText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
+    ...typography.titleLg,
+    fontWeight: fontWeight.bold,
+    color: colors.ink,
   },
   paramPill: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(46,125,122,0.12)',
     borderWidth: 0.5,
     borderColor: 'rgba(46,125,122,0.3)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginTop: 5,
+    paddingHorizontal: spacing.smd,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+    marginTop: spacing.xs,
   },
   paramPillText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: TEAL,
+    ...typography.body,
+    fontWeight: fontWeight.bold,
+    color: colors.teal,
   },
   container: {
     flex: 1,
-    backgroundColor: BG,
+    backgroundColor: colors.cream,
   },
   content: {
-    padding: 16,
-    paddingTop: 24,
-    gap: 16,
-    paddingBottom: 48,
+    padding: spacing.lg,
+    paddingTop: spacing.xxl,
+    gap: spacing.lg,
+    paddingBottom: spacing.jumbo,
   },
   field: {
-    gap: 6,
+    gap: spacing.sm,
   },
   fieldLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1A1A1A',
+    ...typography.bodyLg,
+    fontWeight: fontWeight.medium,
+    color: colors.ink,
   },
   required: {
-    color: '#DC2626',
+    color: colors.red600,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.15)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 16,
-    color: '#1A1A1A',
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.mlg,
+    paddingVertical: spacing.mlg,
+    fontSize: typography.title.fontSize,
+    color: colors.ink,
   },
   inputValid: {
-    borderColor: TEAL,
+    borderColor: colors.teal,
   },
   textArea: {
     height: 110,
     textAlignVertical: 'top',
   },
   charCount: {
-    fontSize: 11,
-    color: '#888780',
+    ...typography.micro,
+    color: colors.warmGray500,
     textAlign: 'right',
   },
   readOnlyField: {
-    backgroundColor: BG,
+    backgroundColor: colors.cream,
     borderWidth: 0.5,
     borderColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.mlg,
+    paddingVertical: spacing.mlg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   readOnlyValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
+    ...typography.title,
+    color: colors.ink,
   },
   readOnlyNote: {
-    fontSize: 11,
-    color: '#888780',
+    ...typography.micro,
+    color: colors.warmGray500,
     fontStyle: 'italic',
   },
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#F0FDFB',
-    borderRadius: 10,
-    padding: 14,
+    backgroundColor: colors.tealTint3,
+    borderRadius: radius.md,
+    padding: spacing.mlg,
     borderWidth: 0.5,
     borderColor: 'rgba(46,125,122,0.25)',
-    gap: 8,
+    gap: spacing.sm,
   },
   noticeIcon: {
     marginTop: 1,
   },
   noticeText: {
     flex: 1,
-    fontSize: 13,
-    color: TEAL,
+    ...typography.body,
+    color: colors.teal,
     lineHeight: 18,
   },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: colors.red50,
+    borderRadius: radius.md,
+    padding: spacing.md,
     borderWidth: 0.5,
-    borderColor: '#FECACA',
-    gap: 8,
+    borderColor: colors.red200,
+    gap: spacing.sm,
   },
   errorText: {
     flex: 1,
-    fontSize: 13,
-    color: '#DC2626',
+    ...typography.body,
+    color: colors.red600,
     lineHeight: 18,
   },
   submitButton: {
-    paddingVertical: 15,
-    borderRadius: 12,
+    paddingVertical: spacing.lg,
+    borderRadius: radius.lg,
     alignItems: 'center',
-    backgroundColor: TEAL,
-    marginTop: 8,
+    backgroundColor: colors.teal,
+    marginTop: spacing.sm,
   },
   submitButtonDisabled: {
     opacity: 0.45,
   },
   submitButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    ...typography.subtitle,
+    fontWeight: fontWeight.semibold,
+    color: colors.white,
   },
   cancelButton: {
-    paddingVertical: 14,
+    paddingVertical: spacing.mlg,
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#888780',
+    ...typography.subtitle,
+    color: colors.warmGray500,
   },
 });

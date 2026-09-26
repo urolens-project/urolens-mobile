@@ -1,17 +1,32 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  Animated,
+  Easing,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import type { ComponentProps } from 'react';
+import type { MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { colors } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import { REPORT_CATEGORY_ORDER } from '../types';
 import type { ReportCategory } from '../types';
 
 export const ILLUSTRATION_SIZE = 124;
 
-interface Props {
+export interface ReportIllustrationProps {
   category: ReportCategory;
   // Gentle idle bob. Turned off for reduced motion.
   animate?: boolean;
 }
+
+type MaterialCommunityIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 // ─── Building blocks ─────────────────────────────────────────────────────────
 // Everything here is plain Views + vector icons: no SVG dependency, so no
@@ -19,7 +34,13 @@ interface Props {
 
 // A teardrop: a square with three rounded corners, turned 45° so the sharp
 // corner points up. The urinalysis motif shared by every illustration.
-function Droplet({ size, color, style }: { size: number; color: string; style?: object }) {
+interface DropletProps {
+  size: number;
+  color: string;
+  style?: StyleProp<ViewStyle>;
+}
+
+function Droplet({ size, color, style }: DropletProps): React.JSX.Element {
   return (
     <View
       style={[
@@ -37,7 +58,7 @@ function Droplet({ size, color, style }: { size: number; color: string; style?: 
   );
 }
 
-function Dot({ size, color, style }: { size: number; color: string; style?: object }) {
+function Dot({ size, color, style }: DropletProps): React.JSX.Element {
   return (
     <View
       style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }, style]}
@@ -45,8 +66,12 @@ function Dot({ size, color, style }: { size: number; color: string; style?: obje
   );
 }
 
+interface PaperProps {
+  accent: string;
+}
+
 // A lab report sheet: title bar, text lines, and a little result bar chart.
-function Paper({ accent }: { accent: string }) {
+function Paper({ accent }: PaperProps): React.JSX.Element {
   return (
     <View style={styles.paper}>
       <View style={[styles.paperTitle, { backgroundColor: accent }]} />
@@ -62,28 +87,30 @@ function Paper({ accent }: { accent: string }) {
   );
 }
 
-function Badge({
-  icon,
-  color,
-  iconSize,
-  style,
-}: {
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+interface BadgeProps {
+  icon: MaterialCommunityIconName;
   color: string;
   iconSize: number;
-  style?: object;
-}) {
+  style?: StyleProp<ViewStyle>;
+}
+
+function Badge({ icon, color, iconSize, style }: BadgeProps): React.JSX.Element {
   return (
     <View style={[styles.badge, style]}>
-      <MaterialCommunityIcons name={icon} size={iconSize} color={color} />
+      <Icon family="material-community" name={icon} size={iconSize} color={color} />
     </View>
   );
 }
 
 // ─── Scenes ──────────────────────────────────────────────────────────────────
 
+interface SceneProps {
+  color: string;
+  blob: string;
+}
+
 // Report awaiting a supervisor: the sheet with an hourglass.
-function PendingScene({ color, blob }: { color: string; blob: string }) {
+function PendingScene({ color, blob }: SceneProps): React.JSX.Element {
   return (
     <>
       <Paper accent={color} />
@@ -99,18 +126,20 @@ function PendingScene({ color, blob }: { color: string; blob: string }) {
 }
 
 // Report approved: the sheet with an approval seal.
-function ApprovedScene({ color }: { color: string }) {
+function ApprovedScene({ color }: Pick<SceneProps, 'color'>): React.JSX.Element {
   return (
     <>
       <Paper accent={color} />
       <Badge icon="check-decagram" color={color} iconSize={32} style={styles.badgeBottomRight} />
-      <MaterialCommunityIcons
+      <Icon
+        family="material-community"
         name="star-four-points"
         size={16}
         color={color}
         style={{ position: 'absolute', top: 6, right: 12, opacity: 0.8 }}
       />
-      <MaterialCommunityIcons
+      <Icon
+        family="material-community"
         name="star-four-points"
         size={10}
         color={color}
@@ -121,7 +150,7 @@ function ApprovedScene({ color }: { color: string }) {
 }
 
 // Report released: the sheet with a paper plane flying off it.
-function ReleasedScene({ color }: { color: string }) {
+function ReleasedScene({ color }: Pick<SceneProps, 'color'>): React.JSX.Element {
   return (
     <>
       <Paper accent={color} />
@@ -151,10 +180,10 @@ function ReleasedScene({ color }: { color: string }) {
 }
 
 // Specimen rejected: a test tube with a cross, and the sample spilling.
-function RejectedScene({ color, blob }: { color: string; blob: string }) {
+function RejectedScene({ color, blob }: SceneProps): React.JSX.Element {
   return (
     <>
-      <MaterialCommunityIcons name="test-tube" size={78} color={color} style={styles.tube} />
+      <Icon family="material-community" name="test-tube" size={78} color={color} style={styles.tube} />
       <Badge icon="close-circle" color={color} iconSize={30} style={styles.badgeBottomRight} />
       <Droplet size={11} color={color} style={{ position: 'absolute', top: 88, left: 22 }} />
       <Droplet size={7} color={blob} style={{ position: 'absolute', top: 100, left: 40 }} />
@@ -164,7 +193,16 @@ function RejectedScene({ color, blob }: { color: string; blob: string }) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function ReportIllustration({ category, animate = true }: Props) {
+/**
+ * @description Small decorative illustration for a report category card: a lab-report
+ * sheet (or test tube for rejections) with an icon badge and a gentle idle bob animation.
+ * @param category - Which report category's scene to render.
+ * @param animate - Plays the idle bob animation; disable for reduced motion.
+ */
+export function ReportIllustration({
+  category,
+  animate = true,
+}: ReportIllustrationProps): React.JSX.Element {
   const { color, blob } = REPORT_CATEGORY_STYLES[category];
   const bob = useRef(new Animated.Value(0)).current;
 
@@ -235,9 +273,9 @@ const styles = StyleSheet.create({
     width: 64,
     height: 82,
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     transform: [{ rotate: '-6deg' }],
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.12,
     shadowRadius: 5,
@@ -256,7 +294,7 @@ const styles = StyleSheet.create({
     left: 10,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.gray200,
   },
   paperBars: {
     position: 'absolute',
@@ -275,10 +313,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 5,

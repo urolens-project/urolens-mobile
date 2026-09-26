@@ -15,7 +15,7 @@
  * Navigates to sample/[id] with resultId on success.
  */
 
-import React, { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -30,33 +30,47 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
 
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
-import AnalysisResult from '@db/models/AnalysisResult';
-import ManualOverride from '@db/models/ManualOverride';
-import { DiscardConfirmationModal } from './DiscardConfirmationModal';
+import type AnalysisResult from '@db/models/AnalysisResult';
+import type ManualOverride from '@db/models/ManualOverride';
 import {
   processCapture,
   processPickerAsset,
   buildUploadFormData,
   ImageResolutionError,
   ImageFormatError,
-  ProcessedImage,
 } from '@lib/camera/imageUtils';
+import type { ProcessedImage } from '@lib/camera/imageUtils';
 import { uploadImageViaXhr } from '@lib/camera/uploadImage';
 import apiClient from '@lib/apiClient';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
+import { DiscardConfirmationModal } from './DiscardConfirmationModal';
 
 type ScreenPhase = 'idle' | 'previewing' | 'uploading' | 'discarding';
 
-interface Props {
+export interface ImageCaptureScreenProps {
   specimenId: string;
   localSpecimenId: string;
   existingImageId?: string;
 }
 
-export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageId }: Props) {
+/**
+ * @description Full-screen camera flow for capturing (or picking) a specimen image,
+ * previewing it, and uploading it for AI analysis, with a guarded discard/retake path.
+ * @param specimenId - Server specimen id, required to upload the image.
+ * @param localSpecimenId - Local specimen id, used to navigate to the result screen.
+ * @param existingImageId - Id of a previously uploaded image, if retaking one.
+ */
+export function ImageCaptureScreen({
+  specimenId,
+  localSpecimenId,
+  existingImageId,
+}: ImageCaptureScreenProps): React.JSX.Element {
   // ── State ─────────────────────────────────────────────────────────────────
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<ScreenPhase>('idle');
@@ -69,7 +83,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   const cameraRef = useRef<CameraView>(null);
 
   // ── Capture from camera ───────────────────────────────────────────────────
-  const handleCapture = useCallback(async () => {
+  const handleCapture = useCallback(async (): Promise<void> => {
     if (!cameraRef.current) return;
     setValidationError(null);
 
@@ -90,7 +104,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   }, []);
 
   // ── Pick from gallery ─────────────────────────────────────────────────────
-  const handleGalleryPick = useCallback(async () => {
+  const handleGalleryPick = useCallback(async (): Promise<void> => {
     setValidationError(null);
 
     try {
@@ -122,7 +136,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   }, []);
 
   // ── Upload ────────────────────────────────────────────────────────────────
-  const handleUseImage = useCallback(async () => {
+  const handleUseImage = useCallback(async (): Promise<void> => {
     // Defensive guard with visible feedback so silent failures are surfaced
     if (!processed) return;
     if (!specimenId) {
@@ -208,7 +222,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   }, [processed, specimenId, localSpecimenId]);
 
   // ── Retake ────────────────────────────────────────────────────────────────
-  const handleRetapTap = useCallback(() => {
+  const handleRetapTap = useCallback((): void => {
     if (existingImageId) {
       // Retaking from an existing result — must go through discard flow
       setShowDiscardModal(true);
@@ -220,7 +234,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
     }
   }, [existingImageId]);
 
-  const handleDiscardConfirm = useCallback(async () => {
+  const handleDiscardConfirm = useCallback(async (): Promise<void> => {
     if (!existingImageId) return;
     setPhase('discarding');
 
@@ -236,6 +250,20 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
       Alert.alert('Error', 'Could not discard the image. Please try again.');
     }
   }, [existingImageId]);
+
+  const handleDiscardCancel = useCallback((): void => {
+    setShowDiscardModal(false);
+  }, []);
+
+  const handleGoBack = useCallback((): void => {
+    router.back();
+  }, []);
+
+  const handleCameraMountError = useCallback((): void => {
+    setCameraError(
+      'The camera could not be started on this device. You can still upload an image from the gallery.',
+    );
+  }, []);
 
   // ── Permission gate ───────────────────────────────────────────────────────
   if (!permission) {
@@ -263,7 +291,6 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
   // ── Preview phase ─────────────────────────────────────────────────────────
   if (phase === 'previewing' && processed) {
-    // 💡 Cast phase type back to ScreenPhase to bypass static block narrow restrictions
     const isCurrentlyDiscarding = (phase as ScreenPhase) === 'discarding';
 
     return (
@@ -283,7 +310,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
         {validationError && (
           <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={14} color="#B91C1C" />
+            <Icon name="alert-circle-outline" size={14} color={colors.red700} />
             <Text style={styles.errorText}>{validationError}</Text>
           </View>
         )}
@@ -295,7 +322,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
             onPress={handleRetapTap}
             testID="retake-button"
           >
-            <Ionicons name="camera-reverse-outline" size={18} color="#D1D5DB" />
+            <Icon name="camera-reverse-outline" size={18} color={colors.gray300} />
             <Text style={styles.retakeLabel}>Retake</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -303,7 +330,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
             onPress={handleUseImage}
             testID="use-image-button"
           >
-            <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+            <Icon name="checkmark-circle-outline" size={18} color={colors.white} />
             <Text style={styles.useLabel}>Use This Image</Text>
           </TouchableOpacity>
         </View>
@@ -312,7 +339,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
           visible={showDiscardModal}
           isLoading={isCurrentlyDiscarding}
           onConfirm={handleDiscardConfirm}
-          onCancel={() => setShowDiscardModal(false)}
+          onCancel={handleDiscardCancel}
         />
       </SafeAreaView>
     );
@@ -322,7 +349,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   if (phase === 'uploading') {
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#2E7D7A" />
+        <ActivityIndicator size="large" color={colors.teal} />
         <Text style={styles.uploadingTitle}>Uploading image…</Text>
         <Text style={styles.uploadingProgress}>{uploadProgress}%</Text>
         <Text style={styles.uploadingSubtitle}>AI analysis will begin automatically</Text>
@@ -354,11 +381,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
           style={StyleSheet.absoluteFill}
           facing="back"
           ref={cameraRef}
-          onMountError={() =>
-            setCameraError(
-              'The camera could not be started on this device. You can still upload an image from the gallery.',
-            )
-          }
+          onMountError={handleCameraMountError}
         />
 
         {/* Viewfinder guide */}
@@ -366,11 +389,11 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 
         {/* Header */}
         <View style={styles.cameraHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="close" size={22} color="rgba(255,255,255,0.9)" />
+          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
+            <Icon name="close" size={22} color="rgba(255,255,255,0.9)" />
           </TouchableOpacity>
           <Text style={styles.cameraTitle}>Specimen Capture</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerSpacer} />
         </View>
 
         {/* Instructions */}
@@ -389,7 +412,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
         {/* Bottom controls — gallery left, capture centered, mirror spacer right */}
         <View style={styles.cameraControls}>
           <TouchableOpacity style={styles.galleryButton} onPress={handleGalleryPick}>
-            <Ionicons name="images-outline" size={28} color="rgba(255,255,255,0.85)" />
+            <Icon name="images-outline" size={28} color="rgba(255,255,255,0.85)" />
             <Text style={styles.galleryLabel}>Gallery</Text>
           </TouchableOpacity>
 
@@ -409,10 +432,9 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  centered: { justifyContent: 'center', alignItems: 'center', gap: 12 },
+  container: { flex: 1, backgroundColor: colors.black },
+  centered: { justifyContent: 'center', alignItems: 'center', gap: spacing.md },
   cameraWrapper: { flex: 1 },
-  camera: { flex: 1 },
 
   // ── Camera UI ────────────────────────────────────────────────────────────────
   viewfinderGuide: {
@@ -423,83 +445,85 @@ const styles = StyleSheet.create({
     bottom: '30%',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 4,
+    borderRadius: radius.xs,
   },
   cameraHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: Platform.OS === 'android' ? 40 : 12,
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.sm,
   },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  cameraTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  headerSpacer: { width: 40 },
+  cameraTitle: { ...typography.title, color: colors.white },
   instructionBanner: {
     backgroundColor: 'rgba(0,0,0,0.5)',
-    marginHorizontal: 24,
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
+    marginHorizontal: spacing.xxl,
+    borderRadius: radius.sm,
+    padding: spacing.smd,
+    marginTop: spacing.sm,
   },
-  instructionText: { color: '#E5E7EB', fontSize: 12, textAlign: 'center', lineHeight: 17 },
+  instructionText: { ...typography.caption, color: colors.gray200, textAlign: 'center', lineHeight: 17 },
   // space-between with equal-width gallery + spacer perfectly centers the capture ring
   cameraControls: {
     position: 'absolute',
-    bottom: 48,
+    bottom: spacing.jumbo,
     left: 0,
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 40,
+    paddingHorizontal: spacing.huge,
   },
-  galleryButton: { width: 60, alignItems: 'center', gap: 4 },
-  galleryLabel: { color: '#E5E7EB', fontSize: 11 },
+  galleryButton: { width: 60, alignItems: 'center', gap: spacing.xs },
+  galleryLabel: { ...typography.micro, color: colors.gray200 },
   captureRing: {
+    // Fixed 80x80 circle: radius is half the box, not a scale value.
     width: 80,
     height: 80,
     borderRadius: 40,
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
   captureButton: {
+    // Fixed 64x64 circle: radius is half the box, not a scale value.
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
   },
   captureSpacer: { width: 60 },
 
   // ── Preview ───────────────────────────────────────────────────────────────────
   previewHeader: {
-    backgroundColor: '#0D0D0D',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: colors.blackAlt,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.mlg,
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   previewTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    ...typography.title,
+    color: colors.white,
   },
   previewMeta: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 3,
+    ...typography.caption,
+    color: colors.gray500,
+    marginTop: spacing.xs,
   },
-  previewContainer: { flex: 1, backgroundColor: '#111' },
+  previewContainer: { flex: 1, backgroundColor: colors.blackAlt },
   previewImage: { flex: 1 },
   previewActions: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    gap: spacing.smd,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? 36 : 16,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: colors.blackAlt,
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(255,255,255,0.08)',
   },
@@ -508,62 +532,67 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
-    borderRadius: 12,
-    gap: 7,
+    paddingVertical: spacing.lg,
+    borderRadius: radius.lg,
+    gap: spacing.sm,
   },
   retakeBtn: {
-    backgroundColor: '#1C2431',
+    backgroundColor: colors.navyAlt,
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.12)',
   },
-  useBtn: { backgroundColor: '#2E7D7A' },
-  retakeLabel: { color: '#D1D5DB', fontWeight: '600', fontSize: 15 },
-  useLabel: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  useBtn: { backgroundColor: colors.teal },
+  retakeLabel: { ...typography.subtitle, fontWeight: fontWeight.semibold, color: colors.gray300 },
+  useLabel: { ...typography.subtitle, fontWeight: fontWeight.semibold, color: colors.white },
 
   // ── Errors ────────────────────────────────────────────────────────────────────
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FEE2E2',
-    marginHorizontal: 16,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 8,
+    gap: spacing.sm,
+    backgroundColor: colors.red100,
+    marginHorizontal: spacing.lg,
+    borderRadius: radius.sm,
+    padding: spacing.smd,
+    marginBottom: spacing.sm,
   },
   errorBannerCamera: {
     backgroundColor: 'rgba(220,38,38,0.85)',
-    marginHorizontal: 24,
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
+    marginHorizontal: spacing.xxl,
+    borderRadius: radius.sm,
+    padding: spacing.smd,
+    marginTop: spacing.sm,
   },
-  errorText: { color: '#B91C1C', fontSize: 13, lineHeight: 18, flex: 1 },
+  errorText: { ...typography.body, color: colors.red700, lineHeight: 18, flex: 1 },
 
   // ── Upload progress ───────────────────────────────────────────────────────────
-  uploadingTitle: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  uploadingProgress: { color: '#4DB6AC', fontSize: 36, fontWeight: '700' },
-  uploadingSubtitle: { color: '#6B7280', fontSize: 13 },
+  uploadingTitle: { ...typography.titleLg, color: colors.white },
+  uploadingProgress: { ...typography.jumbo, color: colors.tealAlt },
+  uploadingSubtitle: { ...typography.body, color: colors.gray500 },
 
   // ── Permission ────────────────────────────────────────────────────────────────
   permissionBox: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
-    gap: 12,
+    padding: spacing.xxxl,
+    gap: spacing.md,
   },
-  permissionTitle: { color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center' },
-  permissionBody: { color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  permissionTitle: {
+    ...typography.heading,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+    textAlign: 'center',
+  },
+  permissionBody: { ...typography.bodyLg, color: colors.gray400, textAlign: 'center', lineHeight: 20 },
   primaryButton: {
-    backgroundColor: '#2E7D7A',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginTop: 8,
+    backgroundColor: colors.teal,
+    paddingVertical: spacing.mlg,
+    paddingHorizontal: spacing.xxxl,
+    borderRadius: radius.lg,
+    marginTop: spacing.sm,
   },
-  primaryLabel: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  secondaryButton: { paddingVertical: 10 },
-  secondaryLabel: { color: '#4DB6AC', fontSize: 14 },
+  primaryLabel: { ...typography.subtitle, fontWeight: fontWeight.semibold, color: colors.white },
+  secondaryButton: { paddingVertical: spacing.smd },
+  secondaryLabel: { ...typography.bodyLg, color: colors.tealAlt },
 });

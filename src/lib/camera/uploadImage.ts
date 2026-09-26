@@ -23,6 +23,22 @@ export interface UploadImageResponse {
   smartDiagnosis: Record<string, unknown> | null;
 }
 
+interface UploadErrorBody {
+  error?: { message?: string };
+}
+
+/** @description An upload failure shaped like an axios error, so callers can read `.response.data` either way. */
+export interface UploadXhrError extends Error {
+  response?: { data: unknown };
+}
+
+/**
+ * @description Uploads an image via raw XMLHttpRequest instead of axios/fetch — see
+ * the file header for why. Reports progress and supports cancellation via `signal`.
+ * @param form - Multipart form built by `buildUploadFormData`.
+ * @param signal - Aborts the in-flight request when triggered.
+ * @param onProgress - Called with 0-100 as the upload progresses.
+ */
 export function uploadImageViaXhr(
   form: FormData,
   signal: AbortSignal,
@@ -46,7 +62,7 @@ export function uploadImageViaXhr(
 
     xhr.onload = () => {
       signal.removeEventListener('abort', onAbort);
-      let body: any = null;
+      let body: (UploadImageResponse & UploadErrorBody) | null = null;
       try {
         body = JSON.parse(xhr.responseText);
       } catch {
@@ -55,8 +71,10 @@ export function uploadImageViaXhr(
       if (xhr.status >= 200 && xhr.status < 300 && body) {
         resolve(body);
       } else {
-        const error = new Error(body?.error?.message ?? `Upload failed with status ${xhr.status}`);
-        (error as any).response = { data: body };
+        const error: UploadXhrError = new Error(
+          body?.error?.message ?? `Upload failed with status ${xhr.status}`,
+        );
+        error.response = { data: body };
         reject(error);
       }
     };

@@ -1,4 +1,3 @@
-// Path: urolens-mobile/src/features/result-confirmation/components/ResultReviewScreen.tsx
 import React, { useCallback } from 'react';
 import {
   View,
@@ -9,24 +8,33 @@ import {
   StyleSheet,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { confirmRetake } from '@features/image-retake/lib/confirmRetake';
 import { useHasManualOverrides } from '@features/manual-override/hooks/useHasManualOverrides';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { colors, radius, spacing } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+import { OfflineBanner } from '@components/OfflineBanner';
+
 import { useResultConfirmation } from '../hooks/useResultConfirmation';
 import { AIDisclaimer } from './AIDisclaimer';
 import { AIFindingsPanel } from './AIFindingsPanel';
 import { SmartDiagnosisPanel } from './SmartDiagnosisPanel';
-import { OfflineBanner } from '@components/OfflineBanner';
-import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
-const TEAL = '#2E7D7A';
-
-interface ResultReviewScreenProps {
+export interface ResultReviewScreenProps {
   resultId: string;
   specimenId: string;
 }
 
+/**
+ * @description Post-capture review screen: shows the mandatory AI disclaimer, AI
+ * findings (with per-parameter override), and Smart Diagnosis, then lets the MedTech
+ * retake the image or confirm the result for supervisor approval.
+ * @param resultId - Server id of the analysis result to review.
+ * @param specimenId - Local specimen id, used for navigation back to sample detail.
+ */
 export function ResultReviewScreen({
   resultId,
   specimenId,
@@ -51,7 +59,7 @@ export function ResultReviewScreen({
 
   // Retaking purges the MedTech's overrides, and this is the screen where they make
   // them — so warn first, same as Sample Detail does.
-  const handleRetake = () => {
+  const handleRetake = (): void => {
     confirmRetake(hasOverrides, () => {
       router.push({
         pathname: '/(medtech)/capture',
@@ -64,7 +72,7 @@ export function ResultReviewScreen({
     });
   };
 
-  const handleContinue = () => {
+  const handleContinue = (): void => {
     router.replace({
       pathname: '/(medtech)/sample/[id]',
       params: { id: specimenId },
@@ -74,7 +82,7 @@ export function ResultReviewScreen({
   if (isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator testID="loading" size="large" color={TEAL} />
+        <ActivityIndicator testID="loading" size="large" color={colors.teal} />
       </View>
     );
   }
@@ -82,7 +90,7 @@ export function ResultReviewScreen({
   if (!result) {
     return (
       <View style={styles.centered}>
-        <Ionicons name="document-outline" size={52} color="#C9C7C1" />
+        <Icon name="document-outline" size={52} color={colors.warmGray200} />
         <Text style={styles.emptyTitle}>Result not found</Text>
         <Text style={styles.emptyBody}>This result may not have synced yet.</Text>
       </View>
@@ -120,7 +128,7 @@ export function ResultReviewScreen({
           accessibilityRole="button"
           accessibilityLabel="Back to sample detail"
         >
-          <Ionicons name="chevron-back" size={26} color={TEAL} />
+          <Icon name="chevron-back" size={26} color={colors.teal} />
         </TouchableOpacity>
         <View style={styles.titleBarContent}>
           <Text style={styles.titleBarText}>Analysis Result</Text>
@@ -150,7 +158,7 @@ export function ResultReviewScreen({
           unavailable={result.smartDiagnosisUnavailable}
         />
 
-        <View style={{ height: 120 }} />
+        <View style={styles.scrollSpacer} />
       </ScrollView>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -193,7 +201,7 @@ export function ResultReviewScreen({
           >
             {isConfirming ? (
               <View style={styles.confirmingRow}>
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={colors.white} />
                 <Text style={styles.confirmButtonText}>Running diagnosis...</Text>
               </View>
             ) : (
@@ -211,38 +219,43 @@ export function ResultReviewScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F6F3',
+    backgroundColor: colors.cream,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7F6F3',
-    gap: 8,
-    paddingHorizontal: 32,
+    backgroundColor: colors.cream,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xxxl,
   },
   emptyTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#1A1A1A',
-    marginTop: 8,
+    color: colors.ink,
+    marginTop: spacing.sm,
   },
   emptyBody: {
     fontSize: 14,
-    color: '#888780',
+    color: colors.warmGray500,
     textAlign: 'center',
   },
   scroll: {
     flex: 1,
   },
+  scrollSpacer: {
+    // Clears the floating action bar at the bottom of the scroll content.
+    height: 120,
+  },
   titleBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: 12,
-    paddingHorizontal: 8,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
     borderBottomWidth: 0.5,
+    // TODO(theme): near-black hairline at 0.08 alpha not in palette.
     borderBottomColor: 'rgba(0,0,0,0.08)',
-    backgroundColor: '#F7F6F3',
+    backgroundColor: colors.cream,
   },
   titleBarBack: {
     width: 44,
@@ -257,15 +270,15 @@ const styles = StyleSheet.create({
   titleBarText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: colors.ink,
   },
   titleBarSub: {
     fontSize: 13,
-    color: '#888780',
+    color: colors.warmGray500,
     marginTop: 2,
   },
   scrollContent: {
-    paddingBottom: 24,
+    paddingBottom: spacing.xxl,
   },
   actionBar: {
     position: 'absolute',
@@ -273,33 +286,34 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: '#FFFFFF',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: colors.white,
     borderTopWidth: 0.5,
+    // TODO(theme): near-black hairline at 0.1 alpha not in palette.
     borderTopColor: 'rgba(0,0,0,0.1)',
   },
   retakeButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: spacing.mlg,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: colors.gray300,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   retakeButtonText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#374151',
+    color: colors.gray700,
   },
   confirmButton: {
     flex: 2,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: spacing.mlg,
+    borderRadius: radius.lg,
     alignItems: 'center',
-    backgroundColor: TEAL,
+    backgroundColor: colors.teal,
   },
   confirmButtonBusy: {
     opacity: 0.75,
@@ -307,34 +321,34 @@ const styles = StyleSheet.create({
   confirmingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   confirmButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.white,
   },
   confirmedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#ECFDF5',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.emerald50,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: colors.emerald200,
     borderRadius: 10,
   },
   confirmedText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#065F46',
+    color: colors.emerald800,
   },
   errorText: {
     fontSize: 13,
-    color: '#DC2626',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    color: colors.red600,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
 });

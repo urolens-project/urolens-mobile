@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+
 import { database } from '@db/database';
 import { observeQuery } from '@db/observeQuery';
 import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
@@ -6,7 +7,9 @@ import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import type { ResultStatus } from '@db/models/AnalysisResult';
 import { synchronize } from '@db/sync/syncManager';
+import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+
 import {
   REPORT_CATEGORY_ORDER,
   REPORT_CATEGORY_TITLES,
@@ -100,13 +103,17 @@ export interface UseReportsResult {
   isRefreshing: boolean;
 }
 
+/**
+ * @description Builds the four Reports sections (pending, approved, released, rejected)
+ * from the on-device specimens/results tables, and exposes a manual sync refresh.
+ */
 export function useReports(): UseReportsResult {
+  const { isOnline } = useNetworkStatus();
+
   const [specimens, setSpecimens] = useState<Specimen[]>([]);
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [isLoadingSpecimens, setIsLoadingSpecimens] = useState(true);
   const [isLoadingResults, setIsLoadingResults] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const { isOnline } = useNetworkStatus();
 
   useEffect(() => {
     const subscription = observeQuery(database.get<Specimen>('specimens').query(), (rows) => {
@@ -132,15 +139,17 @@ export function useReports(): UseReportsResult {
     return () => subscription.unsubscribe();
   }, []);
 
-  const refresh = async () => {
-    if (!isOnline) return;
-    setIsRefreshing(true);
-    try {
+  const { run: runSync, isLoading: isRefreshing } = useAsyncAction(
+    'Reports',
+    async (): Promise<void> => {
       await synchronize();
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+    },
+  );
+
+  const refresh = useCallback(async (): Promise<void> => {
+    if (!isOnline) return;
+    await runSync();
+  }, [isOnline, runSync]);
 
   const items = buildItems(specimens, results);
 

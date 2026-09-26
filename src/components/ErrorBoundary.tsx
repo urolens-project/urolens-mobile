@@ -1,30 +1,36 @@
 import { Component, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
-interface Props {
+import { colors, radius, spacing, typography } from '@src/theme';
+
+export interface ErrorBoundaryProps {
   children: ReactNode;
 }
 
-interface State {
+export interface ErrorBoundaryState {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+/**
+ * @description Catches unhandled render errors below it in the tree and shows a
+ * recoverable fallback instead of crashing the whole app.
+ */
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null };
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: { componentStack: string }) {
+  componentDidCatch(error: Error, info: { componentStack: string }): void {
     console.error('[ErrorBoundary] Unhandled render error:', error, info.componentStack);
   }
 
-  reset = () => {
+  reset = (): void => {
     this.setState({ error: null });
   };
 
-  render() {
+  render(): ReactNode {
     if (this.state.error) {
       return (
         <View style={styles.container}>
@@ -48,11 +54,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
-    backgroundColor: '#1E3A5F',
+    padding: spacing.huge,
+    backgroundColor: colors.navy,
   },
-  title: { fontSize: 18, fontWeight: '600', color: '#FFFFFF', marginBottom: 8 },
-  subtitle: { fontSize: 13, color: '#CBD5E1', textAlign: 'center', marginBottom: 24 },
-  button: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
-  buttonText: { fontSize: 14, fontWeight: '600', color: '#1E3A5F' },
+  title: { ...typography.titleLg, color: colors.white, marginBottom: spacing.sm },
+  subtitle: { ...typography.body, color: colors.slate300, textAlign: 'center', marginBottom: spacing.xxxl },
+  button: {
+    backgroundColor: colors.white,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xxl,
+    borderRadius: radius.sm,
+  },
+  buttonText: { ...typography.label, color: colors.navy },
 });

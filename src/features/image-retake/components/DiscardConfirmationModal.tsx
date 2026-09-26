@@ -7,7 +7,6 @@
  * Cancel returns them to the result review screen.
  */
 
-import React from 'react';
 import {
   Modal,
   View,
@@ -18,19 +17,31 @@ import {
   Platform,
 } from 'react-native';
 
-interface Props {
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
+export interface DiscardConfirmationModalProps {
   visible: boolean;
   isLoading: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
+/**
+ * @description Confirmation modal shown before discarding a specimen image and its AI
+ * analysis, since the action is destructive and cannot be undone.
+ * @param visible - Whether the modal is shown.
+ * @param isLoading - Whether the discard request is in flight; disables both actions.
+ * @param onConfirm - Called when the medtech confirms the discard.
+ * @param onCancel - Called when the medtech backs out (or presses the Android back button).
+ */
 export function DiscardConfirmationModal({
   visible,
   isLoading,
   onConfirm,
   onCancel,
-}: Props) {
+}: DiscardConfirmationModalProps): React.JSX.Element {
   return (
     <Modal
       visible={visible}
@@ -43,7 +54,7 @@ export function DiscardConfirmationModal({
         <View style={styles.sheet}>
           {/* ── Icon ── */}
           <View style={styles.iconContainer}>
-            <Text style={styles.icon}>⚠️</Text>
+            <Icon name="warning" size={26} color={colors.amber800} />
           </View>
 
           {/* ── Copy ── */}
@@ -73,7 +84,7 @@ export function DiscardConfirmationModal({
               accessibilityLabel="Confirm discard and retake"
             >
               {isLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={colors.white} size="small" />
               ) : (
                 <Text style={styles.confirmLabel}>Discard &amp; Retake</Text>
               )}
@@ -92,79 +103,77 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
   },
   sheet: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 24,
+    backgroundColor: colors.white,
+    borderRadius: radius.xxl,
+    paddingHorizontal: spacing.xxl,
+    paddingTop: spacing.xxxl,
+    paddingBottom: spacing.xxl,
     alignItems: 'center',
     // Shadow
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowRadius: radius.lg,
     elevation: 8,
   },
   iconContainer: {
+    // Fixed 56x56 circle: radius is half the box, not a scale value.
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.amber100,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  icon: {
-    fontSize: 26,
+    marginBottom: spacing.lg,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    ...typography.titleLg,
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: spacing.smd,
   },
   body: {
-    fontSize: 14,
-    color: '#6B7280',
+    ...typography.bodyLg,
+    color: colors.gray500,
     lineHeight: 21,
     textAlign: 'center',
-    marginBottom: 28,
+    marginBottom: spacing.xxxl,
   },
   actions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
     width: '100%',
   },
   button: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: spacing.mlg,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 50,
   },
   cancelButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.gray100,
   },
   confirmButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.red600,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   cancelLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#374151',
+    ...typography.subtitle,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray700,
   },
   confirmLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    ...typography.subtitle,
+    fontWeight: fontWeight.semibold,
+    color: colors.white,
   },
 });

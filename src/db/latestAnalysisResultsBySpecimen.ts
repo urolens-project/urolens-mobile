@@ -10,7 +10,7 @@ function recencyOf(r: AnalysisResult): number {
 }
 
 /**
- * The backend enforces exactly one analysis_results row per specimen
+ * @description The backend enforces exactly one analysis_results row per specimen
  * (specimen_id is unique) — a retake updates that row in place rather than
  * creating a second one (image_retake_service.py says so explicitly: "The
  * AnalysisResult row remains intact — it will be updated"). So in the
@@ -30,6 +30,7 @@ function recencyOf(r: AnalysisResult): number {
  * Recency is judged by confirmedAt first (a real domain timestamp set when
  * the MedTech/Supervisor actually acted) and falls back to syncedAt, then
  * the local WatermelonDB createdAt as a last resort.
+ * @param results - Local analysis-result rows, possibly containing duplicates.
  */
 export function latestAnalysisResultsBySpecimen(
   results: AnalysisResult[],

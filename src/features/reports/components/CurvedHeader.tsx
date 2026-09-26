@@ -1,8 +1,19 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+
 import { getInitials } from '@lib/auth/getInitials';
+import { colors, spacing } from '@src/theme';
+
 import { HeaderWaves, LANDING_WAVES, TEAL } from '@components/HeaderWaves';
+import { Icon } from '@components/Icon';
 
 // Height of the header below the status bar. The curve sits inside this, with
 // the left edge of the header ending ~30px above the bottom and the right edge
@@ -10,7 +21,7 @@ import { HeaderWaves, LANDING_WAVES, TEAL } from '@components/HeaderWaves';
 // headers (CategoryHeader) are deliberately shorter than this.
 const BODY_HEIGHT = 172;
 
-interface Props {
+export interface CurvedHeaderProps {
   username: string | null;
   totalCount: number;
   // Safe-area top inset — the header draws under the status bar.
@@ -20,7 +31,12 @@ interface Props {
   reduceMotion: boolean;
 }
 
-function Bubble({ size, style }: { size: number; style: object }) {
+interface BubbleProps {
+  size: number;
+  style?: StyleProp<ViewStyle>;
+}
+
+function Bubble({ size, style }: BubbleProps): React.JSX.Element {
   return (
     <View
       style={[
@@ -29,6 +45,7 @@ function Bubble({ size, style }: { size: number; style: object }) {
           width: size,
           height: size,
           borderRadius: size / 2,
+          // TODO(theme): translucent white overlay (0.12 alpha) not in palette.
           backgroundColor: 'rgba(255,255,255,0.12)',
         },
         style,
@@ -38,7 +55,7 @@ function Bubble({ size, style }: { size: number; style: object }) {
 }
 
 // Small translucent teardrop (same shape as the illustrations' drops).
-function Drop({ size, style }: { size: number; style: object }) {
+function Drop({ size, style }: BubbleProps): React.JSX.Element {
   return (
     <View
       style={[
@@ -48,6 +65,7 @@ function Drop({ size, style }: { size: number; style: object }) {
           height: size,
           borderRadius: size / 2,
           borderTopLeftRadius: 0,
+          // TODO(theme): translucent white overlay (0.28 alpha) not in palette.
           backgroundColor: 'rgba(255,255,255,0.28)',
           transform: [{ rotate: '45deg' }],
         },
@@ -57,7 +75,22 @@ function Drop({ size, style }: { size: number; style: object }) {
   );
 }
 
-export function CurvedHeader({ username, totalCount, topInset, playKey, reduceMotion }: Props) {
+/**
+ * @description Animated landing header for the Reports screen: greets the medtech by
+ * name, shows a lifetime total, and plays a wave/magnifier entrance animation.
+ * @param username - Current medtech's display name; falls back to "MedTech".
+ * @param totalCount - Lifetime count of finished samples, shown in the total badge.
+ * @param topInset - Safe-area top inset the header draws under.
+ * @param playKey - Changes each time the screen is entered, replaying the entrance animation.
+ * @param reduceMotion - Skips the entrance animation when true.
+ */
+export function CurvedHeader({
+  username,
+  totalCount,
+  topInset,
+  playKey,
+  reduceMotion,
+}: CurvedHeaderProps): React.JSX.Element {
   const { width } = useWindowDimensions();
   const height = topInset + BODY_HEIGHT;
 
@@ -133,7 +166,8 @@ export function CurvedHeader({ username, totalCount, topInset, playKey, reduceMo
         <Drop size={8} style={{ right: 148, top: topInset + 146 }} />
       </Animated.View>
       <Animated.View style={[styles.lens, { top: topInset + 78 }, lensStyle]} pointerEvents="none">
-        <MaterialCommunityIcons name="magnify" size={92} color="rgba(255,255,255,0.22)" />
+        {/* TODO(theme): translucent white overlay (0.22 alpha) not in palette. */}
+        <Icon family="material-community" name="magnify" size={92} color="rgba(255,255,255,0.22)" />
       </Animated.View>
 
       <Animated.View style={[styles.content, { paddingTop: topInset + 10 }, contentStyle]}>
@@ -175,21 +209,22 @@ const styles = StyleSheet.create({
     right: 22,
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
+    // TODO(theme): translucent white overlay (0.55 alpha) not in palette.
     borderColor: 'rgba(255,255,255,0.55)',
   },
   avatarText: {
@@ -203,10 +238,11 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.white,
   },
   role: {
     fontSize: 12,
+    // TODO(theme): translucent white overlay (0.8 alpha) not in palette.
     color: 'rgba(255,255,255,0.8)',
     marginTop: 1,
   },
@@ -214,6 +250,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
+    // TODO(theme): translucent white overlays (0.18 / 0.35 alpha) not in palette.
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
@@ -224,24 +261,24 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 19,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: colors.white,
   },
   totalLabel: {
     fontSize: 9,
     fontWeight: '600',
     letterSpacing: 0.4,
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.overlayLight,
   },
   title: {
     marginTop: 18,
     fontSize: 30,
     lineHeight: 34,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: colors.white,
   },
   subtitle: {
     marginTop: 2,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.overlayLight,
   },
 });

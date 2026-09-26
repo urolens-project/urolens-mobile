@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { useDatabase } from '@nozbe/watermelondb/hooks';
-import ManualOverride from '@db/models/ManualOverride';
 
-// Whether the MedTech has corrected any parameter of this result. Watches the local
-// records, so it stays right as overrides are added — no need to re-read at tap time.
+import type ManualOverride from '@db/models/ManualOverride';
+
+/**
+ * @description Tracks whether the medtech has corrected any parameter of this result.
+ * Watches the local WatermelonDB records so it stays current as overrides are added,
+ * with no need to re-read at tap time.
+ * @param resultServerId - Server id of the analysis result, or null/undefined if not yet known.
+ */
 export function useHasManualOverrides(resultServerId: string | null | undefined): boolean {
   const database = useDatabase();
   const [hasOverrides, setHasOverrides] = useState(false);

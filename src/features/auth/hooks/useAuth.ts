@@ -1,63 +1,95 @@
-import { useState } from 'react';
+import { useCallback } from 'react';
 import { router } from 'expo-router';
-import { authApi } from '../api/authApi';
-import { tokenStorage } from '@lib/auth/tokenStorage';
+
+import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useAuthStore } from '@lib/auth/authStore';
-import { UserRole } from '@app-types/enums';
-import { ApiError } from '@app-types/domain';
+import { tokenStorage } from '@lib/auth/tokenStorage';
+import type { ApiError } from '@app-types/domain';
+import type { UserRole } from '@app-types/enums';
 
-export function useAuth() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { setAuthenticated, clearAuth } = useAuthStore();
+import { authApi } from '../api/authApi';
 
-  const login = async (username: string, password: string, keepLoggedIn = false) => {
-    if (!username.trim() || !password.trim()) {
-      setError('Username and password are required.');
-      return;
-    }
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      const data = await authApi.login(username, password);
-      // Drop any session left over from a previous login, then choose where this one lives.
-      await tokenStorage.clearAll();
-      tokenStorage.setSessionOnly(!keepLoggedIn);
-      await tokenStorage.saveToken(data.accessToken);
-      await tokenStorage.saveUserInfo(data.userId, data.role, username);
-      setAuthenticated(data.userId, data.role as UserRole, username);
-      router.replace('/(medtech)/queue');
-    } catch (err) {
-      const apiError = err as ApiError;
-      if (apiError.code === 'ACCOUNT_LOCKED') {
-        setError('Your account is locked. Contact an administrator.');
-      } else if (apiError.code === 'ACCOUNT_INACTIVE') {
-        setError('Your account is inactive. Contact an administrator.');
-      } else if (apiError.code === 'NETWORK_ERROR') {
-        setError('Cannot reach the server. Check your connection and try again.');
-      } else if (apiError.code === 'TIMEOUT') {
-        setError('The server took too long to respond. Please try again.');
-      } else if (apiError.code === 'INVALID_CREDENTIALS') {
-        setError('Invalid username or password.');
-      } else {
-        setError('Login failed. Please try again.');
+export interface UseAuthResult {
+  login: (username: string, password: string, keepLoggedIn?: boolean) => Promise<void>;
+  logout: () => Promise<void>;
+  isSubmitting: boolean;
+  error: string | null;
+}
+
+/**
+ * @description Maps a raw ApiError code from the login endpoint to a user-facing message.
+ * @param apiError - Error rejected by the auth API client.
+ */
+function describeLoginError(apiError: ApiError): string {
+  switch (apiError.code) {
+    case 'ACCOUNT_LOCKED':
+      return 'Your account is locked. Contact an administrator.';
+    case 'ACCOUNT_INACTIVE':
+      return 'Your account is inactive. Contact an administrator.';
+    case 'NETWORK_ERROR':
+      return 'Cannot reach the server. Check your connection and try again.';
+    case 'TIMEOUT':
+      return 'The server took too long to respond. Please try again.';
+    case 'INVALID_CREDENTIALS':
+      return 'Invalid username or password.';
+    default:
+      return 'Login failed. Please try again.';
+  }
+}
+
+/**
+ * @description Handles the medtech login/logout flow: validates input, exchanges credentials
+ * for a session token, persists it, and routes to the queue (or back to login).
+ */
+export function useAuth(): UseAuthResult {
+  const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+
+  const performLogin = useCallback(
+    async (
+      _signal: AbortSignal,
+      username: string,
+      password: string,
+      keepLoggedIn: boolean,
+    ): Promise<void> => {
+      if (!username.trim() || !password.trim()) {
+        throw new Error('Username and password are required.');
       }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+      try {
+        const data = await authApi.login(username, password);
+        // Drop any session left over from a previous login, then choose where this one lives.
+        await tokenStorage.clearAll();
+        tokenStorage.setSessionOnly(!keepLoggedIn);
+        await tokenStorage.saveToken(data.accessToken);
+        await tokenStorage.saveUserInfo(data.userId, data.role, username);
+        setAuthenticated(data.userId, data.role as UserRole, username);
+        router.replace('/(medtech)/queue');
+      } catch (err) {
+        throw new Error(describeLoginError(err as ApiError));
+      }
+    },
+    [setAuthenticated],
+  );
+  const { run: runLogin, isLoading: isSubmitting, error } = useAsyncAction('Auth', performLogin);
 
-  const logout = async () => {
+  const login = useCallback(
+    async (username: string, password: string, keepLoggedIn = false): Promise<void> => {
+      await runLogin(username, password, keepLoggedIn);
+    },
+    [runLogin],
+  );
+
+  const logout = useCallback(async (): Promise<void> => {
     try {
       await authApi.logout();
     } catch {
-      // Continue logout even if server call fails
+      // Continue logout even if the server call fails.
     } finally {
       await tokenStorage.clearAll();
       clearAuth();
       router.replace('/(auth)/login');
     }
-  };
+  }, [clearAuth]);
 
-  return { login, logout, isSubmitting, error };
+  return { login, logout, isSubmitting, error: error?.message ?? null };
 }

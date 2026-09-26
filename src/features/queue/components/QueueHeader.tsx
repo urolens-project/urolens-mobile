@@ -8,24 +8,27 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { colors, fontWeight, radius, spacing } from '@src/theme';
+
 import { HeaderWaves, QUEUE_WAVES } from '@components/HeaderWaves';
+import { Icon } from '@components/Icon';
 
 // A little taller than the Reports landing header (172): the waves here move all the
 // time, sliding the curve up toward the text at its extremes, so the text needs the room.
 export const QUEUE_HEADER_BODY_HEIGHT = 188;
 
-interface Props {
+export interface QueueHeaderProps {
   username: string | null;
   activeCount: number;
-  // Today's date at the clinic, already formatted.
+  /** Today's date at the clinic, already formatted. */
   dateLabel: string;
-  // Safe-area top inset — the header draws under the status bar.
+  /** Safe-area top inset — the header draws under the status bar. */
   topInset: number;
-  // Changes each time the screen is entered, replaying the entrance.
+  /** Changes each time the screen is entered, replaying the entrance. */
   playKey: number;
   reduceMotion: boolean;
-  // Ambient motion (rising bubbles) runs only while the tab is in view.
+  /** Ambient motion (rising bubbles) runs only while the tab is in view. */
   live: boolean;
   syncing: boolean;
   syncDisabled: boolean;
@@ -60,7 +63,7 @@ const RISERS = [
 
 // An endless there-and-back 0 → 1 → 0. The loop doesn't reset between rounds, so it never
 // jumps, and it can start at any phase. Held still at its phase when not active.
-function useOscillation(active: boolean, duration: number, phase: number) {
+function useOscillation(active: boolean, duration: number, phase: number): Animated.Value {
   const value = useRef(new Animated.Value(phase)).current;
 
   useEffect(() => {
@@ -94,7 +97,7 @@ function useOscillation(active: boolean, duration: number, phase: number) {
 
 // An endless climb 0 → 1, snapping back to 0 (out of sight — it has faded to nothing by
 // then) to go again.
-function useClimb(active: boolean, duration: number, phase: number) {
+function useClimb(active: boolean, duration: number, phase: number): Animated.Value {
   const value = useRef(new Animated.Value(phase)).current;
 
   useEffect(() => {
@@ -133,7 +136,7 @@ function FloatingCircle({
   width,
   height,
   active,
-}: (typeof FLOATERS)[number] & { width: number; height: number; active: boolean }) {
+}: (typeof FLOATERS)[number] & { width: number; height: number; active: boolean }): React.JSX.Element {
   // Sideways and vertical wander run on different periods, tracing a slow loop rather
   // than a straight back-and-forth.
   const sway = useOscillation(active, duration, phase);
@@ -149,7 +152,7 @@ function FloatingCircle({
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.white,
         opacity: bob.interpolate({ inputRange: [0, 1], outputRange: [alpha * 0.55, alpha * 1.3] }),
         transform: [
           { translateX: sway.interpolate({ inputRange: [0, 1], outputRange: [-driftX, driftX] }) },
@@ -170,7 +173,12 @@ function RisingBubble({
   travel,
   bottom,
   active,
-}: (typeof RISERS)[number] & { width: number; travel: number; bottom: number; active: boolean }) {
+}: (typeof RISERS)[number] & {
+  width: number;
+  travel: number;
+  bottom: number;
+  active: boolean;
+}): React.JSX.Element {
   const rise = useClimb(active, duration, phase);
 
   return (
@@ -196,6 +204,20 @@ function RisingBubble({
   );
 }
 
+/**
+ * @description The Queue landing header: animated wave background, drifting decoration,
+ * brand row, title and active-sample count, and the sync/notifications actions.
+ * @param username - Signed-in medtech's display name, if known.
+ * @param activeCount - Number of samples currently active in the queue.
+ * @param dateLabel - Today's date at the clinic, already formatted.
+ * @param topInset - Safe-area top inset; the header draws under the status bar.
+ * @param playKey - Changes each time the screen is entered, replaying the entrance.
+ * @param reduceMotion - Disables all animation.
+ * @param live - Whether ambient motion (rising bubbles) should run.
+ * @param syncing - Whether a sync is currently in progress.
+ * @param syncDisabled - Disables the sync button.
+ * @param onSync - Called when the sync button is pressed.
+ */
 export function QueueHeader({
   username,
   activeCount,
@@ -207,7 +229,7 @@ export function QueueHeader({
   syncing,
   syncDisabled,
   onSync,
-}: Props) {
+}: QueueHeaderProps): React.JSX.Element {
   const { width } = useWindowDimensions();
   const height = topInset + QUEUE_HEADER_BODY_HEIGHT;
   // Everything that moves on its own runs only while the tab is in view and motion is allowed.
@@ -286,7 +308,7 @@ export function QueueHeader({
     ],
   };
 
-  const syncColor = syncDisabled ? 'rgba(255,255,255,0.45)' : '#FFFFFF';
+  const syncColor = syncDisabled ? 'rgba(255,255,255,0.45)' : colors.white;
 
   return (
     <View style={[styles.wrap, { width, height }]}>
@@ -326,7 +348,7 @@ export function QueueHeader({
         style={[styles.microscope, { top: topInset + 62 }, lensStyle]}
         pointerEvents="none"
       >
-        <MaterialCommunityIcons name="microscope" size={96} color="rgba(255,255,255,0.16)" />
+        <Icon family="material-community" name="microscope" size={96} color="rgba(255,255,255,0.16)" />
       </Animated.View>
 
       <Animated.View style={[styles.content, { paddingTop: topInset + 10 }, contentStyle]}>
@@ -334,7 +356,7 @@ export function QueueHeader({
         <View style={styles.brandRow}>
           <View style={styles.brand}>
             <View style={styles.logoBox}>
-              <Ionicons name="flask" size={18} color="#FFFFFF" />
+              <Icon name="flask" size={18} color={colors.white} />
             </View>
             <View>
               <Text style={styles.appName}>UroLens</Text>
@@ -350,12 +372,12 @@ export function QueueHeader({
               disabled={syncDisabled}
             >
               <Animated.View style={spinStyle}>
-                <Ionicons name="sync-outline" size={20} color={syncColor} />
+                <Icon name="sync-outline" size={20} color={syncColor} />
               </Animated.View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Notifications">
               <View>
-                <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
+                <Icon name="notifications-outline" size={20} color={colors.white} />
                 <View style={styles.notifDot} />
               </View>
             </TouchableOpacity>
@@ -404,7 +426,7 @@ const styles = StyleSheet.create({
     right: 14,
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
   brandRow: {
     flexDirection: 'row',
@@ -414,12 +436,12 @@ const styles = StyleSheet.create({
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.smd,
   },
   logoBox: {
     width: 38,
     height: 38,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
@@ -429,8 +451,8 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 15,
     lineHeight: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: fontWeight.extrabold,
+    color: colors.white,
   },
   appSub: {
     fontSize: 11,
@@ -440,12 +462,12 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   iconBtn: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 19, // Half of width/height above — computed circle radius.
     backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -456,65 +478,65 @@ const styles = StyleSheet.create({
     right: -1,
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
+    borderRadius: 4, // Half of width/height above — computed circle radius.
+    backgroundColor: colors.red500,
     borderWidth: 1.5,
-    borderColor: '#2E7D7A',
+    borderColor: colors.teal,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
-    marginTop: 18,
+    gap: spacing.smd,
+    marginTop: 18, // TODO(theme): between spacing.lg(16)/xl(20); left exact.
   },
   title: {
     flexShrink: 1,
     fontSize: 22,
     lineHeight: 28,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: fontWeight.extrabold,
+    color: colors.white,
   },
   countPill: {
     flexShrink: 0,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 14,
+    paddingHorizontal: 9, // TODO(theme): between spacing.sm(8)/smd(10); left exact.
+    paddingVertical: spacing.xs,
+    borderRadius: radius.lg,
   },
   countText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 11.5, // TODO(theme): fractional size, no token.
+    fontWeight: fontWeight.bold,
+    color: colors.white,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   date: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: fontWeight.medium,
     color: 'rgba(255,255,255,0.9)',
   },
   roleBadge: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.smd,
+    paddingVertical: 3, // TODO(theme): between spacing.xxs(2)/xs(4); left exact.
+    borderRadius: radius.lg,
   },
   roleText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#2E7D7A',
+    fontWeight: fontWeight.bold,
+    color: colors.teal,
   },
   username: {
     flexShrink: 1,
     fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: fontWeight.semibold,
+    color: colors.white,
   },
 });

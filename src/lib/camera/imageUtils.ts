@@ -55,25 +55,26 @@ export class ImageFormatError extends Error {
 }
 
 /**
- * Strip EXIF metadata and validate the image from expo-camera.
- *
- * expo-camera returns a CameraCapturedPicture with a local URI.
- * ImageManipulator re-encodes → new URI with no EXIF.
+ * @description Strips EXIF metadata and validates the image from expo-camera.
+ * expo-camera returns a CameraCapturedPicture with a local URI; ImageManipulator
+ * re-encodes it into a new URI with no EXIF.
+ * @param picture - Raw capture from expo-camera.
  */
 export async function processCapture(
   picture: CameraCapturedPicture,
 ): Promise<ProcessedImage> {
-  return _processUri(picture.uri, 'captured');
+  return processUri(picture.uri, 'captured');
 }
 
 /**
- * Strip EXIF metadata and validate the image from expo-image-picker.
+ * @description Strips EXIF metadata and validates the image from expo-image-picker.
+ * @param asset - Picked gallery asset.
  */
 export async function processPickerAsset(
   asset: ImagePickerAsset,
 ): Promise<ProcessedImage> {
   if (!asset.uri) throw new ImageFormatError('unknown');
-  return _processUri(
+  return processUri(
     asset.uri,
     asset.fileName ?? 'gallery-image',
     asset.mimeType as SupportedMimeType | undefined,
@@ -81,12 +82,12 @@ export async function processPickerAsset(
 }
 
 /**
- * Build a FormData object ready for the multipart POST /images/upload.
- *
- * Native's FormData polyfill accepts a { uri, name, type } object literal as
- * a file part, but a real browser FormData does not — it just stringifies
- * unknown objects. On web the local URI has to be resolved to an actual Blob
- * first and appended as a File.
+ * @description Builds a FormData object ready for the multipart POST /images/upload.
+ * Native's FormData polyfill accepts a { uri, name, type } object literal as a file
+ * part, but a real browser FormData does not — it just stringifies unknown objects.
+ * On web the local URI has to be resolved to an actual Blob first and appended as a File.
+ * @param image - Processed image to upload.
+ * @param specimenId - Specimen the image belongs to.
  */
 export async function buildUploadFormData(
   image: ProcessedImage,
@@ -114,7 +115,7 @@ export async function buildUploadFormData(
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
-async function _processUri(
+async function processUri(
   uri: string,
   filenameStem: string,
   mimeType?: SupportedMimeType,

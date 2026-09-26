@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
-import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
 import { RiseIn } from '@components/RiseIn';
+
+import { DATE_SUB_FILTERS, STATUS_SUB_FILTERS } from '../constants';
 import type { FilterOption } from '../types';
 
-const TEAL = '#2E7D7A';
-
-interface Props {
+export interface QueueFilterBarProps {
   selected: FilterOption;
   onChange: (filter: FilterOption) => void;
   counts?: Partial<Record<FilterOption, number>>;
@@ -14,7 +17,14 @@ interface Props {
 
 type ExpandedGroup = 'date' | 'status' | null;
 
-export function QueueFilterBar({ selected, onChange, counts }: Props) {
+/**
+ * @description Filter chips for the Queue: All, plus expandable Date and Status groups
+ * whose sub-chips pick the concrete filter.
+ * @param selected - The currently active filter.
+ * @param onChange - Called with the newly selected filter.
+ * @param counts - Optional per-filter counts shown as small badges.
+ */
+export function QueueFilterBar({ selected, onChange, counts }: QueueFilterBarProps): React.JSX.Element {
   const isDateFilter = selected === 'LATEST' || selected === 'EARLIEST';
   const isStatusFilter =
     selected === 'ASSIGNED' || selected === 'PROCESSING' || selected === 'RETURNED';
@@ -23,23 +33,23 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
     isDateFilter ? 'date' : isStatusFilter ? 'status' : null,
   );
 
-  function handleMainChip(group: 'date' | 'all' | 'status') {
-    if (group === 'all') {
-      onChange('ALL');
-      setExpandedGroup(null);
-      return;
-    }
-    if (group === 'date') {
-      onChange('DATE');
-      setExpandedGroup((prev) => (prev === 'date' ? null : 'date'));
-      return;
-    }
-    if (group === 'status') {
+  const handleMainChip = useCallback(
+    (group: 'date' | 'all' | 'status'): void => {
+      if (group === 'all') {
+        onChange('ALL');
+        setExpandedGroup(null);
+        return;
+      }
+      if (group === 'date') {
+        onChange('DATE');
+        setExpandedGroup((prev) => (prev === 'date' ? null : 'date'));
+        return;
+      }
       onChange('STATUS');
       setExpandedGroup((prev) => (prev === 'status' ? null : 'status'));
-      return;
-    }
-  }
+    },
+    [onChange],
+  );
 
   const isAllActive = selected === 'ALL';
   const isDateActive = selected === 'DATE' || isDateFilter || expandedGroup === 'date';
@@ -78,16 +88,12 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
             accessibilityRole="button"
             accessibilityState={{ selected: isDateActive }}
           >
-            <Ionicons
-              name="calendar-outline"
-              size={14}
-              color={isDateActive ? '#FFFFFF' : '#6B7280'}
-            />
+            <Icon name="calendar-outline" size={14} color={isDateActive ? colors.white : colors.gray500} />
             <Text style={[styles.chipText, isDateActive && styles.chipTextActive]}>Date</Text>
-            <Ionicons
+            <Icon
               name={expandedGroup === 'date' ? 'chevron-up' : 'chevron-down'}
               size={13}
-              color={isDateActive ? '#FFFFFF' : '#6B7280'}
+              color={isDateActive ? colors.white : colors.gray500}
             />
           </TouchableOpacity>
 
@@ -99,10 +105,10 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
             accessibilityState={{ selected: isStatusActive }}
           >
             <Text style={[styles.chipText, isStatusActive && styles.chipTextActive]}>Status</Text>
-            <Ionicons
+            <Icon
               name={expandedGroup === 'status' ? 'chevron-up' : 'chevron-down'}
               size={13}
-              color={isStatusActive ? '#FFFFFF' : '#6B7280'}
+              color={isStatusActive ? colors.white : colors.gray500}
             />
           </TouchableOpacity>
         </ScrollView>
@@ -116,27 +122,22 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.subRow}
           >
-            {(
-              [
-                { key: 'LATEST' as FilterOption, label: 'Latest', icon: 'arrow-down-outline' },
-                { key: 'EARLIEST' as FilterOption, label: 'Earliest', icon: 'arrow-up-outline' },
-              ] as const
-            ).map((sub) => {
+            {DATE_SUB_FILTERS.map((sub) => {
               const isActive = selected === sub.key;
               return (
                 <TouchableOpacity
                   key={sub.key}
                   style={[
                     styles.subChip,
-                    { borderColor: TEAL },
-                    isActive && { backgroundColor: '#E0F2F1' },
+                    { borderColor: colors.teal },
+                    isActive && { backgroundColor: colors.tealTint },
                   ]}
                   onPress={() => onChange(sub.key)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isActive }}
                 >
-                  <Ionicons name={sub.icon as any} size={14} color={isActive ? TEAL : '#6B7280'} />
-                  <Text style={[styles.subChipText, { color: isActive ? TEAL : '#374151' }]}>
+                  <Icon name={sub.icon} size={14} color={isActive ? colors.teal : colors.gray500} />
+                  <Text style={[styles.subChipText, { color: isActive ? colors.teal : colors.gray700 }]}>
                     {sub.label}
                   </Text>
                 </TouchableOpacity>
@@ -154,23 +155,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.subRow}
           >
-            {(
-              [
-                { key: 'ASSIGNED' as FilterOption, label: 'Assigned', color: TEAL, bg: '#E0F2F1' },
-                {
-                  key: 'PROCESSING' as FilterOption,
-                  label: 'In Progress',
-                  color: '#7C3AED',
-                  bg: '#EDE9FE',
-                },
-                {
-                  key: 'RETURNED' as FilterOption,
-                  label: 'Returned',
-                  color: '#D97706',
-                  bg: '#FEF3C7',
-                },
-              ] as const
-            ).map((sub) => {
+            {STATUS_SUB_FILTERS.map((sub) => {
               const isActive = selected === sub.key;
               return (
                 <TouchableOpacity
@@ -189,7 +174,7 @@ export function QueueFilterBar({ selected, onChange, counts }: Props) {
                     style={[
                       styles.subChipText,
                       { color: sub.color },
-                      !isActive && { color: '#374151' },
+                      !isActive && { color: colors.gray700 },
                     ]}
                   >
                     {sub.label}
@@ -223,89 +208,89 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 12,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.md,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    gap: 6, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 9, // TODO(theme): between spacing.sm(8)/smd(10); left exact.
+    borderRadius: 22, // TODO(theme): between radius.xxl(20)/xxxl(24); left exact.
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#1F2937',
+    borderColor: colors.gray200,
+    shadowColor: colors.gray800,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 5,
     elevation: 1,
   },
   chipActive: {
-    backgroundColor: TEAL,
-    borderColor: TEAL,
-    shadowColor: TEAL,
+    backgroundColor: colors.teal,
+    borderColor: colors.teal,
+    shadowColor: colors.teal,
     shadowOpacity: 0.3,
     shadowRadius: 7,
     elevation: 3,
   },
   chipText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#374151',
+    ...typography.body,
+    fontWeight: fontWeight.medium,
+    color: colors.gray700,
   },
   chipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: colors.white,
+    fontWeight: fontWeight.semibold,
   },
   // Count badge inside main chip
   countBadge: {
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs + 2, // 6 — TODO(theme): no exact token; nearest is xs(4).
+    paddingVertical: 1, // TODO(theme): below spacing.xxs(2); left exact.
     minWidth: 20,
     alignItems: 'center',
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.gray200,
   },
   countBadgeActive: {
     backgroundColor: 'rgba(255,255,255,0.25)',
   },
   countText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6B7280',
+    ...typography.micro,
+    fontWeight: fontWeight.bold,
+    color: colors.gray500,
   },
   countTextActive: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
 
   // Sub-chips row
   subRow: {
     flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 4,
-    paddingBottom: 12,
+    gap: 6, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.md,
   },
   subChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 18,
+    gap: 5, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
+    paddingHorizontal: 11, // TODO(theme): between spacing.smd(10)/md(12); left exact.
+    paddingVertical: spacing.sm,
+    borderRadius: 18, // TODO(theme): between radius.xl(16)/xxl(20); left exact.
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.gray200,
+    backgroundColor: colors.white,
   },
   subDot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: 3, // Half of width/height above — computed circle radius.
   },
   subChipText: {
-    fontSize: 13,
-    fontWeight: '500',
+    ...typography.body,
+    fontWeight: fontWeight.medium,
   },
 });

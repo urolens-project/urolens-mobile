@@ -1,23 +1,34 @@
-// Path: urolens-mobile/src/features/result-confirmation/components/SmartDiagnosisPanel.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
+import { colors, radius, spacing } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
 import type { SmartDiagnosisResult, ScoreLevel } from '../types';
 
-const TEAL = '#2E7D7A';
-
-interface SmartDiagnosisPanelProps {
+export interface SmartDiagnosisPanelProps {
   smartDiagnosis: SmartDiagnosisResult | null;
   unavailable: boolean;
 }
 
-const SCORE_CONFIG: Record<ScoreLevel, { bg: string; text: string; label: string }> = {
-  LOW:      { bg: '#D1FAE5', text: '#065F46', label: 'Low'      },
-  MODERATE: { bg: '#FEF3C7', text: '#92400E', label: 'Moderate' },
-  HIGH:     { bg: '#FEE2E2', text: '#991B1B', label: 'High'     },
+interface ScoreConfig {
+  bg: string;
+  text: string;
+  label: string;
+}
+
+const SCORE_CONFIG: Record<ScoreLevel, ScoreConfig> = {
+  LOW: { bg: colors.emerald100, text: colors.emerald800, label: 'Low' },
+  MODERATE: { bg: colors.amber100, text: colors.amber800, label: 'Moderate' },
+  HIGH: { bg: colors.red100, text: colors.red800, label: 'High' },
 };
 
-function ScoreBadge({ level }: { level: ScoreLevel }): React.JSX.Element {
+interface ScoreBadgeProps {
+  level: ScoreLevel;
+}
+
+function ScoreBadge({ level }: ScoreBadgeProps): React.JSX.Element {
   const cfg = SCORE_CONFIG[level] ?? SCORE_CONFIG.LOW;
   return (
     <View style={[styles.badge, { backgroundColor: cfg.bg }]}>
@@ -45,6 +56,12 @@ function ConditionRow({ label, description, score, isLast }: ConditionRowProps):
   );
 }
 
+/**
+ * @description Card showing the three Smart Diagnosis condition scores (gout,
+ * glomerulonephritis, nephrolithiasis), or an unavailable/no-indicators message.
+ * @param smartDiagnosis - The diagnosis payload, or null if not yet available.
+ * @param unavailable - True when the engine reported an error for this result.
+ */
 export function SmartDiagnosisPanel({
   smartDiagnosis,
   unavailable,
@@ -53,7 +70,7 @@ export function SmartDiagnosisPanel({
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="analytics-outline" size={16} color={TEAL} />
+          <Icon name="analytics-outline" size={16} color={colors.teal} />
           <Text style={styles.title}>Smart Diagnosis</Text>
         </View>
         <Text style={styles.readOnly}>Supervisor review</Text>
@@ -61,7 +78,7 @@ export function SmartDiagnosisPanel({
 
       {unavailable || !smartDiagnosis ? (
         <View style={styles.unavailableBox}>
-          <Ionicons name="warning-outline" size={18} color="#B91C1C" />
+          <Icon name="warning-outline" size={18} color={colors.red700} />
           <View style={styles.unavailableText}>
             <Text style={styles.unavailableTitle}>Diagnosis unavailable</Text>
             <Text style={styles.unavailableBody}>
@@ -72,7 +89,7 @@ export function SmartDiagnosisPanel({
         </View>
       ) : smartDiagnosis.noSignificantIndicators ? (
         <View style={styles.normalBox}>
-          <Ionicons name="checkmark-circle-outline" size={18} color="#065F46" />
+          <Icon name="checkmark-circle-outline" size={18} color={colors.emerald800} />
           <Text style={styles.normalText}>
             No significant clinical indicators detected. All scores within normal range.
           </Text>
@@ -103,37 +120,39 @@ export function SmartDiagnosisPanel({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
     borderWidth: 0.5,
+    // TODO(theme): near-black hairline at 0.1 alpha not in palette.
     borderColor: 'rgba(0,0,0,0.1)',
-    marginHorizontal: 16,
-    marginTop: 12,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
     overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.mlg,
     borderBottomWidth: 0.5,
+    // TODO(theme): near-black hairline at 0.08 alpha not in palette.
     borderBottomColor: 'rgba(0,0,0,0.08)',
-    backgroundColor: '#F7F6F3',
+    backgroundColor: colors.cream,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: colors.ink,
   },
   readOnly: {
     fontSize: 11,
-    color: '#888780',
+    color: colors.warmGray500,
     fontStyle: 'italic',
   },
   conditions: {},
@@ -141,30 +160,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.mlg,
   },
   conditionRowBorder: {
     borderBottomWidth: 0.5,
+    // TODO(theme): near-black hairline at 0.06 alpha not in palette.
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   conditionLeft: {
     flex: 1,
-    marginRight: 12,
+    marginRight: spacing.md,
     gap: 3,
   },
   conditionLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: colors.ink,
   },
   conditionDesc: {
     fontSize: 11,
-    color: '#888780',
+    color: colors.warmGray500,
     lineHeight: 15,
   },
   badge: {
-    paddingHorizontal: 10,
+    paddingHorizontal: spacing.smd,
     paddingVertical: 4,
     borderRadius: 10,
   },
@@ -175,43 +195,43 @@ const styles = StyleSheet.create({
   unavailableBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    margin: 14,
-    padding: 14,
-    backgroundColor: '#FEF2F2',
+    gap: spacing.smd,
+    margin: spacing.mlg,
+    padding: spacing.mlg,
+    backgroundColor: colors.red50,
     borderRadius: 10,
     borderWidth: 0.5,
-    borderColor: '#FECACA',
+    borderColor: colors.red200,
   },
   unavailableText: {
     flex: 1,
-    gap: 4,
+    gap: spacing.xs,
   },
   unavailableTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#991B1B',
+    color: colors.red800,
   },
   unavailableBody: {
     fontSize: 12,
-    color: '#7F1D1D',
+    color: colors.red900,
     lineHeight: 17,
   },
   normalBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    margin: 14,
-    padding: 14,
-    backgroundColor: '#F0FDF4',
+    gap: spacing.smd,
+    margin: spacing.mlg,
+    padding: spacing.mlg,
+    backgroundColor: colors.green50,
     borderRadius: 10,
     borderWidth: 0.5,
-    borderColor: '#BBF7D0',
+    borderColor: colors.green200,
   },
   normalText: {
     flex: 1,
     fontSize: 13,
-    color: '#065F46',
+    color: colors.emerald800,
     lineHeight: 18,
   },
 });

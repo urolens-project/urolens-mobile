@@ -1,16 +1,21 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
-interface Props {
+export interface PulseDotProps {
   color: string;
   size?: number;
   // Runs the pulse. Off for reduced motion, or while the screen isn't in view.
   live?: boolean;
 }
 
-// A small status dot with a soft ring that keeps expanding and fading — the
-// "this is live" signal. Decorative: screen readers get the text next to it.
-export function PulseDot({ color, size = 8, live = true }: Props) {
+/**
+ * @description A small status dot with a soft ring that keeps expanding and fading —
+ * the "this is live" signal. Decorative: screen readers get the text next to it.
+ * @param color - Fill color of the dot and its ring.
+ * @param size - Diameter in pixels. Defaults to 8.
+ * @param live - Runs the pulse animation. Defaults to true.
+ */
+export function PulseDot({ color, size = 8, live = true }: PulseDotProps): React.JSX.Element {
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
