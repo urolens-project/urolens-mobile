@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
+
 import AnalysisResult from '@db/models/AnalysisResult';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { getErrorMessage } from '@lib/errorMessage';
+
 import { confirmResultCore } from '../lib/confirmResultCore';
 
 // What a confirm attempt came to. The failure message is returned rather than only
@@ -21,9 +23,12 @@ interface UseConfirmActionReturn {
   error: string | null;
 }
 
-// Shared confirm-action state (loading/error/double-submit guard) for any
-// screen that needs to confirm an AnalysisResult. Business logic lives in
-// confirmResultCore so both call sites behave identically.
+/**
+ * @description Shared confirm-action state (loading/error/double-submit guard) for any
+ * screen that needs to confirm an AnalysisResult. Business logic lives in
+ * `confirmResultCore` so both call sites behave identically. A confirm already in
+ * flight returns `{ status: 'busy' }` immediately instead of starting a second one.
+ */
 export function useConfirmAction(): UseConfirmActionReturn {
   const { isOnline } = useNetworkStatus();
   const [isConfirming, setIsConfirming] = useState(false);

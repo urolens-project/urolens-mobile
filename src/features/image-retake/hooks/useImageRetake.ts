@@ -11,22 +11,26 @@
  *
  * Capture and upload are split into separate steps (rather than one atomic
  * select-and-upload call) because the UI shows a preview the MedTech can
- * retake before committing to the upload.
+ * retake before committing to the upload. This multi-phase progress-tracking
+ * flow doesn't fit the simpler isLoading/error shape of useAsyncAction, so it
+ * manages its own UploadState machine instead.
  */
 
 import { useState, useCallback, useRef } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { CameraCapturedPicture } from 'expo-camera';
+import type { CameraCapturedPicture } from 'expo-camera';
+
 import apiClient from '@lib/apiClient';
 import {
   processCapture,
   processPickerAsset,
   buildUploadFormData,
-  ProcessedImage,
   ImageResolutionError,
   ImageFormatError,
 } from '@lib/camera/imageUtils';
-import { uploadImageViaXhr, UploadImageResponse } from '@lib/camera/uploadImage';
+import type { ProcessedImage } from '@lib/camera/imageUtils';
+import { uploadImageViaXhr } from '@lib/camera/uploadImage';
+import type { UploadImageResponse } from '@lib/camera/uploadImage';
 
 export type UploadState =
   | { phase: 'idle' }
@@ -47,13 +51,17 @@ export interface UseImageRetakeReturn {
   reset: () => void;
 }
 
+/**
+ * @description Drives the capture → preview → upload flow for a specimen image,
+ * including gallery fallback and the discard/retake path.
+ */
 export function useImageRetake(): UseImageRetakeReturn {
   const [state, setState] = useState<UploadState>({ phase: 'idle' });
   const [capturedImage, setCapturedImage] = useState<ProcessedImage | null>(null);
   // Abort controller so we can cancel an in-flight upload on unmount
   const abortRef = useRef<AbortController | null>(null);
 
-  const reset = useCallback(() => {
+  const reset = useCallback((): void => {
     abortRef.current?.abort();
     setState({ phase: 'idle' });
     setCapturedImage(null);
@@ -62,7 +70,7 @@ export function useImageRetake(): UseImageRetakeReturn {
   // ── Capture / pick → process → preview ────────────────────────────────────
 
   const captureFromCamera = useCallback(
-    async (takePicture: () => Promise<CameraCapturedPicture | undefined>) => {
+    async (takePicture: () => Promise<CameraCapturedPicture | undefined>): Promise<void> => {
       setState({ phase: 'processing' });
       try {
         const picture = await takePicture();
@@ -71,13 +79,13 @@ export function useImageRetake(): UseImageRetakeReturn {
         setCapturedImage(processed);
         setState({ phase: 'previewing' });
       } catch (err: unknown) {
-        setState({ phase: 'error', message: _extractMessage(err) });
+        setState({ phase: 'error', message: extractMessage(err) });
       }
     },
     [],
   );
 
-  const pickFromGallery = useCallback(async () => {
+  const pickFromGallery = useCallback(async (): Promise<void> => {
     setState({ phase: 'processing' });
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -96,7 +104,7 @@ export function useImageRetake(): UseImageRetakeReturn {
       setCapturedImage(processed);
       setState({ phase: 'previewing' });
     } catch (err: unknown) {
-      setState({ phase: 'error', message: _extractMessage(err) });
+      setState({ phase: 'error', message: extractMessage(err) });
     }
   }, []);
 
@@ -116,7 +124,7 @@ export function useImageRetake(): UseImageRetakeReturn {
         });
         return data;
       } catch (err: unknown) {
-        if (!_isAbortError(err)) { setState({ phase: 'error', message: _extractMessage(err) }); }
+        if (!isAbortError(err)) { setState({ phase: 'error', message: extractMessage(err) }); }
         throw err;
       }
     },
@@ -125,13 +133,13 @@ export function useImageRetake(): UseImageRetakeReturn {
 
   // ── Discard + retake flow ─────────────────────────────────────────────────
 
-  const discardImage = useCallback(async (imageId: string) => {
+  const discardImage = useCallback(async (imageId: string): Promise<void> => {
     try {
       await apiClient.post(`/images/${imageId}/discard`);
       // Reset to idle so the capture screen re-opens
       reset();
     } catch (err: unknown) {
-      setState({ phase: 'error', message: _extractMessage(err) });
+      setState({ phase: 'error', message: extractMessage(err) });
       throw err;
     }
   }, [reset]);
@@ -149,19 +157,19 @@ export function useImageRetake(): UseImageRetakeReturn {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function _isAbortError(err: unknown): boolean {
+function isAbortError(err: unknown): boolean {
   return (
     err instanceof Error &&
     (err.name === 'AbortError' || err.name === 'CanceledError')
   );
 }
 
-function _extractMessage(err: unknown): string {
+function extractMessage(err: unknown): string {
   if (err instanceof ImageResolutionError || err instanceof ImageFormatError) {
     return err.message;
   }
   if (err instanceof Error) {
-    const axiosData = (err as any).response?.data;
+    const axiosData = (err as { response?: { data?: { error?: { message?: string } } } }).response?.data;
     if (axiosData?.error?.message) return axiosData.error.message;
     return err.message;
   }

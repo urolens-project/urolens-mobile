@@ -29,12 +29,13 @@ if (Platform.OS === 'web') {
   adapter = new SQLiteAdapter({
     schema,
     migrations,
-    onSetUpError: (error: any) => {
+    onSetUpError: (error: unknown) => {
       console.error('[WatermelonDB] Setup error:', error);
     },
   });
 }
 
+/** @description The app's single WatermelonDB instance — SQLite on native, LokiJS on web. */
 export const database = new Database({
   adapter,
   modelClasses: [

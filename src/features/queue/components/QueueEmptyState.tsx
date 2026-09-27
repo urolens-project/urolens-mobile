@@ -1,48 +1,70 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+
+import { colors, fontWeight, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
 import type { FilterOption } from '../types';
 
-interface Props {
+export interface QueueEmptyStateProps {
   isOnline: boolean;
   filter: FilterOption;
   reduceMotion: boolean;
 }
 
-// What to say when the list is empty, and the picture that goes with it. The words
-// and the conditions are the Queue's original ones; only the presentation is new.
-function describe({ isOnline, filter }: Pick<Props, 'isOnline' | 'filter'>) {
+interface EmptyStateDescription {
+  icon: 'cloud-offline-outline' | 'filter-outline' | 'checkmark-circle-outline';
+  color: string;
+  tint: string;
+  title: string;
+  sub: string;
+}
+
+/**
+ * @description What to say when the list is empty, and the picture that goes with it. The
+ * words and the conditions are the Queue's original ones; only the presentation is new.
+ * @param isOnline - Whether the device currently has connectivity.
+ * @param filter - The active queue filter.
+ */
+function describe({ isOnline, filter }: Pick<QueueEmptyStateProps, 'isOnline' | 'filter'>): EmptyStateDescription {
   if (!isOnline) {
     return {
-      icon: 'cloud-offline-outline' as const,
-      color: '#D97706',
-      tint: '#FEF3C7',
+      icon: 'cloud-offline-outline',
+      color: colors.amber600,
+      tint: colors.amber100,
       title: "You're offline",
       sub: 'Connect to sync your latest queue.',
     };
   }
   if (filter !== 'ALL') {
     return {
-      icon: 'filter-outline' as const,
-      color: '#6B7280',
-      tint: '#E5E7EB',
+      icon: 'filter-outline',
+      color: colors.gray500,
+      tint: colors.gray200,
       title: 'No matches',
       sub: 'Try selecting a different filter.',
     };
   }
   return {
-    icon: 'checkmark-circle-outline' as const,
-    color: '#2E7D7A',
-    tint: '#E0F2F1',
+    icon: 'checkmark-circle-outline',
+    color: colors.teal,
+    tint: colors.tealTint,
     title: 'Queue is clear',
     sub: 'No samples are currently assigned to you.',
   };
 }
 
-export function QueueEmptyState({ isOnline, filter, reduceMotion }: Props) {
+/**
+ * @description Empty state for the Queue list: offline, filtered-to-nothing, or genuinely
+ * clear. The icon floats gently so an empty screen still feels alive.
+ * @param isOnline - Whether the device currently has connectivity.
+ * @param filter - The active queue filter.
+ * @param reduceMotion - Disables the floating animation.
+ */
+export function QueueEmptyState({ isOnline, filter, reduceMotion }: QueueEmptyStateProps): React.JSX.Element {
   const { icon, color, tint, title, sub } = describe({ isOnline, filter });
 
-  // The icon floats gently, so an empty screen still feels alive.
   const float = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     float.setValue(0);
@@ -75,7 +97,7 @@ export function QueueEmptyState({ isOnline, filter, reduceMotion }: Props) {
     <View style={styles.empty}>
       <Animated.View style={[styles.disc, { backgroundColor: tint }, floatStyle]}>
         <View style={styles.discInner}>
-          <Ionicons name={icon} size={38} color={color} />
+          <Icon name={icon} size={38} color={color} />
         </View>
       </Animated.View>
       <Text style={styles.title}>{title}</Text>
@@ -87,39 +109,39 @@ export function QueueEmptyState({ isOnline, filter, reduceMotion }: Props) {
 const styles = StyleSheet.create({
   empty: {
     alignItems: 'center',
-    paddingTop: 44,
-    paddingHorizontal: 32,
-    gap: 10,
+    paddingTop: 44, // TODO(theme): between spacing.xxxl(32)/huge(40); left exact.
+    paddingHorizontal: spacing.xxxl,
+    gap: spacing.smd,
   },
   disc: {
     width: 104,
     height: 104,
-    borderRadius: 52,
+    borderRadius: 52, // Half of width/height above — computed circle radius.
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 6, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
   },
   discInner: {
     width: 74,
     height: 74,
-    borderRadius: 37,
-    backgroundColor: '#FFFFFF',
+    borderRadius: 37, // Half of width/height above — computed circle radius.
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
   },
   title: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
+    ...typography.titleLg,
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
   },
   sub: {
-    fontSize: 14,
-    color: '#9CA3AF',
+    ...typography.bodyLg,
+    color: colors.gray400,
     textAlign: 'center',
   },
 });

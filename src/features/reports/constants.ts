@@ -1,3 +1,5 @@
+import { colors } from '@src/theme';
+
 import type { ReportCategory } from './types';
 
 export interface CategoryStyle {
@@ -18,8 +20,28 @@ export interface CategoryStyle {
 // stays a conventional green, PENDING an amber "awaiting action", REJECTED
 // the same red used everywhere else in the app for rejections.
 export const REPORT_CATEGORY_STYLES: Record<ReportCategory, CategoryStyle> = {
-  PENDING_APPROVAL: { color: '#D97706', tint: '#FEF3C7', wash: '#FFF7E6', blob: '#FDE7B0' },
-  APPROVED: { color: '#059669', tint: '#ECFDF5', wash: '#E9F8F1', blob: '#BFEBD6' },
-  RELEASED: { color: '#2E7D7A', tint: '#E0F2F1', wash: '#E3F2F1', blob: '#BFE3E0' },
-  REJECTED: { color: '#DC2626', tint: '#FEF2F2', wash: '#FDEDED', blob: '#FBC9C9' },
+  PENDING_APPROVAL: {
+    color: colors.amber600,
+    tint: colors.amber100,
+    wash: colors.amberTint3,
+    blob: colors.amberTint4,
+  },
+  APPROVED: {
+    color: colors.emerald600,
+    tint: colors.emerald50,
+    wash: colors.tealTint6,
+    blob: colors.greenTint4,
+  },
+  RELEASED: {
+    color: colors.teal,
+    tint: colors.tealTint,
+    wash: colors.tealTint7,
+    blob: colors.tealTint8,
+  },
+  REJECTED: {
+    color: colors.red600,
+    tint: colors.red50,
+    wash: colors.redTint3,
+    blob: colors.redTint5,
+  },
 };

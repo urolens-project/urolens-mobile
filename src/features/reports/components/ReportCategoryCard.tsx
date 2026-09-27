@@ -1,12 +1,16 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
+import { colors, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import { REPORT_CATEGORY_DESCRIPTIONS } from '../types';
 import type { ReportCategory } from '../types';
 import { ReportIllustration } from './ReportIllustration';
 
-interface Props {
+export interface ReportCategoryCardProps {
   category: ReportCategory;
   title: string;
   count: number;
@@ -17,7 +21,22 @@ interface Props {
 
 export const CARD_RADIUS = 24;
 
-function ReportCategoryCardComponent({ category, title, count, onPress, animate = true }: Props) {
+/**
+ * @description Landing-page card for one report category: title, description, sample
+ * count pill, and an animated illustration.
+ * @param category - Which report category this card represents.
+ * @param title - Category title.
+ * @param count - Number of samples currently in this category.
+ * @param onPress - Called with the category when the card is tapped.
+ * @param animate - Plays idle motion on the illustration; disable for reduced motion.
+ */
+function ReportCategoryCardComponent({
+  category,
+  title,
+  count,
+  onPress,
+  animate = true,
+}: ReportCategoryCardProps): React.JSX.Element {
   const style = REPORT_CATEGORY_STYLES[category];
   const isEmpty = count === 0;
   const countLabel = `${count} sample${count === 1 ? '' : 's'}`;
@@ -39,11 +58,11 @@ function ReportCategoryCardComponent({ category, title, count, onPress, animate 
         </Text>
 
         <View style={styles.pill}>
-          <Text style={[styles.pillCount, { color: isEmpty ? '#9CA3AF' : style.color }]}>
+          <Text style={[styles.pillCount, { color: isEmpty ? colors.gray400 : style.color }]}>
             {count}
           </Text>
           <Text style={styles.pillLabel}>{count === 1 ? 'sample' : 'samples'}</Text>
-          <Ionicons name="chevron-forward" size={14} color="#6B7280" />
+          <Icon name="chevron-forward" size={14} color={colors.gray500} />
         </View>
       </View>
 
@@ -64,7 +83,7 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#1F2937',
+    shadowColor: colors.gray800,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -72,32 +91,32 @@ const styles = StyleSheet.create({
   },
   textCol: {
     flex: 1,
-    paddingRight: 4,
+    paddingRight: spacing.xs,
     gap: 6,
   },
   title: {
     fontSize: 19,
     lineHeight: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.gray900,
   },
   description: {
-    fontSize: 12,
+    ...typography.caption,
     lineHeight: 17,
-    color: '#6B7280',
+    color: colors.gray500,
   },
   pill: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 8,
-    paddingVertical: 8,
-    paddingLeft: 14,
-    paddingRight: 10,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingLeft: spacing.mlg,
+    paddingRight: spacing.smd,
+    borderRadius: radius.xxl,
+    backgroundColor: colors.white,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -108,9 +127,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   pillLabel: {
-    fontSize: 13,
+    ...typography.body,
     fontWeight: '600',
-    color: '#374151',
+    color: colors.gray700,
   },
   art: {
     width: 124,
