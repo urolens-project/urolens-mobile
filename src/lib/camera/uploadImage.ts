@@ -57,7 +57,9 @@ export function uploadImageViaXhr(
     xhr.timeout = 60000;
 
     xhr.upload.onprogress = (evt) => {
-      if (evt.lengthComputable && evt.total > 0) { onProgress(Math.round((evt.loaded / evt.total) * 100)); }
+      if (evt.lengthComputable && evt.total > 0) {
+        onProgress(Math.min(100, Math.round((evt.loaded / evt.total) * 100)));
+      }
     };
 
     xhr.onload = () => {
