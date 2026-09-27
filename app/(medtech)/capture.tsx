@@ -1,25 +1,15 @@
-// app/(medtech)/capture.tsx
-/**
- * T2.7 — Image Capture Route
- *
- * Reads route params here (in the actual route file, where useLocalSearchParams
- * is reliable) and forwards them as props to ImageCaptureScreen.
- *
- * Expected query params:
- *   specimenId       — server UUID of the specimen (required)
- *   localSpecimenId  — WatermelonDB local ID, used for return navigation
- *   existingImageId  — server UUID of an existing image (present on retake only)
- *
- * useFocusEffect increments mountKey on every screen focus so ImageCaptureScreen
- * always remounts fresh — this prevents stale uploading/previewing state from
- * a previous session being shown when the user navigates back for a retake.
- */
-
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+
 import { ImageCaptureScreen } from '@features/image-retake/components/ImageCaptureScreen';
 
-export default function CaptureRoute() {
+/**
+ * @description Route entry for /capture. Reads specimen params here, where
+ * useLocalSearchParams is reliable, and forwards them to ImageCaptureScreen.
+ * Expects `specimenId` (required), `localSpecimenId` (WatermelonDB local id, used for
+ * return navigation), and `existingImageId` (present on retake only).
+ */
+export default function CaptureRoute(): React.JSX.Element {
   const { specimenId, localSpecimenId, existingImageId } = useLocalSearchParams<{
     specimenId: string;
     localSpecimenId: string;
@@ -28,6 +18,8 @@ export default function CaptureRoute() {
 
   const [mountKey, setMountKey] = useState(0);
 
+  // Remount ImageCaptureScreen on every focus so a previous session's
+  // uploading/previewing state never leaks into a fresh retake.
   useFocusEffect(
     useCallback(() => {
       setMountKey((k) => k + 1);

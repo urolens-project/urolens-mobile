@@ -27,10 +27,14 @@ interface PushError {
   message?: string;
 }
 
-// Worth trying again later: the request never got a proper answer (no network,
-// timeout), the server had a problem (5xx), it asked us to slow down (429/408), or
-// the session needs a fresh login (401). Anything else — the server understood
-// and refused (validation, permission, wrong state) — will fail the same way again.
+/**
+ * @description Worth trying again later: the request never got a proper answer (no
+ * network, timeout), the server had a problem (5xx), it asked us to slow down
+ * (429/408), or the session needs a fresh login (401). Anything else — the server
+ * understood and refused (validation, permission, wrong state) — will fail the same
+ * way again.
+ * @param err - Caught value from a failed push.
+ */
 export function isTransient(err: unknown): boolean {
   const { code, status } = (err ?? {}) as PushError;
   if (code === 'NETWORK_ERROR' || code === 'TIMEOUT') return true;
@@ -61,7 +65,7 @@ async function markItem(
   });
 }
 
-// True while any change is still waiting to be sent to the server.
+/** @description True while any change is still waiting to be sent to the server. */
 export async function hasPendingActions(): Promise<boolean> {
   const count = await database
     .get<PendingSync>('pending_sync')
@@ -70,8 +74,10 @@ export async function hasPendingActions(): Promise<boolean> {
   return count > 0;
 }
 
-// One-time: give actions that were FAILED under the old never-retry behavior a
-// second chance. Ones that fail again for a permanent reason go back to FAILED.
+/**
+ * @description One-time: gives actions that were FAILED under the old never-retry
+ * behavior a second chance. Ones that fail again for a permanent reason go back to FAILED.
+ */
 export async function requeueLegacyFailedActions(): Promise<void> {
   if (await AsyncStorage.getItem(LEGACY_REQUEUE_KEY)) return;
 
@@ -94,6 +100,11 @@ export async function requeueLegacyFailedActions(): Promise<void> {
   await AsyncStorage.setItem(LEGACY_REQUEUE_KEY, '1');
 }
 
+/**
+ * @description Sends every pending local change to the server in creation order,
+ * retrying transient failures on the next sync and giving up (FAILED) on permanent
+ * ones or once MAX_RETRY_AGE_MS has passed.
+ */
 export async function pushChanges(): Promise<void> {
   const collection = database.get<PendingSync>('pending_sync');
   // Oldest first, so changes reach the server in the order they were made

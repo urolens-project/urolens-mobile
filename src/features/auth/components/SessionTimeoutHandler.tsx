@@ -1,18 +1,23 @@
 import { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
+
 import { useAuth } from '../hooks/useAuth';
 
 const TIMEOUT_MS =
-  parseInt(process.env.EXPO_PUBLIC_SESSION_TIMEOUT_MINUTES ?? '30') * 60 * 1000;
+  parseInt(process.env.EXPO_PUBLIC_SESSION_TIMEOUT_MINUTES ?? '30', 10) * 60 * 1000;
 
-export function SessionTimeoutHandler() {
+/**
+ * @description Logs the medtech out if the app was backgrounded longer than the
+ * configured session timeout. Renders nothing; mount it once near the app root.
+ */
+export function SessionTimeoutHandler(): null {
   const backgroundTime = useRef<number | null>(null);
   const { logout } = useAuth();
 
   useEffect(() => {
     const subscription = AppState.addEventListener(
       'change',
-      async (nextState: AppStateStatus) => {
+      async (nextState: AppStateStatus): Promise<void> => {
         if (nextState === 'background' || nextState === 'inactive') {
           backgroundTime.current = Date.now();
         } else if (nextState === 'active' && backgroundTime.current !== null) {

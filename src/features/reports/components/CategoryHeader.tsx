@@ -6,27 +6,35 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
+import type { MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { colors, spacing } from '@src/theme';
+
+import { COMPACT_WAVES, HeaderWaves } from '@components/HeaderWaves';
+import { Icon } from '@components/Icon';
+
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportCategory } from '../types';
-import { COMPACT_WAVES, HeaderWaves } from '@components/HeaderWaves';
 
 // Deliberately much shorter than the Reports landing header (172): this is a
 // working list screen, so it gives the space to the samples instead.
 export const CATEGORY_HEADER_BODY_HEIGHT = 116;
 
-type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+type MaterialCommunityIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 // The same icon each category's illustration is built around.
-const CATEGORY_ICONS: Record<ReportCategory, IconName> = {
+const CATEGORY_ICONS: Record<ReportCategory, MaterialCommunityIconName> = {
   PENDING_APPROVAL: 'timer-sand',
   APPROVED: 'check-decagram',
   RELEASED: 'send',
   REJECTED: 'test-tube',
 };
 
-interface Props {
+export interface CategoryHeaderProps {
   category: ReportCategory;
   title: string;
   count: number;
@@ -37,7 +45,12 @@ interface Props {
   reduceMotion: boolean;
 }
 
-function Bubble({ size, style }: { size: number; style: object }) {
+interface BubbleProps {
+  size: number;
+  style?: StyleProp<ViewStyle>;
+}
+
+function Bubble({ size, style }: BubbleProps): React.JSX.Element {
   return (
     <View
       style={[
@@ -46,6 +59,7 @@ function Bubble({ size, style }: { size: number; style: object }) {
           width: size,
           height: size,
           borderRadius: size / 2,
+          // TODO(theme): translucent white overlay (0.12 alpha) not in palette.
           backgroundColor: 'rgba(255,255,255,0.12)',
         },
         style,
@@ -54,6 +68,17 @@ function Bubble({ size, style }: { size: number; style: object }) {
   );
 }
 
+/**
+ * @description Animated header for a single report category's drilldown list: back
+ * button, title/count, and a chip carrying the category's icon.
+ * @param category - Which report category this header represents.
+ * @param title - Category title, e.g. "Approved by Supervisor".
+ * @param count - Number of samples in this category, shown under the title.
+ * @param topInset - Safe-area top inset the header draws under.
+ * @param onBack - Called when the back button is pressed.
+ * @param playKey - Changes each time the screen is entered, replaying the entrance animation.
+ * @param reduceMotion - Skips the entrance animation when true.
+ */
 export function CategoryHeader({
   category,
   title,
@@ -62,7 +87,7 @@ export function CategoryHeader({
   onBack,
   playKey,
   reduceMotion,
-}: Props) {
+}: CategoryHeaderProps): React.JSX.Element {
   const { width } = useWindowDimensions();
   const height = topInset + CATEGORY_HEADER_BODY_HEIGHT;
   const { color } = REPORT_CATEGORY_STYLES[category];
@@ -139,7 +164,7 @@ export function CategoryHeader({
           accessibilityRole="button"
           accessibilityLabel="Back to Reports"
         >
-          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <Icon name="chevron-back" size={24} color={colors.white} />
         </TouchableOpacity>
 
         <View style={styles.textCol}>
@@ -150,7 +175,7 @@ export function CategoryHeader({
         </View>
 
         <Animated.View style={[styles.chip, chipStyle]} accessibilityElementsHidden>
-          <MaterialCommunityIcons name={CATEGORY_ICONS[category]} size={24} color={color} />
+          <Icon family="material-community" name={CATEGORY_ICONS[category]} size={24} color={color} />
         </Animated.View>
       </Animated.View>
     </View>
@@ -164,14 +189,15 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingLeft: 10,
-    paddingRight: 20,
+    gap: spacing.smd,
+    paddingLeft: spacing.smd,
+    paddingRight: spacing.xl,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    // TODO(theme): translucent white overlay (0.18 alpha) not in palette.
     backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -183,21 +209,21 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: colors.white,
   },
   subtitle: {
     marginTop: 2,
     fontSize: 12.5,
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.overlayLight,
   },
   chip: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.18,
     shadowRadius: 5,

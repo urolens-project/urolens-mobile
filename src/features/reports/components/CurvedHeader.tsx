@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getInitials } from '@lib/auth/getInitials';
-import { HeaderWaves, LANDING_WAVES, TEAL } from '@components/HeaderWaves';
+import { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
+
+import { HeaderWaves, LANDING_WAVES } from '@components/HeaderWaves';
+
+import { CurvedHeaderContent } from './CurvedHeaderContent';
+import { CurvedHeaderDecor } from './CurvedHeaderDecor';
 
 // Height of the header below the status bar. The curve sits inside this, with
 // the left edge of the header ending ~30px above the bottom and the right edge
@@ -10,7 +12,7 @@ import { HeaderWaves, LANDING_WAVES, TEAL } from '@components/HeaderWaves';
 // headers (CategoryHeader) are deliberately shorter than this.
 const BODY_HEIGHT = 172;
 
-interface Props {
+export interface CurvedHeaderProps {
   username: string | null;
   totalCount: number;
   // Safe-area top inset — the header draws under the status bar.
@@ -20,44 +22,22 @@ interface Props {
   reduceMotion: boolean;
 }
 
-function Bubble({ size, style }: { size: number; style: object }) {
-  return (
-    <View
-      style={[
-        {
-          position: 'absolute',
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: 'rgba(255,255,255,0.12)',
-        },
-        style,
-      ]}
-    />
-  );
-}
-
-// Small translucent teardrop (same shape as the illustrations' drops).
-function Drop({ size, style }: { size: number; style: object }) {
-  return (
-    <View
-      style={[
-        {
-          position: 'absolute',
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderTopLeftRadius: 0,
-          backgroundColor: 'rgba(255,255,255,0.28)',
-          transform: [{ rotate: '45deg' }],
-        },
-        style,
-      ]}
-    />
-  );
-}
-
-export function CurvedHeader({ username, totalCount, topInset, playKey, reduceMotion }: Props) {
+/**
+ * @description Animated landing header for the Reports screen: greets the medtech by
+ * name, shows a lifetime total, and plays a wave/magnifier entrance animation.
+ * @param username - Current medtech's display name; falls back to "MedTech".
+ * @param totalCount - Lifetime count of finished samples, shown in the total badge.
+ * @param topInset - Safe-area top inset the header draws under.
+ * @param playKey - Changes each time the screen is entered, replaying the entrance animation.
+ * @param reduceMotion - Skips the entrance animation when true.
+ */
+export function CurvedHeader({
+  username,
+  totalCount,
+  topInset,
+  playKey,
+  reduceMotion,
+}: CurvedHeaderProps): React.JSX.Element {
   const { width } = useWindowDimensions();
   const height = topInset + BODY_HEIGHT;
 
@@ -125,43 +105,14 @@ export function CurvedHeader({ username, totalCount, topInset, playKey, reduceMo
       />
 
       {/* Decoration: bubbles, drops and a magnifier — the urinalysis motif. */}
-      <Animated.View style={[StyleSheet.absoluteFill, decorStyle]} pointerEvents="none">
-        <Bubble size={92} style={{ left: -34, top: topInset + 92 }} />
-        <Bubble size={44} style={{ right: 84, top: topInset + 70 }} />
-        <Bubble size={18} style={{ left: '46%', top: topInset + 6 }} />
-        <Drop size={12} style={{ right: 128, top: topInset + 128 }} />
-        <Drop size={8} style={{ right: 148, top: topInset + 146 }} />
-      </Animated.View>
-      <Animated.View style={[styles.lens, { top: topInset + 78 }, lensStyle]} pointerEvents="none">
-        <MaterialCommunityIcons name="magnify" size={92} color="rgba(255,255,255,0.22)" />
-      </Animated.View>
+      <CurvedHeaderDecor topInset={topInset} decorStyle={decorStyle} lensStyle={lensStyle} />
 
-      <Animated.View style={[styles.content, { paddingTop: topInset + 10 }, contentStyle]}>
-        <View style={styles.row}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getInitials(username)}</Text>
-          </View>
-          <View style={styles.identity}>
-            <Text style={styles.name} numberOfLines={1}>
-              {username ?? 'MedTech'}
-            </Text>
-            <Text style={styles.role}>Medical Technologist</Text>
-          </View>
-          <View
-            style={styles.totalCircle}
-            accessible
-            accessibilityLabel={`${totalCount} finished sample${totalCount === 1 ? '' : 's'} in total`}
-          >
-            <Text style={styles.totalNumber}>{totalCount}</Text>
-            <Text style={styles.totalLabel}>Total</Text>
-          </View>
-        </View>
-
-        <Text style={styles.title} accessibilityRole="header">
-          Reports
-        </Text>
-        <Text style={styles.subtitle}>Finished samples, read-only</Text>
-      </Animated.View>
+      <CurvedHeaderContent
+        username={username}
+        totalCount={totalCount}
+        topInset={topInset}
+        contentStyle={contentStyle}
+      />
     </View>
   );
 }
@@ -169,79 +120,5 @@ export function CurvedHeader({ username, totalCount, topInset, playKey, reduceMo
 const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
-  },
-  lens: {
-    position: 'absolute',
-    right: 22,
-  },
-  content: {
-    paddingHorizontal: 20,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.55)',
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: TEAL,
-  },
-  identity: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  role: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 1,
-  },
-  totalCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  totalNumber: {
-    fontSize: 17,
-    lineHeight: 19,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  totalLabel: {
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-    color: 'rgba(255,255,255,0.85)',
-  },
-  title: {
-    marginTop: 18,
-    fontSize: 30,
-    lineHeight: 34,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  subtitle: {
-    marginTop: 2,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
   },
 });

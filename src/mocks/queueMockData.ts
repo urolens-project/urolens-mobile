@@ -1,4 +1,4 @@
-import type { QueueItem } from '../features/queue/types';
+import type { QueueItem } from '@features/queue/types';
 
 function t(h: number, m: number): string {
   const d = new Date();

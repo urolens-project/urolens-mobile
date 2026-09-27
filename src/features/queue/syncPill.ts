@@ -10,18 +10,21 @@ export interface SyncPill {
   tone: SyncPillTone;
 }
 
-interface Input {
+interface GetSyncPillInput {
   isOnline: boolean;
   sync: SyncStatus;
-  // When the persisted last sync happened (survives app restarts), if ever.
+  /** When the persisted last sync happened (survives app restarts), if ever. */
   lastSyncAt: number | null;
 }
 
 /**
- * What the Queue's status pill says. Being online isn't the same as being in
- * sync, so connected states are split by whether syncing actually worked.
+ * @description What the Queue's status pill says. Being online isn't the same as being
+ * in sync, so connected states are split by whether syncing actually worked.
+ * @param isOnline - Whether the device currently has connectivity.
+ * @param sync - Current sync manager state.
+ * @param lastSyncAt - Persisted timestamp of the last successful sync, if any.
  */
-export function getSyncPill({ isOnline, sync, lastSyncAt }: Input): SyncPill {
+export function getSyncPill({ isOnline, sync, lastSyncAt }: GetSyncPillInput): SyncPill {
   if (!isOnline) {
     return { label: 'Offline • Showing cached data', tone: 'caution' };
   }

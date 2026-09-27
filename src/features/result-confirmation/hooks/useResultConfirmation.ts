@@ -1,12 +1,13 @@
-// Path: urolens-mobile/src/features/result-confirmation/hooks/useResultConfirmation.ts
 import { useState, useEffect, useMemo } from 'react';
+
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import AnalysisResult from '@db/models/AnalysisResult';
+
 import { useConfirmAction } from './useConfirmAction';
 import type { AIFindingEntry } from '../types';
 
-interface UseResultConfirmationReturn {
+export interface UseResultConfirmationReturn {
   result: AnalysisResult | null;
   aiFindings: AIFindingEntry[];
   isLoading: boolean;
@@ -15,8 +16,11 @@ interface UseResultConfirmationReturn {
   confirmResult: () => Promise<void>;
 }
 
-// Derives structured AIFindingEntry list from raw findings map.
-// Anomalous = any particle count above threshold (>5 per field).
+/**
+ * @description Derives a structured `AIFindingEntry` list from the raw findings map.
+ * A particle is anomalous when its count exceeds the 5-per-field threshold.
+ * @param raw - Raw particle-name → count map from the analysis result.
+ */
 function deriveFindings(raw: Record<string, number>): AIFindingEntry[] {
   return Object.entries(raw).map(([parameter, count]) => ({
     parameter,
@@ -25,6 +29,12 @@ function deriveFindings(raw: Record<string, number>): AIFindingEntry[] {
   }));
 }
 
+/**
+ * @description Loads one analysis result from the local WatermelonDB by server id and
+ * exposes its AI findings plus confirm-action state. Components never call the API
+ * directly — they observe the local record and confirm through `useConfirmAction`.
+ * @param resultId - Server id of the analysis result to load.
+ */
 export function useResultConfirmation(resultId: string): UseResultConfirmationReturn {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);

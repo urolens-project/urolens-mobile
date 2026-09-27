@@ -17,6 +17,11 @@ interface SyncChanges {
   timestamp: string;
 }
 
+/**
+ * @description Pulls server changes since the last sync and writes them into the
+ * local WatermelonDB, resolving field-level conflicts and deduping afterward.
+ * @param lastSyncedAt - ISO timestamp of the last successful sync, or null for a full sync.
+ */
 export async function pullChanges(lastSyncedAt: string | null): Promise<string> {
   const params = lastSyncedAt ? `?lastSyncedAt=${encodeURIComponent(lastSyncedAt)}` : '';
   const response = await apiClient.get<SyncChanges>(`/sync/pull${params}`);

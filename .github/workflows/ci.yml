@@ -6,6 +6,7 @@ on:
       - develop
       - main
       - phase-1
+      - 'refactor/**'
       - 'fix/**'
       - 'chore/**'
       - 'feat/**'

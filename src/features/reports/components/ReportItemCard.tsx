@@ -1,18 +1,26 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 import { formatShortDateTime } from '@lib/dateTime';
+import { colors, radius, spacing, typography } from '@src/theme';
+
+import { Icon } from '@components/Icon';
+
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportItem } from '../types';
 
-interface Props {
+export interface ReportItemCardProps {
   item: ReportItem;
   onPress: (id: string) => void;
 }
 
-// A finished sample. Colored by the category it sits in (badge, accent edge,
-// rejection chip), so it reads as part of the container it was opened from.
-function ReportItemCardComponent({ item, onPress }: Props) {
+/**
+ * @description A finished sample row, colored by the category it sits in (badge,
+ * accent edge, rejection chip) so it reads as part of the container it was opened from.
+ * @param item - Report item to render.
+ * @param onPress - Called with the item id when the row is tapped.
+ */
+function ReportItemCardComponent({ item, onPress }: ReportItemCardProps): React.JSX.Element {
   const style = REPORT_CATEGORY_STYLES[item.category];
 
   return (
@@ -26,7 +34,7 @@ function ReportItemCardComponent({ item, onPress }: Props) {
       <View style={[styles.accent, { backgroundColor: style.color }]} />
 
       <View style={[styles.dropletBadge, { backgroundColor: style.tint }]}>
-        <Ionicons name="water" size={20} color={style.color} />
+        <Icon name="water" size={20} color={style.color} />
       </View>
 
       <View style={styles.content}>
@@ -37,7 +45,7 @@ function ReportItemCardComponent({ item, onPress }: Props) {
           {item.sampleUid} · {item.testType ?? '—'}
         </Text>
         <View style={styles.timeRow}>
-          <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+          <Icon name="time-outline" size={12} color={colors.gray400} />
           <Text style={styles.time}>{formatShortDateTime(item.finalizedAt)}</Text>
         </View>
         {item.category === 'REJECTED' && item.rejectionReason && (
@@ -50,7 +58,7 @@ function ReportItemCardComponent({ item, onPress }: Props) {
       </View>
 
       <View style={[styles.arrowBadge, { backgroundColor: style.wash }]}>
-        <Ionicons name="chevron-forward" size={16} color={style.color} />
+        <Icon name="chevron-forward" size={16} color={style.color} />
       </View>
     </TouchableOpacity>
   );
@@ -60,13 +68,13 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingLeft: 18,
-    paddingRight: 14,
-    paddingVertical: 16,
-    gap: 12,
-    shadowColor: '#1F2937',
+    backgroundColor: colors.white,
+    borderRadius: radius.xl,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.mlg,
+    paddingVertical: spacing.lg,
+    gap: spacing.md,
+    shadowColor: colors.gray800,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.09,
     shadowRadius: 10,
@@ -83,6 +91,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 2,
   },
   dropletBadge: {
+    // Radius is half of width/height to stay circular — not a scale value.
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -91,27 +100,27 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    gap: 3,
+    gap: spacing.xxs,
   },
   patientUid: {
-    fontSize: 15,
+    ...typography.subtitle,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.gray900,
     fontVariant: ['tabular-nums'],
   },
   subtitle: {
-    fontSize: 13,
-    color: '#6B7280',
+    ...typography.body,
+    color: colors.gray500,
   },
   reasonChip: {
     alignSelf: 'flex-start',
-    borderRadius: 8,
-    paddingHorizontal: 8,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     marginTop: 2,
   },
   reasonText: {
-    fontSize: 11,
+    ...typography.micro,
     fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'capitalize',
@@ -119,11 +128,11 @@ const styles = StyleSheet.create({
   timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.xxs,
   },
   time: {
-    fontSize: 12,
-    color: '#9CA3AF',
+    ...typography.caption,
+    color: colors.gray400,
     fontWeight: '500',
   },
   arrowBadge: {

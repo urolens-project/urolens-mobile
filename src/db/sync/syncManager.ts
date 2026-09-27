@@ -24,10 +24,12 @@ function setSyncStatus(patch: Partial<SyncStatus>): void {
   statusListeners.forEach((listener) => listener());
 }
 
+/** @description Current sync outcome, for any screen to read (see `useSyncStatus`). */
 export function getSyncStatus(): SyncStatus {
   return syncStatus;
 }
 
+/** @description Registers a listener for sync-status changes; call the return value to unsubscribe. */
 export function subscribeSyncStatus(listener: () => void): () => void {
   statusListeners.add(listener);
   return () => {
@@ -37,6 +39,11 @@ export function subscribeSyncStatus(listener: () => void): () => void {
 
 // Guard against concurrent syncs
 let isSyncing = false;
+
+/**
+ * @description Runs one full sync cycle: push local changes, then pull the server's
+ * state down. A no-op if a sync is already in progress.
+ */
 export async function synchronize(): Promise<void> {
   if (isSyncing) {
     return;
@@ -77,6 +84,7 @@ export async function synchronize(): Promise<void> {
   }
 }
 
+/** @description Whether a sync cycle is currently running. */
 export function getIsSyncing(): boolean {
   return isSyncing;
 }

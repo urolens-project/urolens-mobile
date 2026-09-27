@@ -1,4 +1,3 @@
-// src/features/image-retake/components/ImageCaptureScreen.tsx
 /**
  * ImageCaptureScreen — T2.7
  *
@@ -15,48 +14,51 @@
  * Navigates to sample/[id] with resultId on success.
  */
 
-import React, { useRef, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Alert,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useRef, useState, useCallback } from 'react';
+import { View, Alert, StyleSheet } from 'react-native';
+import { useCameraPermissions, type CameraView } from 'expo-camera';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
 
-import { Q } from '@nozbe/watermelondb';
-import { database } from '@db/database';
-import AnalysisResult from '@db/models/AnalysisResult';
-import ManualOverride from '@db/models/ManualOverride';
-import { DiscardConfirmationModal } from './DiscardConfirmationModal';
 import {
   processCapture,
   processPickerAsset,
   buildUploadFormData,
   ImageResolutionError,
   ImageFormatError,
-  ProcessedImage,
 } from '@lib/camera/imageUtils';
+import type { ProcessedImage } from '@lib/camera/imageUtils';
 import { uploadImageViaXhr } from '@lib/camera/uploadImage';
 import apiClient from '@lib/apiClient';
+import { colors } from '@src/theme';
+
+import { CameraPermissionRequest } from './CameraPermissionRequest';
+import { CameraUnavailableView } from './CameraUnavailableView';
+import { CameraLiveView } from './CameraLiveView';
+import { ImagePreviewPanel } from './ImagePreviewPanel';
+import { UploadProgressView } from './UploadProgressView';
+import { saveUploadedResult } from '../lib/saveUploadedResult';
 
 type ScreenPhase = 'idle' | 'previewing' | 'uploading' | 'discarding';
 
-interface Props {
+export interface ImageCaptureScreenProps {
   specimenId: string;
   localSpecimenId: string;
   existingImageId?: string;
 }
 
-export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageId }: Props) {
+/**
+ * @description Full-screen camera flow for capturing (or picking) a specimen image,
+ * previewing it, and uploading it for AI analysis, with a guarded discard/retake path.
+ * @param specimenId - Server specimen id, required to upload the image.
+ * @param localSpecimenId - Local specimen id, used to navigate to the result screen.
+ * @param existingImageId - Id of a previously uploaded image, if retaking one.
+ */
+export function ImageCaptureScreen({
+  specimenId,
+  localSpecimenId,
+  existingImageId,
+}: ImageCaptureScreenProps): React.JSX.Element {
   // ── State ─────────────────────────────────────────────────────────────────
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<ScreenPhase>('idle');
@@ -69,7 +71,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   const cameraRef = useRef<CameraView>(null);
 
   // ── Capture from camera ───────────────────────────────────────────────────
-  const handleCapture = useCallback(async () => {
+  const handleCapture = useCallback(async (): Promise<void> => {
     if (!cameraRef.current) return;
     setValidationError(null);
 
@@ -90,7 +92,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   }, []);
 
   // ── Pick from gallery ─────────────────────────────────────────────────────
-  const handleGalleryPick = useCallback(async () => {
+  const handleGalleryPick = useCallback(async (): Promise<void> => {
     setValidationError(null);
 
     try {
@@ -122,7 +124,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   }, []);
 
   // ── Upload ────────────────────────────────────────────────────────────────
-  const handleUseImage = useCallback(async () => {
+  const handleUseImage = useCallback(async (): Promise<void> => {
     // Defensive guard with visible feedback so silent failures are surfaced
     if (!processed) return;
     if (!specimenId) {
@@ -144,58 +146,11 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
         setUploadProgress(progress);
       });
 
-      // Backend: both `id` and `resultId` equal the analysis result UUID; `imageId` is the image UUID.
-      const { id: serverResultId, imageId: uploadedImageId, status, aiFindings, smartDiagnosis } = data;
-
-      // Write result into WatermelonDB immediately so Sample Detail shows it
-      // without waiting for the next background sync.
-      await database.write(async () => {
-        const collection = database.get<AnalysisResult>('analysis_results');
-        const existing = await collection.query(Q.where('specimen_id', specimenId)).fetch();
-        const findings = JSON.stringify(aiFindings ?? {});
-        const diagnosisJson = smartDiagnosis ? JSON.stringify(smartDiagnosis) : null;
-
-        if (existing.length > 0) {
-          // Backend reuses the same result_id on retake (UPDATE, not INSERT),
-          // so always purge stale overrides before writing new AI findings.
-          if (existing[0].serverId) {
-            const staleOverrides = await database
-              .get<ManualOverride>('manual_overrides')
-              .query(Q.where('result_id', existing[0].serverId))
-              .fetch();
-            for (const o of staleOverrides) {
-              await o.destroyPermanently();
-            }
-          }
-          await existing[0].update((r) => {
-            r.serverId = serverResultId;
-            r.imageId = uploadedImageId ?? null;
-            r.status = status;
-            r.aiFindingsJson = findings;
-            r.smartDiagnosisJson = diagnosisJson;
-            r.smartDiagnosisUnavailable = false;
-            r.isSynced = false;
-            r.syncedAt = new Date().toISOString();
-          });
-        } else {
-          await collection.create((r) => {
-            r.serverId = serverResultId;
-            r.specimenId = specimenId;
-            r.imageId = uploadedImageId ?? null;
-            r.status = status;
-            r.aiFindingsJson = findings;
-            r.smartDiagnosisJson = diagnosisJson;
-            r.smartDiagnosisUnavailable = false;
-            r.isSynced = false;
-            r.createdAt = Date.now();
-            r.syncedAt = new Date().toISOString();
-          });
-        }
-      });
+      await saveUploadedResult(specimenId, data);
 
       router.replace({
         pathname: '/(medtech)/sample/[id]',
-        params: { id: localSpecimenId, resultId: serverResultId },
+        params: { id: localSpecimenId, resultId: data.id },
       });
     } catch (err: any) {
       // apiClient interceptor rejects with a plain ApiError { code, message },
@@ -208,7 +163,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
   }, [processed, specimenId, localSpecimenId]);
 
   // ── Retake ────────────────────────────────────────────────────────────────
-  const handleRetapTap = useCallback(() => {
+  const handleRetapTap = useCallback((): void => {
     if (existingImageId) {
       // Retaking from an existing result — must go through discard flow
       setShowDiscardModal(true);
@@ -220,7 +175,7 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
     }
   }, [existingImageId]);
 
-  const handleDiscardConfirm = useCallback(async () => {
+  const handleDiscardConfirm = useCallback(async (): Promise<void> => {
     if (!existingImageId) return;
     setPhase('discarding');
 
@@ -237,333 +192,75 @@ export function ImageCaptureScreen({ specimenId, localSpecimenId, existingImageI
     }
   }, [existingImageId]);
 
+  const handleDiscardCancel = useCallback((): void => {
+    setShowDiscardModal(false);
+  }, []);
+
+  const handleGoBack = useCallback((): void => {
+    router.back();
+  }, []);
+
+  const handleCameraMountError = useCallback((): void => {
+    setCameraError(
+      'The camera could not be started on this device. You can still upload an image from the gallery.',
+    );
+  }, []);
+
   // ── Permission gate ───────────────────────────────────────────────────────
   if (!permission) {
-    return <View style={styles.container} />;
+    return <View style={styles.blank} />;
   }
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.permissionBox}>
-          <Text style={styles.permissionTitle}>Camera Access Required</Text>
-          <Text style={styles.permissionBody}>
-            UroLens needs camera access to photograph specimens for AI analysis.
-          </Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={requestPermission}>
-            <Text style={styles.primaryLabel}>Grant Permission</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleGalleryPick}>
-            <Text style={styles.secondaryLabel}>Upload from Gallery Instead</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <CameraPermissionRequest
+        onRequestPermission={requestPermission}
+        onGalleryPick={handleGalleryPick}
+      />
     );
   }
 
   // ── Preview phase ─────────────────────────────────────────────────────────
   if (phase === 'previewing' && processed) {
-    // 💡 Cast phase type back to ScreenPhase to bypass static block narrow restrictions
     const isCurrentlyDiscarding = (phase as ScreenPhase) === 'discarding';
 
     return (
-      <SafeAreaView style={styles.container}>
-        {/* Preview header */}
-        <View style={styles.previewHeader}>
-          <Text style={styles.previewTitle}>Image Preview</Text>
-          <Text style={styles.previewMeta}>
-            {processed.width} × {processed.height}px · {(processed.sizeBytes / 1024).toFixed(0)} KB
-          </Text>
-        </View>
-
-        {/* Full-screen image */}
-        <View style={styles.previewContainer}>
-          <Image source={{ uri: processed.uri }} style={styles.previewImage} resizeMode="contain" />
-        </View>
-
-        {validationError && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={14} color="#B91C1C" />
-            <Text style={styles.errorText}>{validationError}</Text>
-          </View>
-        )}
-
-        {/* Action bar */}
-        <View style={styles.previewActions}>
-          <TouchableOpacity
-            style={[styles.previewBtn, styles.retakeBtn]}
-            onPress={handleRetapTap}
-            testID="retake-button"
-          >
-            <Ionicons name="camera-reverse-outline" size={18} color="#D1D5DB" />
-            <Text style={styles.retakeLabel}>Retake</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.previewBtn, styles.useBtn]}
-            onPress={handleUseImage}
-            testID="use-image-button"
-          >
-            <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-            <Text style={styles.useLabel}>Use This Image</Text>
-          </TouchableOpacity>
-        </View>
-
-        <DiscardConfirmationModal
-          visible={showDiscardModal}
-          isLoading={isCurrentlyDiscarding}
-          onConfirm={handleDiscardConfirm}
-          onCancel={() => setShowDiscardModal(false)}
-        />
-      </SafeAreaView>
+      <ImagePreviewPanel
+        processed={processed}
+        validationError={validationError}
+        showDiscardModal={showDiscardModal}
+        isDiscarding={isCurrentlyDiscarding}
+        onRetake={handleRetapTap}
+        onUseImage={handleUseImage}
+        onDiscardConfirm={handleDiscardConfirm}
+        onDiscardCancel={handleDiscardCancel}
+      />
     );
   }
 
   // ── Upload progress phase ─────────────────────────────────────────────────
   if (phase === 'uploading') {
-    return (
-      <SafeAreaView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#2E7D7A" />
-        <Text style={styles.uploadingTitle}>Uploading image…</Text>
-        <Text style={styles.uploadingProgress}>{uploadProgress}%</Text>
-        <Text style={styles.uploadingSubtitle}>AI analysis will begin automatically</Text>
-      </SafeAreaView>
-    );
+    return <UploadProgressView progress={uploadProgress} />;
   }
 
   // ── Camera hardware failed to initialize ─────────────────────────────────
   if (cameraError) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.permissionBox}>
-          <Text style={styles.permissionTitle}>Camera Unavailable</Text>
-          <Text style={styles.permissionBody}>{cameraError}</Text>
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleGalleryPick}>
-            <Text style={styles.secondaryLabel}>Upload from Gallery Instead</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
+    return <CameraUnavailableView message={cameraError} onGalleryPick={handleGalleryPick} />;
   }
 
   // ── Idle — live camera ────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.cameraWrapper}>
-        {/* Camera fills the wrapper; no children allowed by CameraView */}
-        <CameraView
-          style={StyleSheet.absoluteFill}
-          facing="back"
-          ref={cameraRef}
-          onMountError={() =>
-            setCameraError(
-              'The camera could not be started on this device. You can still upload an image from the gallery.',
-            )
-          }
-        />
-
-        {/* Viewfinder guide */}
-        <View style={styles.viewfinderGuide} />
-
-        {/* Header */}
-        <View style={styles.cameraHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="close" size={22} color="rgba(255,255,255,0.9)" />
-          </TouchableOpacity>
-          <Text style={styles.cameraTitle}>Specimen Capture</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        {/* Instructions */}
-        <View style={styles.instructionBanner}>
-          <Text style={styles.instructionText}>
-            Position the microscope eyepiece over the camera lens. Min. resolution: 640 × 480.
-          </Text>
-        </View>
-
-        {validationError && (
-          <View style={styles.errorBannerCamera}>
-            <Text style={styles.errorText}>{validationError}</Text>
-          </View>
-        )}
-
-        {/* Bottom controls — gallery left, capture centered, mirror spacer right */}
-        <View style={styles.cameraControls}>
-          <TouchableOpacity style={styles.galleryButton} onPress={handleGalleryPick}>
-            <Ionicons name="images-outline" size={28} color="rgba(255,255,255,0.85)" />
-            <Text style={styles.galleryLabel}>Gallery</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.captureRing}
-            onPress={handleCapture}
-            testID="capture-button"
-          >
-            <View style={styles.captureButton} />
-          </TouchableOpacity>
-
-          <View style={styles.captureSpacer} />
-        </View>
-      </View>
-    </SafeAreaView>
+    <CameraLiveView
+      cameraRef={cameraRef}
+      validationError={validationError}
+      onMountError={handleCameraMountError}
+      onGoBack={handleGoBack}
+      onGalleryPick={handleGalleryPick}
+      onCapture={handleCapture}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  centered: { justifyContent: 'center', alignItems: 'center', gap: 12 },
-  cameraWrapper: { flex: 1 },
-  camera: { flex: 1 },
-
-  // ── Camera UI ────────────────────────────────────────────────────────────────
-  viewfinderGuide: {
-    position: 'absolute',
-    top: '25%',
-    left: '10%',
-    right: '10%',
-    bottom: '30%',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 4,
-  },
-  cameraHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'android' ? 40 : 12,
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  cameraTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  instructionBanner: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    marginHorizontal: 24,
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
-  },
-  instructionText: { color: '#E5E7EB', fontSize: 12, textAlign: 'center', lineHeight: 17 },
-  // space-between with equal-width gallery + spacer perfectly centers the capture ring
-  cameraControls: {
-    position: 'absolute',
-    bottom: 48,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 40,
-  },
-  galleryButton: { width: 60, alignItems: 'center', gap: 4 },
-  galleryLabel: { color: '#E5E7EB', fontSize: 11 },
-  captureRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  captureButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#fff',
-  },
-  captureSpacer: { width: 60 },
-
-  // ── Preview ───────────────────────────────────────────────────────────────────
-  previewHeader: {
-    backgroundColor: '#0D0D0D',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  previewTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  previewMeta: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 3,
-  },
-  previewContainer: { flex: 1, backgroundColor: '#111' },
-  previewImage: { flex: 1 },
-  previewActions: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 16,
-    backgroundColor: '#0D0D0D',
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-  },
-  previewBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 15,
-    borderRadius: 12,
-    gap: 7,
-  },
-  retakeBtn: {
-    backgroundColor: '#1C2431',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  useBtn: { backgroundColor: '#2E7D7A' },
-  retakeLabel: { color: '#D1D5DB', fontWeight: '600', fontSize: 15 },
-  useLabel: { color: '#fff', fontWeight: '600', fontSize: 15 },
-
-  // ── Errors ────────────────────────────────────────────────────────────────────
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FEE2E2',
-    marginHorizontal: 16,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 8,
-  },
-  errorBannerCamera: {
-    backgroundColor: 'rgba(220,38,38,0.85)',
-    marginHorizontal: 24,
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
-  },
-  errorText: { color: '#B91C1C', fontSize: 13, lineHeight: 18, flex: 1 },
-
-  // ── Upload progress ───────────────────────────────────────────────────────────
-  uploadingTitle: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  uploadingProgress: { color: '#4DB6AC', fontSize: 36, fontWeight: '700' },
-  uploadingSubtitle: { color: '#6B7280', fontSize: 13 },
-
-  // ── Permission ────────────────────────────────────────────────────────────────
-  permissionBox: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-    gap: 12,
-  },
-  permissionTitle: { color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center' },
-  permissionBody: { color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 20 },
-  primaryButton: {
-    backgroundColor: '#2E7D7A',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  primaryLabel: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  secondaryButton: { paddingVertical: 10 },
-  secondaryLabel: { color: '#4DB6AC', fontSize: 14 },
+  blank: { flex: 1, backgroundColor: colors.black },
 });

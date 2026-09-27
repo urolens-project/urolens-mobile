@@ -1,16 +1,25 @@
-// Path: urolens-mobile/src/features/result-confirmation/components/ParameterRow.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+
+import { colors, radius, spacing } from '@src/theme';
+
 import type { AIFindingEntry } from '../types';
 
-interface ParameterRowProps {
+export interface ParameterRowProps {
   finding: AIFindingEntry;
   overriddenValue?: number;
   onOverride: (parameter: string, originalValue: number) => void;
   disabled?: boolean;
 }
 
-
+/**
+ * @description One AI-findings row: parameter name, its value (AI count or MedTech
+ * override), anomaly/override badges, and an override button.
+ * @param finding - AI finding entry to render.
+ * @param overriddenValue - MedTech's corrected count, if this parameter was overridden.
+ * @param onOverride - Called with the parameter name and its original AI count.
+ * @param disabled - Hides the override button when true (e.g. after confirmation).
+ */
 function ParameterRowComponent({
   finding,
   overriddenValue,
@@ -65,48 +74,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 13,
-    paddingHorizontal: 16,
+    paddingVertical: spacing.mlg,
+    paddingHorizontal: spacing.lg,
     borderBottomWidth: 0.5,
+    // TODO(theme): near-black hairline at 0.06 alpha not in palette.
     borderBottomColor: 'rgba(0,0,0,0.06)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   anomalousRow: {
-    backgroundColor: '#FFFBF0',
+    backgroundColor: colors.amberTint1,
   },
   left: {
     flex: 1,
     gap: 5,
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.smd,
   },
   parameterName: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#1A1A1A',
+    color: colors.ink,
   },
   badges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
+    gap: spacing.xs,
   },
   count: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: colors.ink,
     minWidth: 32,
     textAlign: 'right',
   },
   anomalousCount: {
-    color: '#B45309',
+    color: colors.amber700,
   },
   anomalousBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.amber100,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 5,
@@ -114,11 +124,11 @@ const styles = StyleSheet.create({
   anomalousBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#92400E',
+    color: colors.amber800,
   },
   overriddenBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#EDE9FE',
+    backgroundColor: colors.violet100,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 5,
@@ -126,20 +136,20 @@ const styles = StyleSheet.create({
   overriddenBadgeText: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#5B21B6',
+    color: colors.violet800,
   },
   overrideButton: {
-    paddingHorizontal: 10,
+    paddingHorizontal: spacing.smd,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.gray300,
+    borderRadius: radius.sm,
+    backgroundColor: colors.white,
   },
   overrideButtonText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#374151',
+    color: colors.gray700,
   },
 });
 
