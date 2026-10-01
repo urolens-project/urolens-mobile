@@ -28,7 +28,30 @@ function notificationIcon(type: string): ComponentProps<typeof Ionicons>['name']
 }
 
 /**
- * @description Formats an ISO timestamp as a short relative time, e.g. "5m ago". 
+ * @description Maps a notification type to its display title, shown above the message.
+ * @param type - Raw `notificationType` field from the API.
+ */
+function notificationTitle(type: string): string {
+  switch (type) {
+    case 'SAMPLE_ASSIGNED':
+      return 'Sample Assigned';
+    case 'RESULT_RETURNED':
+      return 'Result Returned';
+    case 'RESULT_READY_FOR_REVIEW':
+      return 'Ready for Review';
+    case 'SMART_DIAGNOSIS_UNAVAILABLE':
+      return 'Smart Diagnosis Unavailable';
+    case 'RESULT_RELEASED':
+      return 'Result Released';
+    case 'LAB_REQUEST_SUBMITTED':
+      return 'New Lab Request';
+    default:
+      return 'Notification';
+  }
+}
+
+/**
+ * @description Formats an ISO timestamp as a short relative time, e.g. "5m ago".
  * @param iso - ISO 8601 timestamp string.
  */
 function formatTime(iso: string): string {
@@ -65,6 +88,9 @@ export function NotificationCard({ item, onPress }: NotificationCardProps): Reac
         />
       </View>
       <View style={styles.cardBody}>
+        <Text style={[styles.title, !item.isRead && styles.titleUnread]}>
+          {notificationTitle(item.notificationType)}
+        </Text>
         <Text style={[styles.message, !item.isRead && styles.messageUnread]}>{item.message}</Text>
         <Text style={styles.time}>{formatTime(item.createdAt)}</Text>
       </View>
@@ -99,6 +125,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardBody: { flex: 1, gap: spacing.xs },
+  title: { ...typography.caption, color: colors.gray500, fontWeight: fontWeight.semibold },
+  titleUnread: { color: colors.teal },
   message: { ...typography.bodyLg, color: colors.gray700, lineHeight: 20 },
   messageUnread: { fontWeight: fontWeight.semibold, color: colors.gray900 },
   time: { ...typography.caption, color: colors.gray400 },
