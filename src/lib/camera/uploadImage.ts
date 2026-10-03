@@ -23,6 +23,8 @@ export interface UploadImageResponse {
   smartDiagnosis: Record<string, unknown> | null;
 }
 
+const HTTP_PAYLOAD_TOO_LARGE = 413;
+
 interface UploadErrorBody {
   error?: { message?: string };
 }
@@ -74,7 +76,7 @@ export function uploadImageViaXhr(
         resolve(body);
       } else {
         const error: UploadXhrError = new Error(
-          body?.error?.message ?? `Upload failed with status ${xhr.status}`,
+          body?.error?.message ?? describeUploadStatus(xhr.status),
         );
         error.response = { data: body };
         reject(error);
@@ -100,4 +102,12 @@ export function uploadImageViaXhr(
 
     xhr.send(form);
   });
+}
+
+// A refusal with no message of its own, e.g. a proxy answering before the API does.
+function describeUploadStatus(status: number): string {
+  if (status === HTTP_PAYLOAD_TOO_LARGE) {
+    return 'This image is too large to upload (the limit is 10 MB). Please retake the photo.';
+  }
+  return `Upload failed with status ${status}`;
 }

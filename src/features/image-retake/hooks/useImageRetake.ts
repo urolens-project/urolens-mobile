@@ -25,8 +25,7 @@ import {
   processCapture,
   processPickerAsset,
   buildUploadFormData,
-  ImageResolutionError,
-  ImageFormatError,
+  isImageValidationError,
 } from '@lib/camera/imageUtils';
 import type { ProcessedImage } from '@lib/camera/imageUtils';
 import { uploadImageViaXhr } from '@lib/camera/uploadImage';
@@ -34,16 +33,18 @@ import type { UploadImageResponse } from '@lib/camera/uploadImage';
 
 export type UploadState =
   | { phase: 'idle' }
-  | { phase: 'processing' }            // EXIF strip + validation
+  | { phase: 'processing' } // EXIF strip + validation
   | { phase: 'previewing' }
-  | { phase: 'uploading'; progress: number }  // 0–100
+  | { phase: 'uploading'; progress: number } // 0–100
   | { phase: 'error'; message: string };
 
 export interface UseImageRetakeReturn {
   state: UploadState;
   capturedImage: ProcessedImage | null;
   /** Pass a function that captures a photo (e.g. cameraRef.current.takePictureAsync). */
-  captureFromCamera: (takePicture: () => Promise<CameraCapturedPicture | undefined>) => Promise<void>;
+  captureFromCamera: (
+    takePicture: () => Promise<CameraCapturedPicture | undefined>,
+  ) => Promise<void>;
   pickFromGallery: () => Promise<void>;
   /** Uploads the currently previewed image. Throws on failure so callers can show their own alert. */
   confirmUpload: (specimenId: string) => Promise<UploadImageResponse>;
@@ -74,7 +75,10 @@ export function useImageRetake(): UseImageRetakeReturn {
       setState({ phase: 'processing' });
       try {
         const picture = await takePicture();
-        if (!picture) { setState({ phase: 'idle' }); return; }
+        if (!picture) {
+          setState({ phase: 'idle' });
+          return;
+        }
         const processed = await processCapture(picture);
         setCapturedImage(processed);
         setState({ phase: 'previewing' });
@@ -89,7 +93,9 @@ export function useImageRetake(): UseImageRetakeReturn {
     setState({ phase: 'processing' });
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') { throw new Error('Photo library permission is required. Please enable it in Settings.'); }
+      if (status !== 'granted') {
+        throw new Error('Photo library permission is required. Please enable it in Settings.');
+      }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -98,7 +104,10 @@ export function useImageRetake(): UseImageRetakeReturn {
         exif: false, // don't even load EXIF into memory
       });
 
-      if (result.canceled || !result.assets[0]) { setState({ phase: 'idle' }); return; }
+      if (result.canceled || !result.assets[0]) {
+        setState({ phase: 'idle' });
+        return;
+      }
 
       const processed = await processPickerAsset(result.assets[0]);
       setCapturedImage(processed);
@@ -112,7 +121,9 @@ export function useImageRetake(): UseImageRetakeReturn {
 
   const confirmUpload = useCallback(
     async (specimenId: string): Promise<UploadImageResponse> => {
-      if (!capturedImage) { throw new Error('No image has been captured yet.'); }
+      if (!capturedImage) {
+        throw new Error('No image has been captured yet.');
+      }
 
       setState({ phase: 'uploading', progress: 0 });
       abortRef.current = new AbortController();
@@ -124,7 +135,9 @@ export function useImageRetake(): UseImageRetakeReturn {
         });
         return data;
       } catch (err: unknown) {
-        if (!isAbortError(err)) { setState({ phase: 'error', message: extractMessage(err) }); }
+        if (!isAbortError(err)) {
+          setState({ phase: 'error', message: extractMessage(err) });
+        }
         throw err;
       }
     },
@@ -133,16 +146,19 @@ export function useImageRetake(): UseImageRetakeReturn {
 
   // ── Discard + retake flow ─────────────────────────────────────────────────
 
-  const discardImage = useCallback(async (imageId: string): Promise<void> => {
-    try {
-      await apiClient.post(`/images/${imageId}/discard`);
-      // Reset to idle so the capture screen re-opens
-      reset();
-    } catch (err: unknown) {
-      setState({ phase: 'error', message: extractMessage(err) });
-      throw err;
-    }
-  }, [reset]);
+  const discardImage = useCallback(
+    async (imageId: string): Promise<void> => {
+      try {
+        await apiClient.post(`/images/${imageId}/discard`);
+        // Reset to idle so the capture screen re-opens
+        reset();
+      } catch (err: unknown) {
+        setState({ phase: 'error', message: extractMessage(err) });
+        throw err;
+      }
+    },
+    [reset],
+  );
 
   return {
     state,
@@ -158,18 +174,16 @@ export function useImageRetake(): UseImageRetakeReturn {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function isAbortError(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    (err.name === 'AbortError' || err.name === 'CanceledError')
-  );
+  return err instanceof Error && (err.name === 'AbortError' || err.name === 'CanceledError');
 }
 
 function extractMessage(err: unknown): string {
-  if (err instanceof ImageResolutionError || err instanceof ImageFormatError) {
+  if (isImageValidationError(err)) {
     return err.message;
   }
   if (err instanceof Error) {
-    const axiosData = (err as { response?: { data?: { error?: { message?: string } } } }).response?.data;
+    const axiosData = (err as { response?: { data?: { error?: { message?: string } } } }).response
+      ?.data;
     if (axiosData?.error?.message) return axiosData.error.message;
     return err.message;
   }

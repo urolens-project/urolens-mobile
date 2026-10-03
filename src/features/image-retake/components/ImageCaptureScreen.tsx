@@ -24,8 +24,7 @@ import {
   processCapture,
   processPickerAsset,
   buildUploadFormData,
-  ImageResolutionError,
-  ImageFormatError,
+  isImageValidationError,
 } from '@lib/camera/imageUtils';
 import type { ProcessedImage } from '@lib/camera/imageUtils';
 import { uploadImageViaXhr } from '@lib/camera/uploadImage';
@@ -83,7 +82,7 @@ export function ImageCaptureScreen({
       setProcessed(img);
       setPhase('previewing');
     } catch (err) {
-      if (err instanceof ImageResolutionError || err instanceof ImageFormatError) {
+      if (isImageValidationError(err)) {
         setValidationError(err.message);
       } else {
         setValidationError('Failed to capture image. Please try again.');
@@ -115,7 +114,7 @@ export function ImageCaptureScreen({
       setProcessed(img);
       setPhase('previewing');
     } catch (err) {
-      if (err instanceof ImageResolutionError || err instanceof ImageFormatError) {
+      if (isImageValidationError(err)) {
         setValidationError(err.message);
       } else {
         setValidationError('Could not process the selected image. Please try another.');

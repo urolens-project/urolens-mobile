@@ -5,6 +5,8 @@
  * Responsibilities:
  *  - Strip EXIF metadata from images before upload (privacy requirement).
  *  - Validate resolution meets the AI engine's 640×480 minimum.
+ *  - Keep the upload under the server's 10 MB limit: scale large photos down and
+ *    always save as JPEG (UROLENS-220).
  *  - Build the multipart FormData for the upload API.
  *
  * Expo's ImageManipulator re-encodes the image without EXIF.
@@ -13,11 +15,20 @@
 
 import { Platform } from 'react-native';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import type { ImageManipulatorContext, ImageRef } from 'expo-image-manipulator';
 import { ImagePickerAsset } from 'expo-image-picker';
 import { CameraCapturedPicture } from 'expo-camera';
 
 export const MIN_WIDTH = 640;
 export const MIN_HEIGHT = 480;
+
+// Longest side of an uploaded image. Phone cameras and gallery photos are far
+// larger than the AI engine needs (it scales to about 640 px), and full-size files
+// can pass the server's limit.
+export const MAX_LONG_EDGE = 2048;
+// The server refuses anything larger (413 IMAGE_TOO_LARGE).
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const JPEG_QUALITY = 0.92;
 
 export type SupportedMimeType = 'image/jpeg' | 'image/png';
 
@@ -44,14 +55,35 @@ export class ImageResolutionError extends Error {
   }
 }
 
+export class ImageTooLargeError extends Error {
+  constructor() {
+    super(
+      'This image is too large to upload (the limit is 10 MB). ' +
+        'Please retake the photo or choose a smaller image.',
+    );
+    this.name = 'ImageTooLargeError';
+  }
+}
+
 export class ImageFormatError extends Error {
   constructor(mimeType: string) {
-    super(
-      `Unsupported image format "${mimeType}". ` +
-        `Please capture a JPEG or PNG image.`,
-    );
+    super(`Unsupported image format "${mimeType}". ` + `Please capture a JPEG or PNG image.`);
     this.name = 'ImageFormatError';
   }
+}
+
+/**
+ * @description True for the failures a MedTech can fix by choosing another photo
+ * (too small, too large, unreadable format). Their messages are written to be shown
+ * as-is; anything else is an unexpected error and gets a generic message.
+ * @param err - Caught value from processing an image.
+ */
+export function isImageValidationError(err: unknown): err is Error {
+  return (
+    err instanceof ImageResolutionError ||
+    err instanceof ImageTooLargeError ||
+    err instanceof ImageFormatError
+  );
 }
 
 /**
@@ -60,9 +92,7 @@ export class ImageFormatError extends Error {
  * re-encodes it into a new URI with no EXIF.
  * @param picture - Raw capture from expo-camera.
  */
-export async function processCapture(
-  picture: CameraCapturedPicture,
-): Promise<ProcessedImage> {
+export async function processCapture(picture: CameraCapturedPicture): Promise<ProcessedImage> {
   return processUri(picture.uri, 'captured');
 }
 
@@ -70,15 +100,9 @@ export async function processCapture(
  * @description Strips EXIF metadata and validates the image from expo-image-picker.
  * @param asset - Picked gallery asset.
  */
-export async function processPickerAsset(
-  asset: ImagePickerAsset,
-): Promise<ProcessedImage> {
+export async function processPickerAsset(asset: ImagePickerAsset): Promise<ProcessedImage> {
   if (!asset.uri) throw new ImageFormatError('unknown');
-  return processUri(
-    asset.uri,
-    asset.fileName ?? 'gallery-image',
-    asset.mimeType as SupportedMimeType | undefined,
-  );
+  return processUri(asset.uri, asset.fileName ?? 'gallery-image');
 }
 
 /**
@@ -115,41 +139,51 @@ export async function buildUploadFormData(
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
-async function processUri(
-  uri: string,
-  filenameStem: string,
-  mimeType?: SupportedMimeType,
-): Promise<ProcessedImage> {
-  // Default to JPEG — Expo Camera always produces JPEG
-  const outputMime: SupportedMimeType = mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
-  const format = outputMime === 'image/png' ? SaveFormat.PNG : SaveFormat.JPEG;
+async function processUri(uri: string, filenameStem: string): Promise<ProcessedImage> {
+  // Re-encode via the chain API — strips all EXIF.
+  const context = ImageManipulator.manipulate(uri);
+  const original = await context.renderAsync();
 
-  // Re-encode via new chain API — strips all EXIF, no resize.
-  const imageRef = await ImageManipulator.manipulate(uri).renderAsync();
-  const { width, height } = imageRef;
-
-  // Resolution validation (mirrors backend check)
-  if (width < MIN_WIDTH || height < MIN_HEIGHT) {
-    throw new ImageResolutionError(width, height);
+  // Resolution validation (mirrors backend check), on the photo as taken.
+  if (original.width < MIN_WIDTH || original.height < MIN_HEIGHT) {
+    throw new ImageResolutionError(original.width, original.height);
   }
 
-  const saved = await imageRef.saveAsync({ compress: 0.92, format });
+  const imageRef = await scaleDown(context, original);
 
-  // Approximate file size via fetch blob — non-critical, used for UI only
-  let sizeBytes = 0;
-  try {
-    const blob = await fetch(saved.uri).then((r) => r.blob());
-    sizeBytes = blob.size;
-  } catch {
-    // ignore — size is not required for upload
-  }
+  // Always JPEG: a PNG of a photo this size can still pass the server's limit.
+  const saved = await imageRef.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
+
+  const sizeBytes = await readSizeBytes(saved.uri);
+  if (sizeBytes > MAX_UPLOAD_BYTES) throw new ImageTooLargeError();
 
   return {
     uri: saved.uri,
-    width,
-    height,
-    mimeType: outputMime,
+    width: imageRef.width,
+    height: imageRef.height,
+    mimeType: 'image/jpeg',
     sizeBytes,
-    filename: `${filenameStem}-${Date.now()}.${format === SaveFormat.PNG ? 'png' : 'jpg'}`,
+    filename: `${filenameStem}-${Date.now()}.jpg`,
   };
+}
+
+// Scales the image so its longest side is MAX_LONG_EDGE, keeping its shape. An image
+// already within the limit is returned as rendered — it is never scaled up.
+async function scaleDown(context: ImageManipulatorContext, original: ImageRef): Promise<ImageRef> {
+  if (Math.max(original.width, original.height) <= MAX_LONG_EDGE) return original;
+  const isLandscape = original.width >= original.height;
+  return context
+    .resize(isLandscape ? { width: MAX_LONG_EDGE } : { height: MAX_LONG_EDGE })
+    .renderAsync();
+}
+
+// File size after processing. 0 when it can't be read: the preview then shows no
+// size, and the server's own limit still applies.
+async function readSizeBytes(uri: string): Promise<number> {
+  try {
+    const blob = await fetch(uri).then((r) => r.blob());
+    return blob.size;
+  } catch {
+    return 0;
+  }
 }
