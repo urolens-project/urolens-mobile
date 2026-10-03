@@ -57,7 +57,9 @@ const mockBuildUploadFormData = jest.fn(() => new FormData());
 jest.mock('@lib/camera/imageUtils', () => {
   class ImageResolutionError extends Error {
     constructor(width: number, height: number) {
-      super(`Image resolution ${width}×${height} is below the minimum 640×480 required for AI analysis.`);
+      super(
+        `Image resolution ${width}×${height} is below the minimum 640×480 required for AI analysis.`,
+      );
       this.name = 'ImageResolutionError';
     }
   }
@@ -67,12 +69,23 @@ jest.mock('@lib/camera/imageUtils', () => {
       this.name = 'ImageFormatError';
     }
   }
+  class ImageTooLargeError extends Error {
+    constructor() {
+      super('This image is too large to upload (the limit is 10 MB).');
+      this.name = 'ImageTooLargeError';
+    }
+  }
   return {
     processCapture: (...args: unknown[]) => mockProcessCapture(...args),
     processPickerAsset: (...args: unknown[]) => mockProcessPickerAsset(...args),
     buildUploadFormData: (...args: unknown[]) => mockBuildUploadFormData(...args),
+    isImageValidationError: (err: unknown): boolean =>
+      err instanceof ImageResolutionError ||
+      err instanceof ImageTooLargeError ||
+      err instanceof ImageFormatError,
     ImageResolutionError,
     ImageFormatError,
+    ImageTooLargeError,
   };
 });
 
@@ -98,7 +111,7 @@ jest.mock('@db/database', () => ({
 // ─── Imports (after mocks) ───────────────────────────────────────────────────
 
 import { ImageCaptureScreen } from '../../../src/features/image-retake/components/ImageCaptureScreen';
-import { ImageResolutionError } from '@lib/camera/imageUtils';
+import { ImageResolutionError, ImageTooLargeError } from '@lib/camera/imageUtils';
 
 const fakeProcessedImage = {
   uri: 'file://processed-123.jpg',
@@ -109,7 +122,9 @@ const fakeProcessedImage = {
   filename: 'captured-123.jpg',
 };
 
-function renderScreen(props: Partial<{ specimenId: string; localSpecimenId: string; existingImageId?: string }> = {}) {
+function renderScreen(
+  props: Partial<{ specimenId: string; localSpecimenId: string; existingImageId?: string }> = {},
+) {
   return render(
     <ImageCaptureScreen
       specimenId={props.specimenId ?? 'specimen-server-1'}
@@ -121,7 +136,9 @@ function renderScreen(props: Partial<{ specimenId: string; localSpecimenId: stri
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockTakePictureAsync = jest.fn().mockResolvedValue({ uri: 'file://raw-capture.jpg', width: 1280, height: 960 });
+  mockTakePictureAsync = jest
+    .fn()
+    .mockResolvedValue({ uri: 'file://raw-capture.jpg', width: 1280, height: 960 });
   mockProcessCapture.mockResolvedValue(fakeProcessedImage);
 });
 
@@ -168,6 +185,33 @@ describe('CAP-02: below-minimum resolution is caught client-side (screen level)'
     // Never left idle for previewing, and no upload was attempted
     expect(screen.queryByText('Image Preview')).toBeNull();
     expect(mockApiPost).not.toHaveBeenCalled();
+  });
+});
+
+describe('UROLENS-220: an image over the upload limit is caught client-side', () => {
+  it('shows the size message inline and never uploads', async () => {
+    mockProcessCapture.mockRejectedValueOnce(new ImageTooLargeError());
+    renderScreen();
+
+    fireEvent.press(screen.getByTestId('capture-button'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/too large to upload \(the limit is 10 MB\)/)).toBeTruthy();
+    });
+    expect(screen.queryByText('Image Preview')).toBeNull();
+    expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
+  it('keeps unexpected failures generic', async () => {
+    mockProcessCapture.mockRejectedValueOnce(new Error('native module crashed'));
+    renderScreen();
+
+    fireEvent.press(screen.getByTestId('capture-button'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to capture image. Please try again.')).toBeTruthy();
+    });
+    expect(screen.queryByText(/native module crashed/)).toBeNull();
   });
 });
 
