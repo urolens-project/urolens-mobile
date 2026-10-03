@@ -29,6 +29,9 @@ jest.mock('@lib/camera/imageUtils', () => ({
   processCapture: jest.fn(),
   processPickerAsset: jest.fn(),
   buildUploadFormData: jest.fn(),
+  // The tests below reject with the real error classes, so use the real check.
+  isImageValidationError: jest.requireActual('../../src/lib/camera/imageUtils')
+    .isImageValidationError,
   ImageResolutionError: class ImageResolutionError extends Error {
     constructor(w: number, h: number) {
       super(`Image resolution ${w}×${h} is below the minimum 640×480.`);
@@ -190,6 +193,23 @@ describe('useImageRetake', () => {
       }
     });
 
+    it('transitions to error with the size message when the image is too large', async () => {
+      const { ImageTooLargeError } = jest.requireActual(
+        '../../src/lib/camera/imageUtils',
+      ) as typeof imageUtils;
+      (imageUtils.processPickerAsset as jest.Mock).mockRejectedValue(new ImageTooLargeError());
+      const { result } = renderHook(() => useImageRetake());
+
+      await act(async () => {
+        await result.current.pickFromGallery();
+      });
+
+      expect(result.current.state).toEqual({
+        phase: 'error',
+        message: expect.stringContaining('10 MB'),
+      });
+    });
+
     it('transitions to error when image format is unsupported', async () => {
       const { ImageFormatError } = jest.requireActual(
         '../../src/lib/camera/imageUtils',
@@ -332,7 +352,9 @@ describe('useImageRetake', () => {
 
     it('extracts the server error envelope message on 422', async () => {
       const axiosError = Object.assign(new Error('Request failed'), {
-        response: { data: { error: { message: 'Unsupported image format. Accepted: JPEG, PNG.' } } },
+        response: {
+          data: { error: { message: 'Unsupported image format. Accepted: JPEG, PNG.' } },
+        },
       });
       (uploadImageViaXhr as jest.Mock).mockRejectedValue(axiosError);
       const { result } = renderHook(() => useImageRetake());
@@ -383,9 +405,7 @@ describe('useImageRetake', () => {
       const { result } = renderHook(() => useImageRetake());
 
       await act(async () => {
-        await expect(result.current.discardImage('image-abc')).rejects.toThrow(
-          'server error',
-        );
+        await expect(result.current.discardImage('image-abc')).rejects.toThrow('server error');
       });
 
       expect(result.current.state.phase).toBe('error');
