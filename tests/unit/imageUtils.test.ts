@@ -6,8 +6,11 @@
  *  - ImageFormatError: message format, name, instanceof
  *  - buildUploadFormData: fields appended to FormData
  *  - processCapture: JPEG default, resolution guard, EXIF strip call
- *  - processPickerAsset: missing URI guard, PNG path, filename fallback
+ *  - processPickerAsset: missing URI guard, always JPEG, filename fallback
  *  - sizeBytes falls back to 0 when fetch is unavailable
+ *  - Upload size (UROLENS-220): photos larger than MAX_LONG_EDGE are scaled down
+ *    by their longest side, smaller ones are left alone, the minimum check uses
+ *    the photo as taken, and a file still over MAX_UPLOAD_BYTES is refused
  */
 
 // ─── Mocks (hoisted before imports) ─────────────────────────────────────────
@@ -31,9 +34,13 @@ jest.mock('expo-image-picker', () => ({}));
 import {
   ImageResolutionError,
   ImageFormatError,
+  ImageTooLargeError,
   buildUploadFormData,
+  isImageValidationError,
   processCapture,
   processPickerAsset,
+  MAX_LONG_EDGE,
+  MAX_UPLOAD_BYTES,
   MIN_WIDTH,
   MIN_HEIGHT,
   type ProcessedImage,
@@ -53,11 +60,25 @@ function makeImageRef(overrides: { width?: number; height?: number } = {}) {
   return { width, height, saveAsync: mockSaveAsync };
 }
 
-function setupManipulator(imageRef = makeImageRef()) {
-  const mockRenderAsync = jest.fn().mockResolvedValue(imageRef);
-  const mockContext = { renderAsync: mockRenderAsync };
+// Mirrors the real chain API: renderAsync() returns the photo as taken until
+// resize() is called on the context, then the scaled image.
+function setupManipulator(imageRef = makeImageRef(), resizedRef = makeImageRef()) {
+  let isResized = false;
+  const mockRenderAsync = jest.fn(() => Promise.resolve(isResized ? resizedRef : imageRef));
+  const mockResize = jest.fn();
+  const mockContext = { renderAsync: mockRenderAsync, resize: mockResize };
+  mockResize.mockImplementation(() => {
+    isResized = true;
+    return mockContext;
+  });
   (ImageManipulator.manipulate as jest.Mock).mockReturnValue(mockContext);
-  return { imageRef, mockContext, mockRenderAsync };
+  return { imageRef, resizedRef, mockContext, mockRenderAsync, mockResize };
+}
+
+function mockSavedSize(sizeBytes: number): void {
+  global.fetch = jest.fn().mockResolvedValue({
+    blob: () => Promise.resolve({ size: sizeBytes }),
+  }) as jest.Mock;
 }
 
 const mockProcessedImage: ProcessedImage = {
@@ -158,7 +179,11 @@ describe('processCapture', () => {
 
   it('returns mimeType image/jpeg by default (camera always produces JPEG)', async () => {
     setupManipulator();
-    const result = await processCapture({ uri: 'file://photo.jpg', width: 1280, height: 960 } as any);
+    const result = await processCapture({
+      uri: 'file://photo.jpg',
+      width: 1280,
+      height: 960,
+    } as any);
     expect(result.mimeType).toBe('image/jpeg');
   });
 
@@ -172,23 +197,24 @@ describe('processCapture', () => {
 
   it('throws ImageResolutionError when manipulated width is below minimum', async () => {
     setupManipulator(makeImageRef({ width: MIN_WIDTH - 1, height: MIN_HEIGHT }));
-    await expect(
-      processCapture({ uri: 'file://tiny.jpg' } as any),
-    ).rejects.toBeInstanceOf(ImageResolutionError);
+    await expect(processCapture({ uri: 'file://tiny.jpg' } as any)).rejects.toBeInstanceOf(
+      ImageResolutionError,
+    );
   });
 
   it('throws ImageResolutionError when manipulated height is below minimum', async () => {
     setupManipulator(makeImageRef({ width: MIN_WIDTH, height: MIN_HEIGHT - 1 }));
-    await expect(
-      processCapture({ uri: 'file://tiny.jpg' } as any),
-    ).rejects.toBeInstanceOf(ImageResolutionError);
+    await expect(processCapture({ uri: 'file://tiny.jpg' } as any)).rejects.toBeInstanceOf(
+      ImageResolutionError,
+    );
   });
 
   it('accepts an image at exactly the minimum resolution', async () => {
     setupManipulator(makeImageRef({ width: MIN_WIDTH, height: MIN_HEIGHT }));
-    await expect(
-      processCapture({ uri: 'file://exact.jpg' } as any),
-    ).resolves.toMatchObject({ width: MIN_WIDTH, height: MIN_HEIGHT });
+    await expect(processCapture({ uri: 'file://exact.jpg' } as any)).resolves.toMatchObject({
+      width: MIN_WIDTH,
+      height: MIN_HEIGHT,
+    });
   });
 
   it('reads sizeBytes from the fetch blob', async () => {
@@ -228,29 +254,19 @@ describe('processPickerAsset', () => {
     ).rejects.toBeInstanceOf(ImageFormatError);
   });
 
-  it('uses image/png format when mimeType is image/png', async () => {
-    setupManipulator();
+  it('converts a PNG to JPEG, so a gallery PNG cannot pass the upload limit', async () => {
+    const imageRef = makeImageRef();
+    setupManipulator(imageRef);
     const result = await processPickerAsset({
       uri: 'file://shot.png',
       width: 1280,
       height: 960,
       mimeType: 'image/png',
+      fileName: 'shot.png',
     } as any);
-    expect(result.mimeType).toBe('image/png');
-  });
-
-  it('saves with PNG SaveFormat when mimeType is image/png', async () => {
-    const imageRef = makeImageRef();
-    setupManipulator(imageRef);
-    await processPickerAsset({
-      uri: 'file://shot.png',
-      width: 1280,
-      height: 960,
-      mimeType: 'image/png',
-    } as any);
-    expect(imageRef.saveAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ format: SaveFormat.PNG }),
-    );
+    expect(imageRef.saveAsync).toHaveBeenCalledWith({ compress: 0.92, format: SaveFormat.JPEG });
+    expect(result.mimeType).toBe('image/jpeg');
+    expect(result.filename).toMatch(/^shot\.png-\d+\.jpg$/);
   });
 
   it('falls back to image/jpeg for unsupported mimeType', async () => {
@@ -284,5 +300,116 @@ describe('processPickerAsset', () => {
       fileName: null,
     } as any);
     expect(result.filename).toMatch(/^gallery-image-\d+\.jpg$/);
+  });
+});
+
+describe('upload size (UROLENS-220)', () => {
+  it('scales a landscape photo down to MAX_LONG_EDGE by its width', async () => {
+    const resizedRef = makeImageRef({ width: MAX_LONG_EDGE, height: 1536 });
+    const { imageRef, mockResize } = setupManipulator(
+      makeImageRef({ width: 4032, height: 3024 }),
+      resizedRef,
+    );
+
+    const result = await processCapture({ uri: 'file://photo.jpg' } as any);
+
+    expect(mockResize).toHaveBeenCalledWith({ width: MAX_LONG_EDGE });
+    expect(resizedRef.saveAsync).toHaveBeenCalledTimes(1);
+    expect(imageRef.saveAsync).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ width: MAX_LONG_EDGE, height: 1536 });
+  });
+
+  it('scales a portrait photo down to MAX_LONG_EDGE by its height', async () => {
+    const resizedRef = makeImageRef({ width: 1536, height: MAX_LONG_EDGE });
+    const { mockResize } = setupManipulator(
+      makeImageRef({ width: 3024, height: 4032 }),
+      resizedRef,
+    );
+
+    const result = await processCapture({ uri: 'file://photo.jpg' } as any);
+
+    expect(mockResize).toHaveBeenCalledWith({ height: MAX_LONG_EDGE });
+    expect(result).toMatchObject({ width: 1536, height: MAX_LONG_EDGE });
+  });
+
+  it('leaves a photo exactly at MAX_LONG_EDGE alone', async () => {
+    const imageRef = makeImageRef({ width: MAX_LONG_EDGE, height: 1536 });
+    const { mockResize } = setupManipulator(imageRef);
+
+    const result = await processCapture({ uri: 'file://photo.jpg' } as any);
+
+    expect(mockResize).not.toHaveBeenCalled();
+    expect(imageRef.saveAsync).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ width: MAX_LONG_EDGE, height: 1536 });
+  });
+
+  it('scales a photo one pixel over MAX_LONG_EDGE', async () => {
+    const { mockResize } = setupManipulator(
+      makeImageRef({ width: MAX_LONG_EDGE + 1, height: 1536 }),
+    );
+
+    await processCapture({ uri: 'file://photo.jpg' } as any);
+
+    expect(mockResize).toHaveBeenCalledWith({ width: MAX_LONG_EDGE });
+  });
+
+  it('never scales a small photo up', async () => {
+    const { mockResize } = setupManipulator(makeImageRef({ width: MIN_WIDTH, height: MIN_HEIGHT }));
+
+    await processCapture({ uri: 'file://photo.jpg' } as any);
+
+    expect(mockResize).not.toHaveBeenCalled();
+  });
+
+  it('checks the minimum resolution on the photo as taken, before any scaling', async () => {
+    const { mockResize } = setupManipulator(makeImageRef({ width: 4032, height: MIN_HEIGHT - 1 }));
+
+    await expect(processCapture({ uri: 'file://wide.jpg' } as any)).rejects.toBeInstanceOf(
+      ImageResolutionError,
+    );
+    expect(mockResize).not.toHaveBeenCalled();
+  });
+
+  it('refuses a file that is still over the upload limit', async () => {
+    setupManipulator();
+    mockSavedSize(MAX_UPLOAD_BYTES + 1);
+
+    await expect(processCapture({ uri: 'file://photo.jpg' } as any)).rejects.toBeInstanceOf(
+      ImageTooLargeError,
+    );
+  });
+
+  it('accepts a file exactly at the upload limit', async () => {
+    setupManipulator();
+    mockSavedSize(MAX_UPLOAD_BYTES);
+
+    const result = await processCapture({ uri: 'file://photo.jpg' } as any);
+
+    expect(result.sizeBytes).toBe(MAX_UPLOAD_BYTES);
+  });
+
+  it('matches the server limit of 10 MB', () => {
+    expect(MAX_UPLOAD_BYTES).toBe(10 * 1024 * 1024);
+    expect(MAX_LONG_EDGE).toBe(2048);
+  });
+});
+
+describe('isImageValidationError', () => {
+  it.each([
+    new ImageResolutionError(1, 1),
+    new ImageFormatError('image/bmp'),
+    new ImageTooLargeError(),
+  ])('is true for %p, whose message is shown to the MedTech', (err) => {
+    expect(isImageValidationError(err)).toBe(true);
+  });
+
+  it.each([new Error('boom'), 'boom', null, undefined])('is false for %p', (err) => {
+    expect(isImageValidationError(err)).toBe(false);
+  });
+
+  it('tells the MedTech the limit and what to do', () => {
+    const err = new ImageTooLargeError();
+    expect(err.name).toBe('ImageTooLargeError');
+    expect(err.message).toContain('10 MB');
   });
 });
