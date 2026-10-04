@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { LoginHeader } from './LoginHeader';
 import { LoginCredentialsCard } from './LoginCredentialsCard';
 import { LoginFooter } from './LoginFooter';
+import { ForgotPasswordModal } from './ForgotPasswordModal';
 
 /**
  * @description Login screen for laboratory staff: username/password fields, a
@@ -21,6 +22,7 @@ export function LoginForm(): React.JSX.Element {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(false);
+  const [isForgotPasswordVisible, setIsForgotPasswordVisible] = useState(false);
 
   // 4. Refs
   const passwordRef = useRef<TextInput>(null);
@@ -40,6 +42,14 @@ export function LoginForm(): React.JSX.Element {
 
   const handleToggleKeepLoggedIn = useCallback((): void => {
     setKeepLoggedIn((v) => !v);
+  }, []);
+
+  const handleOpenForgotPassword = useCallback((): void => {
+    setIsForgotPasswordVisible(true);
+  }, []);
+
+  const handleCloseForgotPassword = useCallback((): void => {
+    setIsForgotPasswordVisible(false);
   }, []);
 
   return (
@@ -64,12 +74,14 @@ export function LoginForm(): React.JSX.Element {
           onTogglePassword={handleTogglePassword}
           keepLoggedIn={keepLoggedIn}
           onToggleKeepLoggedIn={handleToggleKeepLoggedIn}
+          onForgotPassword={handleOpenForgotPassword}
           error={error}
           isSubmitting={isSubmitting}
           onSubmit={handleSubmit}
         />
         <LoginFooter />
       </ScrollView>
+      <ForgotPasswordModal visible={isForgotPasswordVisible} onClose={handleCloseForgotPassword} />
     </KeyboardAvoidingView>
   );
 }
