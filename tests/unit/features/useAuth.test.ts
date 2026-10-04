@@ -61,4 +61,26 @@ describe('useAuth.login', () => {
     expect(result.current.error).toBe('Username and password are required.');
     expect(loginMock).not.toHaveBeenCalled();
   });
+
+  it.each([500, 502, 503])(
+    'reports HTTP %s as a server failure without saving a session',
+    async (status): Promise<void> => {
+      loginMock.mockRejectedValue({
+        code: 'UNKNOWN_ERROR',
+        status,
+        message: 'Internal Server Error',
+      });
+      const { result } = renderHook(() => useAuth());
+
+      await act(() => result.current.login('medtech01', 'pw'));
+
+      expect(result.current.error).toBe(
+        'The server could not complete login. Please try again later.',
+      );
+      expect(tokenStorage.clearAll).not.toHaveBeenCalled();
+      expect(tokenStorage.saveToken).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+      expect(result.current.isSubmitting).toBe(false);
+    },
+  );
 });

@@ -21,6 +21,10 @@ export interface UseAuthResult {
  * @param apiError - Error rejected by the auth API client.
  */
 function describeLoginError(apiError: ApiError): string {
+  if (apiError.status !== undefined && apiError.status >= 500) {
+    return 'The server could not complete login. Please try again later.';
+  }
+
   switch (apiError.code) {
     case 'ACCOUNT_LOCKED':
       return 'Your account is locked. Contact an administrator.';
