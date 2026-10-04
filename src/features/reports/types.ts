@@ -1,9 +1,17 @@
-import type { PriorityLevel } from '../queue/types';
+import type { PriorityLevel } from '@features/queue/types';
 
 // Read-only "done" states — everything the MedTech has finished acting on.
 // RETURNED_FOR_CORRECTION is deliberately excluded: that one goes back into
 // the Queue (SRS UC 3.4), it isn't finished.
 export type ReportCategory = 'PENDING_APPROVAL' | 'APPROVED' | 'RELEASED' | 'REJECTED';
+
+export type ReportPeriod = 'ALL' | 'LAST_7_DAYS' | 'LAST_30_DAYS';
+
+export interface ReportPeriodOption {
+  value: ReportPeriod;
+  label: string;
+  days: number | null;
+}
 
 export const REPORT_CATEGORY_ORDER: ReportCategory[] = [
   'PENDING_APPROVAL',
@@ -35,8 +43,8 @@ export interface ReportItem {
   priorityLevel: PriorityLevel | null;
   receivedAt: string;
   category: ReportCategory;
-  // When this item reached its category — confirmedAt for result-driven
-  // categories, rejectedAt for REJECTED. Used for within-section sorting.
+  // Confirmation/rejection timestamp, falling back to receipt. The local DB
+  // does not expose approval/release timestamps. Used for within-section sorting.
   finalizedAt: string;
   rejectionReason: string | null;
 }
