@@ -23,7 +23,13 @@ export function SessionExpiryWarningModal({
   onStaySignedIn,
 }: SessionExpiryWarningModalProps): React.JSX.Element {
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onStaySignedIn} // Android back button — dismissing counts as activity too
+    >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.iconContainer}>
