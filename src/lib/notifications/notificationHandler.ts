@@ -7,6 +7,7 @@ import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import apiClient from '@lib/apiClient';
 import { synchronize } from '@db/sync/syncManager';
+import { refreshNotifications } from '@features/alerts/store/notificationsStore';
 
 // Show alerts in foreground as a banner
 Notifications.setNotificationHandler({
@@ -103,13 +104,15 @@ export async function navigateToSpecimenByServerId(serverId: string | undefined)
 
 /**
  * @description Attaches notification listeners to the app: the received listener
- * triggers a sync so the local DB stays current, and the response listener navigates
- * to the correct screen on tap. Returns a cleanup function — call it in the layout
- * useEffect cleanup.
+ * triggers a sync so the local DB stays current and refreshes the notifications store so
+ * the Alerts tab badge updates immediately, even while the app is already foregrounded;
+ * the response listener navigates to the correct screen on tap. Returns a cleanup
+ * function — call it in the layout useEffect cleanup.
  */
 export function registerNotificationListeners(): () => void {
   const receivedSub = Notifications.addNotificationReceivedListener(() => {
     synchronize().catch(() => {});
+    refreshNotifications();
   });
 
   const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
