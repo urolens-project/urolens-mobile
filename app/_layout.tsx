@@ -2,7 +2,7 @@
 import '@abraham/reflection';
 
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,6 +13,8 @@ import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
 import { colors } from '@src/theme';
+
+import { SESSION_TIMEOUT_MS } from '@features/auth/constants/sessionTimeout.constant';
 
 // DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
 if (__DEV__ && Platform.OS !== 'web') {
@@ -49,19 +51,29 @@ export default function RootLayout(): React.JSX.Element {
 
     const bootstrapAuth = async (): Promise<void> => {
       try {
-        const [token, userId, role, username] = await Promise.all([
+        const [token, userId, role, username, lastActiveAt] = await Promise.all([
           tokenStorage.getToken(),
           tokenStorage.getUserId(),
           tokenStorage.getUserRole(),
           tokenStorage.getUsername(),
+          tokenStorage.getLastActiveAt(),
         ]);
 
         if (!isCurrent) return;
 
-        if (token && userId && role) {
+        // The medtech closed (or was backgrounded past the timeout on) the app and is
+        // only now reopening it — sign them out instead of silently restoring the session.
+        const wasAwayTooLong =
+          lastActiveAt !== null && Date.now() - lastActiveAt >= SESSION_TIMEOUT_MS;
+
+        if (token && userId && role && !wasAwayTooLong) {
           setAuthenticated(userId, role as UserRole, username ?? '');
         } else {
+          await tokenStorage.clearAll();
           clearAuth();
+          if (wasAwayTooLong) {
+            router.replace({ pathname: '/(auth)/login', params: { reason: 'inactivity' } });
+          }
         }
       } catch {
         if (isCurrent) clearAuth();

@@ -1,14 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
+import { tokenStorage } from '@lib/auth/tokenStorage';
+
+import { SESSION_TIMEOUT_MS } from '../constants/sessionTimeout.constant';
 import { useAuth } from '../hooks/useAuth';
 
-const TIMEOUT_MS =
-  parseInt(process.env.EXPO_PUBLIC_SESSION_TIMEOUT_MINUTES ?? '30', 10) * 60 * 1000;
-
 /**
- * @description Logs the medtech out if the app was backgrounded longer than the
- * configured session timeout. Renders nothing; mount it once near the app root.
+ * @description Logs the medtech out if the app was backgrounded (or killed and
+ * relaunched) longer than the configured session timeout. Renders nothing; mount it
+ * once near the app root, inside the authenticated route group.
  */
 export function SessionTimeoutHandler(): null {
   const backgroundTime = useRef<number | null>(null);
@@ -20,10 +21,13 @@ export function SessionTimeoutHandler(): null {
       async (nextState: AppStateStatus): Promise<void> => {
         if (nextState === 'background' || nextState === 'inactive') {
           backgroundTime.current = Date.now();
+          // Persisted (not just in-memory) so a cold start after the app was fully
+          // killed can still tell how long the medtech was away.
+          await tokenStorage.saveLastActiveAt(backgroundTime.current);
         } else if (nextState === 'active' && backgroundTime.current !== null) {
           const elapsed = Date.now() - backgroundTime.current;
-          if (elapsed >= TIMEOUT_MS) {
-            await logout();
+          if (elapsed >= SESSION_TIMEOUT_MS) {
+            await logout('inactivity');
           }
           backgroundTime.current = null;
         }

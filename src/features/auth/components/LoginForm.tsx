@@ -8,12 +8,20 @@ import { LoginHeader } from './LoginHeader';
 import { LoginCredentialsCard } from './LoginCredentialsCard';
 import { LoginFooter } from './LoginFooter';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
+import { InactivityBanner } from './InactivityBanner';
+
+export interface LoginFormProps {
+  /** `?reason=` forwarded from the route, e.g. "inactivity" after an idle sign-out. */
+  reason?: string;
+}
 
 /**
  * @description Login screen for laboratory staff: username/password fields, a
  * "keep me logged in" toggle, and build/environment info in the footer.
+ * @param reason - If "inactivity", shows a banner explaining the medtech was signed
+ * out automatically rather than landing back here unexplained.
  */
-export function LoginForm(): React.JSX.Element {
+export function LoginForm({ reason }: LoginFormProps): React.JSX.Element {
   // 1. Store / service hooks
   const { login, isSubmitting, error } = useAuth();
 
@@ -23,6 +31,8 @@ export function LoginForm(): React.JSX.Element {
   const [showPassword, setShowPassword] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(false);
   const [isForgotPasswordVisible, setIsForgotPasswordVisible] = useState(false);
+  const [isInactivityBannerDismissed, setIsInactivityBannerDismissed] = useState(false);
+  const showInactivityBanner = reason === 'inactivity' && !isInactivityBannerDismissed;
 
   // 4. Refs
   const passwordRef = useRef<TextInput>(null);
@@ -52,6 +62,10 @@ export function LoginForm(): React.JSX.Element {
     setIsForgotPasswordVisible(false);
   }, []);
 
+  const handleDismissInactivityBanner = useCallback((): void => {
+    setIsInactivityBannerDismissed(true);
+  }, []);
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -63,6 +77,7 @@ export function LoginForm(): React.JSX.Element {
         showsVerticalScrollIndicator={false}
       >
         <LoginHeader />
+        {showInactivityBanner && <InactivityBanner onDismiss={handleDismissInactivityBanner} />}
         <LoginCredentialsCard
           username={username}
           onUsernameChange={setUsername}
