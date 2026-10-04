@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { getIsSyncing, synchronize } from '@db/sync/syncManager';
 import { useAsyncAction } from '@hooks/useAsyncAction';
+import { appInfo } from '@lib/appInfo';
 import { formatShortDateTime } from '@lib/dateTime';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
@@ -80,7 +81,7 @@ export function ProfileSyncCard(): React.JSX.Element {
         </TouchableOpacity>
       </View>
       <InfoRowSeparator />
-      <InfoRow icon="phone-portrait-outline" label="App Version" value="1.0.0" />
+      <InfoRow icon="phone-portrait-outline" label="App Version" value={appInfo.version} />
     </View>
   );
 }
