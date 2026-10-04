@@ -51,6 +51,35 @@ describe('observeQuery', () => {
     consoleErrorSpy.mockRestore();
   });
 
+  it('watches field edits when columns are supplied', (): void => {
+    const fake = makeFakeQuery();
+    const observeWithColumns = jest.fn(() => ({ subscribe: fake.subscribe }));
+    const query = { observe: fake.observe, observeWithColumns };
+    const onData = jest.fn();
+    observeQuery(query as never, onData, { columns: ['status', 'return_reason'] });
+    expect(observeWithColumns).toHaveBeenCalledWith(['status', 'return_reason']);
+    fake.emit([{ id: '1', status: 'RETURNED_FOR_CORRECTION' }]);
+    expect(onData).toHaveBeenCalledWith([{ id: '1', status: 'RETURNED_FOR_CORRECTION' }]);
+  });
+
+  it('surfaces both subscription and synchronous construction errors to the screen', (): void => {
+    const fake = makeFakeQuery();
+    const failure = new Error('Read failed');
+    const onError = jest.fn();
+    observeQuery(fake.query as never, jest.fn(), { onError });
+    fake.triggerError(failure);
+    expect(onError).toHaveBeenCalledWith(failure);
+    onError.mockClear();
+    observeQuery(
+      (): never => {
+        throw failure;
+      },
+      jest.fn(),
+      { onError },
+    );
+    expect(onError).toHaveBeenCalledWith(failure);
+  });
+
   it('subscribes immediately and forwards emissions to onData', () => {
     const fake = makeFakeQuery();
     const onData = jest.fn();

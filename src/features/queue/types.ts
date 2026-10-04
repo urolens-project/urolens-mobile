@@ -43,4 +43,5 @@ export interface QueueItem {
   // True when the Supervisor returned this sample's result for correction
   // (SRS UC 3.4) — derived from analysis_results, not the specimen's own status.
   isReturnedForCorrection: boolean;
+  returnReason?: string | null;
 }

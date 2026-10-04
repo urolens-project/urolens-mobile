@@ -28,14 +28,15 @@ export function getSyncPill({ isOnline, sync, lastSyncAt }: GetSyncPillInput): S
   if (!isOnline) {
     return { label: 'Offline • Showing cached data', tone: 'caution' };
   }
+  if (sync.state === 'syncing') {
+    return { label: 'Online • Syncing…', tone: 'ok' };
+  }
   if (sync.state === 'failed') {
     return { label: 'Online • Sync failed, showing cached data', tone: 'error' };
   }
   const hasSynced = lastSyncAt !== null || sync.lastSuccessAt !== null;
   if (!hasSynced) {
-    return sync.state === 'syncing'
-      ? { label: 'Online • Syncing…', tone: 'ok' }
-      : { label: 'Online • Not yet synced', tone: 'caution' };
+    return { label: 'Online • Not yet synced', tone: 'caution' };
   }
   return { label: 'Online • Queue Synchronized', tone: 'ok' };
 }

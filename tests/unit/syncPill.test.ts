@@ -42,9 +42,9 @@ describe('getSyncPill', () => {
     });
   });
 
-  it('a sync in progress after an earlier success still counts as synchronized', () => {
+  it('shows syncing after an earlier success while updates are in flight', () => {
     expect(getSyncPill({ isOnline: true, sync: sync('syncing', 1), lastSyncAt: 1 }).label).toBe(
-      'Online • Queue Synchronized',
+      'Online • Syncing…',
     );
   });
 
