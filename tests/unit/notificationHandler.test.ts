@@ -250,6 +250,49 @@ describe('registerNotificationListeners', () => {
     expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-9');
   });
 
+  // Previously fell through to the "unknown type" default (→ /alerts) because only
+  // SAMPLE_ASSIGNED and RESULT_RETURNED were switched on, so tapping one of these two
+  // push notifications never resolved to the specimen it was about.
+  it('resolves the local specimen for a RESULT_READY_FOR_REVIEW tap', async () => {
+    const mockFetch = jest.fn().mockResolvedValue([{ id: 'local-55' }]);
+    mockDbGet.mockReturnValue({ query: jest.fn(() => ({ fetch: mockFetch })) });
+
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: {
+            data: { notification_type: 'RESULT_READY_FOR_REVIEW', entity_id: 'server-xyz' },
+          },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-55');
+  });
+
+  it('resolves the local specimen for a SMART_DIAGNOSIS_UNAVAILABLE tap', async () => {
+    const mockFetch = jest.fn().mockResolvedValue([{ id: 'local-56' }]);
+    mockDbGet.mockReturnValue({ query: jest.fn(() => ({ fetch: mockFetch })) });
+
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: {
+            data: { notification_type: 'SMART_DIAGNOSIS_UNAVAILABLE', entity_id: 'server-abc' },
+          },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-56');
+  });
+
   it('navigates to queue on RESULT_RETURNED tap without entity_id', async () => {
     registerNotificationListeners();
     const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];

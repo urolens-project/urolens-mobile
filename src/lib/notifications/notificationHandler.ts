@@ -66,10 +66,11 @@ export async function registerForPushNotifications(): Promise<void> {
  * @description `sample/[id]`'s route param is the local WatermelonDB row id, but a
  * notification's `entity_id` is a server id (the backend has no concept of a device's
  * local ids) — resolves the local record first, then navigates. Used for both
- * push-notification taps and taps in the Alerts list. `entity_id` may be the
- * specimen's server id or the analysis result's — the two kinds of notification the
- * backend sends use one each — so a result id is followed to its specimen. Falls back
- * to the Queue when nothing matches.
+ * push-notification taps and taps in the Alerts list, for every notification type whose
+ * `entity_id` is an analysis result (`RESULT_RETURNED`, `RESULT_READY_FOR_REVIEW`,
+ * `SMART_DIAGNOSIS_UNAVAILABLE`) — tries `entity_id` as a specimen server id first, then
+ * falls back to resolving it as a result id and following that to its specimen. Falls
+ * back to the Queue when nothing matches.
  * @param serverId - Server id from the notification payload's `entity_id`.
  */
 export async function navigateToSpecimenByServerId(serverId: string | undefined): Promise<void> {
@@ -124,6 +125,8 @@ export function registerNotificationListeners(): () => void {
         break;
 
       case 'RESULT_RETURNED':
+      case 'RESULT_READY_FOR_REVIEW':
+      case 'SMART_DIAGNOSIS_UNAVAILABLE':
         navigateToSpecimenByServerId(data.entity_id);
         break;
 
