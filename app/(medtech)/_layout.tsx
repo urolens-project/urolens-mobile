@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, View, Text, StyleSheet } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { Icon } from '@components/Icon';
 import { NotificationBadge } from '@components/NotificationBadge';
 
 import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
+import { NotificationsPreview } from '@features/alerts/components/NotificationsPreview';
 import {
   refreshNotifications,
   useUnreadNotificationCount,
@@ -76,6 +77,7 @@ export default function MedTechLayout(): React.JSX.Element {
   const { isAuthenticated, role } = useAuthStore();
   const wasConnected = useRef<boolean | null>(null);
   const insets = useSafeAreaInsets();
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || role !== UserRole.MEDTECH) return;
@@ -158,6 +160,15 @@ export default function MedTechLayout(): React.JSX.Element {
         />
         <Tabs.Screen
           name="alerts"
+          // Pressing the tab icon (the app's notification bell) opens a preview over
+          // the current screen instead of navigating to the Alerts tab — "See all" in
+          // the preview is the only way from there to the full page.
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setIsPreviewOpen(true);
+            },
+          }}
           options={{
             title: 'Alerts',
             tabBarIcon: ({ color, size }) => <AlertsTabIcon color={color} size={size} />,
@@ -187,6 +198,7 @@ export default function MedTechLayout(): React.JSX.Element {
           options={{ href: null, tabBarStyle: { display: 'none' } }}
         />
       </Tabs>
+      <NotificationsPreview visible={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} />
     </>
   );
 }

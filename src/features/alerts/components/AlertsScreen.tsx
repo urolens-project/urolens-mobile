@@ -9,20 +9,18 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 
-import { navigateToSpecimenByServerId } from '@lib/notifications/notificationHandler';
 import { useAsyncAction } from '@hooks/useAsyncAction';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
 import { alertsApi } from '../api/alertsApi';
+import { useOpenNotification } from '../hooks/useOpenNotification';
 import { groupNotificationsByDate } from '../lib/groupByDate';
 import { useNotificationsActions, useNotificationsList } from '../store/notificationsStore';
 import { AlertsHeader } from './AlertsHeader';
 import { NotificationCard } from './NotificationCard';
-import type { NotificationItem } from '../types';
 
 /**
  * @description Notifications tab: lists alerts grouped by date (Today, Yesterday,
@@ -31,7 +29,8 @@ import type { NotificationItem } from '../types';
  */
 export function AlertsScreen(): React.JSX.Element {
   const notifications = useNotificationsList();
-  const { setItems, markRead, markAllRead } = useNotificationsActions();
+  const { setItems, markAllRead } = useNotificationsActions();
+  const { openNotification } = useOpenNotification();
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
@@ -62,34 +61,6 @@ export function AlertsScreen(): React.JSX.Element {
       .markAllRead()
       .catch((err: unknown) => console.error('[Alerts] failed to mark all read', err));
   }, [markAllRead]);
-
-  const markReadAndNavigate = useCallback(
-    (item: NotificationItem): void => {
-      if (!item.isRead) {
-        markRead(item.notificationId);
-        alertsApi
-          .markRead(item.notificationId)
-          .catch((err: unknown) => console.error('[Alerts] failed to mark read', err));
-      }
-
-      switch (item.notificationType) {
-        case 'SAMPLE_ASSIGNED':
-          router.push('/(medtech)/queue');
-          break;
-        case 'RESULT_RETURNED':
-        case 'RESULT_READY_FOR_REVIEW':
-        case 'SMART_DIAGNOSIS_UNAVAILABLE':
-          // entityId is a server id; the sample route needs the local row id.
-          navigateToSpecimenByServerId(item.entityId ?? undefined).catch(() => {
-            router.push('/(medtech)/queue');
-          });
-          break;
-        default:
-          break;
-      }
-    },
-    [markRead],
-  );
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const visibleNotifications = showUnreadOnly
@@ -128,7 +99,7 @@ export function AlertsScreen(): React.JSX.Element {
         <SectionList
           sections={sections}
           keyExtractor={(item) => item.notificationId}
-          renderItem={({ item }) => <NotificationCard item={item} onPress={markReadAndNavigate} />}
+          renderItem={({ item }) => <NotificationCard item={item} onPress={openNotification} />}
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionHeader}>{section.title}</Text>
           )}
