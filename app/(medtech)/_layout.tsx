@@ -14,8 +14,13 @@ import {
 import { colors, radius } from '@src/theme';
 
 import { Icon } from '@components/Icon';
+import { NotificationBadge } from '@components/NotificationBadge';
 
 import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
+import {
+  refreshNotifications,
+  useUnreadNotificationCount,
+} from '@features/alerts/store/notificationsStore';
 
 /**
  * @description Initials shown on the profile tab avatar, e.g. "Jane Doe" -> "JD".
@@ -43,6 +48,25 @@ function TabProfileAvatar({ focused }: TabProfileAvatarProps): React.JSX.Element
   );
 }
 
+interface AlertsTabIconProps {
+  color: string;
+  size: number;
+}
+
+/**
+ * @description Alerts tab icon with an unread-count badge, so the count is visible
+ * from any medtech screen, not just the Alerts tab itself.
+ */
+function AlertsTabIcon({ color, size }: AlertsTabIconProps): React.JSX.Element {
+  const unreadCount = useUnreadNotificationCount();
+  return (
+    <View>
+      <Icon name="notifications-outline" size={size} color={color} />
+      <NotificationBadge count={unreadCount} />
+    </View>
+  );
+}
+
 /**
  * @description Layout for the (medtech) tab group. Redirects unauthenticated or
  * non-medtech sessions to login, keeps the local DB synced while active, and renders
@@ -57,16 +81,23 @@ export default function MedTechLayout(): React.JSX.Element {
     if (!isAuthenticated || role !== UserRole.MEDTECH) return;
 
     synchronize();
+    refreshNotifications();
     registerForPushNotifications();
     const cleanupListeners = registerNotificationListeners();
 
     const appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next === 'active') synchronize();
+      if (next === 'active') {
+        synchronize();
+        refreshNotifications();
+      }
     });
 
     const netInfoUnsub = NetInfo.addEventListener((state) => {
       const isConnected = state.isConnected ?? false;
-      if (isConnected && wasConnected.current === false) synchronize();
+      if (isConnected && wasConnected.current === false) {
+        synchronize();
+        refreshNotifications();
+      }
       wasConnected.current = isConnected;
     });
 
@@ -129,9 +160,7 @@ export default function MedTechLayout(): React.JSX.Element {
           name="alerts"
           options={{
             title: 'Alerts',
-            tabBarIcon: ({ color, size }) => (
-              <Icon name="notifications-outline" size={size} color={color} />
-            ),
+            tabBarIcon: ({ color, size }) => <AlertsTabIcon color={color} size={size} />,
           }}
         />
         <Tabs.Screen
