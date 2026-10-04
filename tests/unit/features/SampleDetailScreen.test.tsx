@@ -7,7 +7,7 @@ import { useConfirmAction } from '@features/result-confirmation/hooks/useConfirm
 import { startAnalysis } from '@features/queue/lib/startAnalysis';
 
 const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
-let mockParams: { id?: string; resultId?: string } = {};
+let mockParams: { id?: string; resultId?: string; readOnly?: string } = {};
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
@@ -126,6 +126,37 @@ beforeEach(() => {
     error: null,
   });
   (startAnalysis as jest.Mock).mockResolvedValue({ started: true });
+});
+
+describe('read-only reports', (): void => {
+  it('hides analysis and rejection actions when a report has moved back to an active state', async (): Promise<void> => {
+    const view = await openScreen({}, { id: 'spec-1', readOnly: 'true' });
+    expect(view.getByText('Read-only report')).toBeTruthy();
+    expect(view.queryByText('Begin Analysis')).toBeNull();
+    expect(view.queryByText('Reject Specimen')).toBeNull();
+    expect(startAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('shows findings but prevents confirmation, retake, and the result review shortcut', async (): Promise<void> => {
+    const view = await openScreen(
+      { result: makeResult() },
+      { id: 'spec-1', resultId: 'res-local', readOnly: 'true' },
+    );
+    await view.findByText('Analysis Results');
+    expect(view.queryByText('Confirm Result')).toBeNull();
+    expect(view.queryByText('Retake Image')).toBeNull();
+    expect(view.queryByText('REVIEW_SCREEN')).toBeNull();
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockRouter.push).not.toHaveBeenCalled();
+  });
+
+  it('restores Queue actions when the same sample is opened without read-only mode', async (): Promise<void> => {
+    const view = await openScreen({}, { id: 'spec-1', readOnly: 'true' });
+    mockParams = { id: 'spec-1' };
+    view.rerender(<SampleDetailRoute />);
+    await view.findByText('Begin Analysis');
+    expect(view.queryByText('Read-only report')).toBeNull();
+  });
 });
 
 // ── Bug 1: Begin Analysis ────────────────────────────────────────────────────
