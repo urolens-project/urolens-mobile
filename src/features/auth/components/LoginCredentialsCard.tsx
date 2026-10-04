@@ -1,5 +1,12 @@
 import type { RefObject } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
@@ -16,6 +23,7 @@ export interface LoginCredentialsCardProps {
   onTogglePassword: () => void;
   keepLoggedIn: boolean;
   onToggleKeepLoggedIn: () => void;
+  onForgotPassword: () => void;
   error: string | null;
   isSubmitting: boolean;
   onSubmit: () => void;
@@ -36,6 +44,7 @@ export function LoginCredentialsCard({
   onTogglePassword,
   keepLoggedIn,
   onToggleKeepLoggedIn,
+  onForgotPassword,
   error,
   isSubmitting,
   onSubmit,
@@ -67,12 +76,22 @@ export function LoginCredentialsCard({
       {/* Password */}
       <View style={styles.passwordLabelRow}>
         <Text style={styles.label}>Password</Text>
-        <TouchableOpacity accessibilityRole="button">
+        <TouchableOpacity
+          onPress={onForgotPassword}
+          accessibilityRole="button"
+          accessibilityLabel="Forgot password"
+          accessibilityHint="Shows how to reset your password through your lab administrator"
+        >
           <Text style={styles.forgotText}>Forgot password?</Text>
         </TouchableOpacity>
       </View>
       <View style={[styles.inputRow, error ? styles.inputRowError : null]}>
-        <Icon name="lock-closed-outline" size={18} color={colors.gray400} style={styles.inputIcon} />
+        <Icon
+          name="lock-closed-outline"
+          size={18}
+          color={colors.gray400}
+          style={styles.inputIcon}
+        />
         <TextInput
           ref={passwordRef}
           style={styles.textInput}
@@ -96,7 +115,11 @@ export function LoginCredentialsCard({
           accessibilityRole="button"
           accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
         >
-          <Icon name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.gray500} />
+          <Icon
+            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+            size={20}
+            color={colors.gray500}
+          />
         </TouchableOpacity>
       </View>
 
