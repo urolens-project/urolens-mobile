@@ -13,8 +13,8 @@ export default schemaMigrations({
           table: 'specimens',
           columns: [
             { name: 'rejection_reason', type: 'string', isOptional: true },
-            { name: 'rejection_note',   type: 'string', isOptional: true },
-            { name: 'rejected_at',      type: 'string', isOptional: true },
+            { name: 'rejection_note', type: 'string', isOptional: true },
+            { name: 'rejected_at', type: 'string', isOptional: true },
           ],
         }),
       ],
@@ -27,10 +27,10 @@ export default schemaMigrations({
           table: 'analysis_results',
           columns: [
             { name: 'smart_diagnosis_unavailable', type: 'boolean' },
-            { name: 'confirmed_at',                type: 'string', isOptional: true },
-            { name: 'confirmed_by',                type: 'string', isOptional: true },
-            { name: 'is_synced',                   type: 'boolean' },
-            { name: 'created_at',                  type: 'number' },
+            { name: 'confirmed_at', type: 'string', isOptional: true },
+            { name: 'confirmed_by', type: 'string', isOptional: true },
+            { name: 'is_synced', type: 'boolean' },
+            { name: 'created_at', type: 'number' },
           ],
         }),
 
@@ -39,9 +39,9 @@ export default schemaMigrations({
         addColumns({
           table: 'manual_overrides',
           columns: [
-            { name: 'parameter',     type: 'string' },
+            { name: 'parameter', type: 'string' },
             { name: 'overridden_by', type: 'string' },
-            { name: 'created_at',    type: 'number' },
+            { name: 'created_at', type: 'number' },
           ],
         }),
 
@@ -54,6 +54,15 @@ export default schemaMigrations({
                corrected_value   = CAST(corrected_value   AS REAL)
            WHERE parameter IS NULL OR parameter = '';`,
         ),
+      ],
+    },
+    {
+      toVersion: 4,
+      steps: [
+        addColumns({
+          table: 'analysis_results',
+          columns: [{ name: 'return_reason', type: 'string', isOptional: true }],
+        }),
       ],
     },
   ],
