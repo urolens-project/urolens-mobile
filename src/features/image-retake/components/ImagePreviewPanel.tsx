@@ -13,6 +13,7 @@ export interface ImagePreviewPanelProps {
   validationError: string | null;
   showDiscardModal: boolean;
   isDiscarding: boolean;
+  onGoBack: () => void;
   onRetake: () => void;
   onUseImage: () => void;
   onDiscardConfirm: () => void;
@@ -28,6 +29,7 @@ export function ImagePreviewPanel({
   validationError,
   showDiscardModal,
   isDiscarding,
+  onGoBack,
   onRetake,
   onUseImage,
   onDiscardConfirm,
@@ -36,7 +38,18 @@ export function ImagePreviewPanel({
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.previewHeader}>
-        <Text style={styles.previewTitle}>Image Preview</Text>
+        <View style={styles.previewHeaderRow}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onGoBack}
+            accessibilityRole="button"
+            accessibilityLabel="Leave capture"
+          >
+            <Icon name="close" size={24} color={colors.white} />
+          </TouchableOpacity>
+          <Text style={styles.previewTitle}>Image Preview</Text>
+          <View style={styles.headerSpacer} />
+        </View>
         <Text style={styles.previewMeta}>
           {processed.width} × {processed.height}px · {(processed.sizeBytes / 1024).toFixed(0)} KB
         </Text>
@@ -91,6 +104,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
+  previewHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  headerSpacer: { width: 40 },
   previewTitle: {
     ...typography.title,
     color: colors.white,

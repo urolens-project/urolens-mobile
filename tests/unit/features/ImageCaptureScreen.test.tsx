@@ -95,6 +95,11 @@ jest.mock('@lib/apiClient', () => ({
   default: { post: (...args: unknown[]) => mockApiPost(...args) },
 }));
 
+const mockUseNetworkStatus = jest.fn(() => ({ isOnline: true }));
+jest.mock('@hooks/useNetworkStatus', () => ({
+  useNetworkStatus: () => mockUseNetworkStatus(),
+}));
+
 const mockDbWrite = jest.fn((fn: () => Promise<void>) => fn());
 const mockCollectionCreate = jest.fn();
 const mockCollectionQuery = jest.fn(() => ({ fetch: jest.fn().mockResolvedValue([]) }));
@@ -140,6 +145,7 @@ beforeEach(() => {
     .fn()
     .mockResolvedValue({ uri: 'file://raw-capture.jpg', width: 1280, height: 960 });
   mockProcessCapture.mockResolvedValue(fakeProcessedImage);
+  mockUseNetworkStatus.mockReturnValue({ isOnline: true });
 });
 
 // ─── CAP-01 ──────────────────────────────────────────────────────────────────
@@ -277,5 +283,25 @@ describe('CAP-03: preview → retake before commit', () => {
 
     expect(mockApiPost).not.toHaveBeenCalled();
     expect(screen.getByText('Image Preview')).toBeTruthy();
+  });
+});
+
+describe('CAP-04: submission requires a connection', () => {
+  it('keeps the preview and explains that a connection is required', async () => {
+    mockUseNetworkStatus.mockReturnValue({ isOnline: false });
+    renderScreen();
+
+    fireEvent.press(screen.getByTestId('capture-button'));
+    await waitFor(() => expect(screen.getByText('Image Preview')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('use-image-button'));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('A connection is required to upload this image. Connect and try again.'),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByText('Image Preview')).toBeTruthy();
+    expect(mockBuildUploadFormData).not.toHaveBeenCalled();
   });
 });
