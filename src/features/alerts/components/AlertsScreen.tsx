@@ -1,30 +1,47 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  SectionList,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import apiClient from '@lib/apiClient';
 import { navigateToSpecimenByServerId } from '@lib/notifications/notificationHandler';
 import { useAsyncAction } from '@hooks/useAsyncAction';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { alertsApi } from '../api/alertsApi';
+import { groupNotificationsByDate } from '../lib/groupByDate';
+import { useNotificationsActions, useNotificationsList } from '../store/notificationsStore';
 import { AlertsHeader } from './AlertsHeader';
 import { NotificationCard } from './NotificationCard';
 import type { NotificationItem } from '../types';
 
 /**
- * @description Notifications tab: lists assignment/result alerts and marks them read on tap.
+ * @description Notifications tab: lists alerts grouped by date (Today, Yesterday,
+ * weekday, then full date), with an unread filter and mark-all-read, and jumps to the
+ * relevant specimen on tap.
  */
 export function AlertsScreen(): React.JSX.Element {
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const notifications = useNotificationsList();
+  const { setItems, markRead, markAllRead } = useNotificationsActions();
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
-  const fetchNotifications = useCallback(async (signal: AbortSignal): Promise<void> => {
-    const res = await apiClient.get<NotificationItem[]>('/notifications', { signal });
-    setNotifications(res.data);
-  }, []);
+  const fetchNotifications = useCallback(
+    async (signal: AbortSignal): Promise<void> => {
+      const items = await alertsApi.list(signal);
+      setItems(items);
+    },
+    [setItems],
+  );
   const { run: refetch, isLoading, error } = useAsyncAction('Alerts', fetchNotifications);
 
   useEffect(() => {
@@ -35,32 +52,50 @@ export function AlertsScreen(): React.JSX.Element {
     void refetch();
   }, [refetch]);
 
-  const markReadAndNavigate = useCallback((item: NotificationItem): void => {
-    if (!item.isRead) {
-      setNotifications((prev) =>
-        prev.map((n) => (n.notificationId === item.notificationId ? { ...n, isRead: true } : n)),
-      );
-      apiClient
-        .patch(`/notifications/${item.notificationId}/read`)
-        .catch((err: unknown) => console.error('[Alerts] failed to mark read', err));
-    }
-
-    switch (item.notificationType) {
-      case 'SAMPLE_ASSIGNED':
-        router.push('/(medtech)/queue');
-        break;
-      case 'RESULT_RETURNED':
-        // entityId is a server id; the sample route needs the local row id.
-        navigateToSpecimenByServerId(item.entityId ?? undefined).catch(() => {
-          router.push('/(medtech)/queue');
-        });
-        break;
-      default:
-        break;
-    }
+  const handleToggleUnreadOnly = useCallback((): void => {
+    setShowUnreadOnly((prev) => !prev);
   }, []);
 
+  const handleMarkAllRead = useCallback((): void => {
+    markAllRead();
+    alertsApi
+      .markAllRead()
+      .catch((err: unknown) => console.error('[Alerts] failed to mark all read', err));
+  }, [markAllRead]);
+
+  const markReadAndNavigate = useCallback(
+    (item: NotificationItem): void => {
+      if (!item.isRead) {
+        markRead(item.notificationId);
+        alertsApi
+          .markRead(item.notificationId)
+          .catch((err: unknown) => console.error('[Alerts] failed to mark read', err));
+      }
+
+      switch (item.notificationType) {
+        case 'SAMPLE_ASSIGNED':
+          router.push('/(medtech)/queue');
+          break;
+        case 'RESULT_RETURNED':
+        case 'RESULT_READY_FOR_REVIEW':
+        case 'SMART_DIAGNOSIS_UNAVAILABLE':
+          // entityId is a server id; the sample route needs the local row id.
+          navigateToSpecimenByServerId(item.entityId ?? undefined).catch(() => {
+            router.push('/(medtech)/queue');
+          });
+          break;
+        default:
+          break;
+      }
+    },
+    [markRead],
+  );
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const visibleNotifications = showUnreadOnly
+    ? notifications.filter((n) => !n.isRead)
+    : notifications;
+  const sections = groupNotificationsByDate(visibleNotifications);
 
   if (isLoading && !hasLoadedOnce) {
     return (
@@ -74,7 +109,12 @@ export function AlertsScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AlertsHeader unreadCount={unreadCount} />
+      <AlertsHeader
+        unreadCount={unreadCount}
+        showUnreadOnly={showUnreadOnly}
+        onToggleUnreadOnly={handleToggleUnreadOnly}
+        onMarkAllRead={handleMarkAllRead}
+      />
 
       {error ? (
         <View style={styles.centered}>
@@ -85,10 +125,14 @@ export function AlertsScreen(): React.JSX.Element {
           </Pressable>
         </View>
       ) : (
-        <FlatList
-          data={notifications}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.notificationId}
           renderItem={({ item }) => <NotificationCard item={item} onPress={markReadAndNavigate} />}
+          renderSectionHeader={({ section }) => (
+            <Text style={styles.sectionHeader}>{section.title}</Text>
+          )}
+          stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl
               refreshing={isLoading && hasLoadedOnce}
@@ -97,14 +141,18 @@ export function AlertsScreen(): React.JSX.Element {
             />
           }
           contentContainerStyle={
-            notifications.length === 0 ? styles.emptyContainer : styles.listContent
+            visibleNotifications.length === 0 ? styles.emptyContainer : styles.listContent
           }
           ListEmptyComponent={
             <View style={styles.centered}>
               <Icon name="notifications-off-outline" size={48} color={colors.gray300} />
-              <Text style={styles.emptyTitle}>No alerts yet</Text>
+              <Text style={styles.emptyTitle}>
+                {showUnreadOnly ? "You're all caught up" : 'No alerts yet'}
+              </Text>
               <Text style={styles.emptySub}>
-                Sample assignments and result updates will appear here.
+                {showUnreadOnly
+                  ? 'No unread notifications right now.'
+                  : 'Sample assignments and result updates will appear here.'}
               </Text>
             </View>
           }
@@ -117,6 +165,14 @@ export function AlertsScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.gray100 },
   listContent: { paddingVertical: spacing.sm },
+  sectionHeader: {
+    ...typography.label,
+    color: colors.gray500,
+    backgroundColor: colors.gray100,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
