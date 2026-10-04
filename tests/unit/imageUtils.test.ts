@@ -269,15 +269,15 @@ describe('processPickerAsset', () => {
     expect(result.filename).toMatch(/^shot\.png-\d+\.jpg$/);
   });
 
-  it('falls back to image/jpeg for unsupported mimeType', async () => {
-    setupManipulator();
-    const result = await processPickerAsset({
-      uri: 'file://shot.heic',
-      width: 1280,
-      height: 960,
-      mimeType: 'image/heic',
-    } as any);
-    expect(result.mimeType).toBe('image/jpeg');
+  it('rejects an unsupported gallery MIME type before processing', async () => {
+    await expect(
+      processPickerAsset({
+        uri: 'file://shot.heic',
+        width: 1280,
+        height: 960,
+        mimeType: 'image/heic',
+      } as any),
+    ).rejects.toMatchObject({ name: 'ImageFormatError' });
   });
 
   it('uses the asset fileName in the output filename', async () => {
