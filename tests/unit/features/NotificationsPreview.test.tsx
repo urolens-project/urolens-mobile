@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, screen } from '@testing-library/react-native';
+import { act, render, fireEvent, screen } from '@testing-library/react-native';
 
 import { NotificationsPreview } from '@features/alerts/components/NotificationsPreview';
 import { refreshNotifications } from '@features/alerts/store/notificationsStore';
@@ -119,6 +119,31 @@ describe('NotificationsPreview', () => {
     expect(patch).toHaveBeenCalledWith('/notifications/read-all');
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.queryByText('Mark all as read')).toBeNull();
+  });
+
+  it('keeps the unread badge cleared when refreshing during mark-all-read', async (): Promise<void> => {
+    const items = [notification({ notificationId: 'n-1', isRead: false })];
+    await seedNotifications(items);
+    let resolveMarkAllRead!: () => void;
+    patch.mockImplementationOnce(
+      (): Promise<void> =>
+        new Promise((resolve): void => {
+          resolveMarkAllRead = resolve;
+        }),
+    );
+    render(<NotificationsPreview visible onClose={jest.fn()} />);
+
+    fireEvent.press(screen.getByText('Mark all as read'));
+    await act(async (): Promise<void> => {
+      await seedNotifications(items);
+    });
+
+    expect(screen.queryByText('Mark all as read')).toBeNull();
+    expect(screen.queryByText('1')).toBeNull();
+    expect(screen.getByText('A result was returned')).toBeTruthy();
+    await act(async (): Promise<void> => {
+      resolveMarkAllRead();
+    });
   });
 
   it('"See all" closes the preview and opens the full Alerts page', async () => {

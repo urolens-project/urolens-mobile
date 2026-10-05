@@ -17,7 +17,20 @@ interface NotificationsState {
 const useNotificationsStore = create<NotificationsState>((set) => ({
   items: [],
   hasLoadedOnce: false,
-  setItems: (items) => set({ items, hasLoadedOnce: true }),
+  setItems: (items): void =>
+    set((state): Pick<NotificationsState, 'items' | 'hasLoadedOnce'> => {
+      // Read status only moves forward within a session. A refresh can return an
+      // older snapshot while the mark-read request is still being saved.
+      const readIds = new Set(
+        state.items.filter((item) => item.isRead).map((item) => item.notificationId),
+      );
+      return {
+        items: items.map((item) =>
+          readIds.has(item.notificationId) ? { ...item, isRead: true } : item,
+        ),
+        hasLoadedOnce: true,
+      };
+    }),
   markRead: (notificationId) =>
     set((s) => ({
       items: s.items.map((n) => (n.notificationId === notificationId ? { ...n, isRead: true } : n)),
