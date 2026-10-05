@@ -26,6 +26,14 @@ jest.mock('@db/sync/pushChanges', () => ({
   requeueLegacyFailedActions: jest.fn(),
 }));
 
+jest.mock('@db/sync/localDataOwner', () => ({
+  adoptUnownedLocalData: jest.fn(),
+}));
+
+jest.mock('@lib/auth/tokenStorage', () => ({
+  tokenStorage: { getUserId: jest.fn() },
+}));
+
 // Fresh module + fresh mock instances per test (resets isSyncing = false)
 let synchronize: () => Promise<void>;
 let getIsSyncing: () => boolean;
@@ -353,5 +361,60 @@ describe('sync status (drives the Queue status pill)', () => {
     listener.mockClear();
     await synchronize();
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+// A phone updated from a version that didn't record whose data it holds: the
+// signed-in user is recorded as the owner on their next sync, so their next login
+// doesn't look like a different user and wipe their unsent work.
+describe('local data with no owner on record', () => {
+  let mockAdopt: jest.Mock;
+  let mockGetUserId: jest.Mock;
+
+  beforeEach(() => {
+    ({ adoptUnownedLocalData: mockAdopt } = require('@db/sync/localDataOwner'));
+    mockGetUserId = require('@lib/auth/tokenStorage').tokenStorage.getUserId;
+    mockAdopt.mockResolvedValue(undefined);
+  });
+
+  it('offers the signed-in user as the owner before anything is sent or pulled', async () => {
+    const order: string[] = [];
+    mockGetUserId.mockResolvedValue('user-1');
+    mockAdopt.mockImplementation(async () => {
+      order.push('adopt');
+    });
+    // Returns a summary so this test also holds once pushChanges reports refusals.
+    mockPush.mockImplementation(async () => {
+      order.push('push');
+      return { refusedCount: 0 };
+    });
+
+    await synchronize();
+
+    expect(mockAdopt).toHaveBeenCalledWith('user-1');
+    expect(order).toEqual(['adopt', 'push']);
+  });
+
+  it('passes on "nobody signed in" as null', async () => {
+    mockGetUserId.mockResolvedValue(null);
+
+    await synchronize();
+
+    expect(mockAdopt).toHaveBeenCalledWith(null);
+  });
+});
+
+describe('resetSyncStatus', () => {
+  it('forgets the last sync, and tells subscribers', async () => {
+    const { resetSyncStatus } = require('@db/sync/syncManager');
+    await synchronize();
+    expect(getSyncStatus().state).toBe('succeeded');
+    const listener = jest.fn();
+    subscribeSyncStatus(listener);
+
+    resetSyncStatus();
+
+    expect(getSyncStatus()).toEqual({ state: 'idle', lastSuccessAt: null });
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });
