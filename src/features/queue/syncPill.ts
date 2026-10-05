@@ -15,6 +15,8 @@ interface GetSyncPillInput {
   sync: SyncStatus;
   /** When the persisted last sync happened (survives app restarts), if ever. */
   lastSyncAt: number | null;
+  /** Queued changes the server refused and the MedTech hasn't dismissed. */
+  failedActionCount?: number;
 }
 
 /**
@@ -23,13 +25,25 @@ interface GetSyncPillInput {
  * @param isOnline - Whether the device currently has connectivity.
  * @param sync - Current sync manager state.
  * @param lastSyncAt - Persisted timestamp of the last successful sync, if any.
+ * @param failedActionCount - Queued changes the server refused, not yet dismissed.
  */
-export function getSyncPill({ isOnline, sync, lastSyncAt }: GetSyncPillInput): SyncPill {
+export function getSyncPill({
+  isOnline,
+  sync,
+  lastSyncAt,
+  failedActionCount = 0,
+}: GetSyncPillInput): SyncPill {
   if (!isOnline) {
     return { label: 'Offline • Showing cached data', tone: 'caution' };
   }
   if (sync.state === 'failed') {
     return { label: 'Online • Sync failed, showing cached data', tone: 'error' };
+  }
+  // The sync itself worked, but something the MedTech did never reached the server.
+  // The details, and the way to clear this, are on the Profile tab.
+  if (failedActionCount > 0) {
+    const changes = failedActionCount === 1 ? '1 change' : `${failedActionCount} changes`;
+    return { label: `${changes} couldn't be sent • See Profile`, tone: 'error' };
   }
   const hasSynced = lastSyncAt !== null || sync.lastSuccessAt !== null;
   if (!hasSynced) {
