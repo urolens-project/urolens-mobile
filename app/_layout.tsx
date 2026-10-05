@@ -67,6 +67,8 @@ export default function RootLayout(): React.JSX.Element {
           lastActiveAt !== null && Date.now() - lastActiveAt >= SESSION_TIMEOUT_MS;
 
         if (token && userId && role && !wasAwayTooLong) {
+          await tokenStorage.removeLastActiveAt();
+          if (!isCurrent) return;
           setAuthenticated(userId, role as UserRole, username ?? '');
         } else {
           await tokenStorage.clearAll();

@@ -9,7 +9,10 @@ import { SESSION_TIMEOUT_MS } from '@features/auth/constants/sessionTimeout.cons
 import { useAuth } from '@features/auth/hooks/useAuth';
 
 jest.mock('@lib/auth/tokenStorage', (): object => ({
-  tokenStorage: { saveLastActiveAt: jest.fn().mockResolvedValue(undefined) },
+  tokenStorage: {
+    saveLastActiveAt: jest.fn().mockResolvedValue(undefined),
+    removeLastActiveAt: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 jest.mock('@features/auth/hooks/useAuth', (): object => ({ useAuth: jest.fn() }));
 
@@ -55,6 +58,7 @@ describe('SessionTimeoutHandler', (): void => {
     await changeAppState('active');
 
     expect(tokenStorage.saveLastActiveAt).not.toHaveBeenCalled();
+    expect(tokenStorage.removeLastActiveAt).not.toHaveBeenCalled();
     expect(mockLogout).not.toHaveBeenCalled();
   });
 
@@ -67,6 +71,7 @@ describe('SessionTimeoutHandler', (): void => {
 
     expect(tokenStorage.saveLastActiveAt).toHaveBeenCalledTimes(1);
     expect(tokenStorage.saveLastActiveAt).toHaveBeenCalledWith(START_TIME + SESSION_TIMEOUT_MS);
+    expect(tokenStorage.removeLastActiveAt).not.toHaveBeenCalled();
   });
 
   it('keeps the session when returning before the background timeout', async (): Promise<void> => {
@@ -78,6 +83,7 @@ describe('SessionTimeoutHandler', (): void => {
     await changeAppState('active');
 
     expect(tokenStorage.saveLastActiveAt).toHaveBeenCalledTimes(1);
+    expect(tokenStorage.removeLastActiveAt).toHaveBeenCalledTimes(1);
     expect(mockLogout).not.toHaveBeenCalled();
   });
 
@@ -94,9 +100,10 @@ describe('SessionTimeoutHandler', (): void => {
     expect(tokenStorage.saveLastActiveAt).toHaveBeenCalledWith(START_TIME);
     expect(mockLogout).toHaveBeenCalledTimes(1);
     expect(mockLogout).toHaveBeenCalledWith('inactivity');
+    expect(tokenStorage.removeLastActiveAt).not.toHaveBeenCalled();
   });
 
-  it('clears the background time after a short return to the foreground', async (): Promise<void> => {
+  it('clears both copies of the background time after a short return to the foreground', async (): Promise<void> => {
     renderHook(SessionTimeoutHandler);
 
     await changeAppState('background');
@@ -105,6 +112,22 @@ describe('SessionTimeoutHandler', (): void => {
     jest.setSystemTime(START_TIME + SESSION_TIMEOUT_MS);
     await changeAppState('active');
 
+    expect(tokenStorage.removeLastActiveAt).toHaveBeenCalledTimes(1);
+    expect(mockLogout).not.toHaveBeenCalled();
+  });
+
+  it('records a fresh timestamp for the next background period', async (): Promise<void> => {
+    renderHook(SessionTimeoutHandler);
+
+    await changeAppState('background');
+    await changeAppState('active');
+    jest.setSystemTime(START_TIME + SESSION_TIMEOUT_MS);
+    await changeAppState('background');
+    jest.setSystemTime(START_TIME + SESSION_TIMEOUT_MS * 2 - 1);
+    await changeAppState('active');
+
+    expect(tokenStorage.saveLastActiveAt).toHaveBeenLastCalledWith(START_TIME + SESSION_TIMEOUT_MS);
+    expect(tokenStorage.removeLastActiveAt).toHaveBeenCalledTimes(2);
     expect(mockLogout).not.toHaveBeenCalled();
   });
 
