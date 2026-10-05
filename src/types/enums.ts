@@ -56,5 +56,8 @@ export enum PendingSyncAction {
 export enum PendingSyncStatus {
   PENDING = 'PENDING',
   SYNCED = 'SYNCED',
+  // The server refused it (or it expired): shown to the MedTech until dismissed.
   FAILED = 'FAILED',
+  // A FAILED change the MedTech has seen and cleared from the list.
+  DISMISSED = 'DISMISSED',
 }

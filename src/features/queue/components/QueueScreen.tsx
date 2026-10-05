@@ -6,6 +6,7 @@ import { useIsFocused } from '@react-navigation/native';
 
 import { useAuthStore } from '@lib/auth/authStore';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { useFailedActionCount } from '@hooks/useFailedActionCount';
 import { useSyncStatus } from '@hooks/useSyncStatus';
 import { formatClinicToday } from '@lib/dateTime';
 import { colors, spacing } from '@src/theme';
@@ -17,7 +18,13 @@ import { useQueue } from '../hooks/useQueue';
 import { QUEUE_STATUS_STYLES } from '../constants';
 import { getQueueStatus } from '../status';
 import { getSyncPill } from '../syncPill';
-import { ITEM_GAP, ITEM_STRIDE, getStickyRest, getWheelRange, rollAwayStyle } from '../scrollEffects';
+import {
+  ITEM_GAP,
+  ITEM_STRIDE,
+  getStickyRest,
+  getWheelRange,
+  rollAwayStyle,
+} from '../scrollEffects';
 import { QueueActionBar } from './QueueActionBar';
 import { getSampleActions } from '../lib/sampleState';
 import { QueueEmptyState } from './QueueEmptyState';
@@ -168,7 +175,8 @@ export function QueueScreen(): React.JSX.Element {
   );
 
   const syncStatus = useSyncStatus();
-  const syncPill = getSyncPill({ isOnline, sync: syncStatus, lastSyncAt });
+  const failedActionCount = useFailedActionCount();
+  const syncPill = getSyncPill({ isOnline, sync: syncStatus, lastSyncAt, failedActionCount });
 
   // Work already started (or sent back) is picked up again, not begun.
   const selectedStatus = selectedItem ? getQueueStatus(selectedItem) : null;
