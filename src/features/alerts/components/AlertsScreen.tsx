@@ -18,7 +18,12 @@ import { Icon } from '@components/Icon';
 import { alertsApi } from '../api/alertsApi';
 import { useOpenNotification } from '../hooks/useOpenNotification';
 import { groupNotificationsByDate } from '../lib/groupByDate';
-import { useNotificationsActions, useNotificationsList } from '../store/notificationsStore';
+import {
+  loadNotifications,
+  useNotificationsActions,
+  useNotificationsList,
+  useNotificationsLoaded,
+} from '../store/notificationsStore';
 import { AlertsHeader } from './AlertsHeader';
 import { NotificationCard } from './NotificationCard';
 
@@ -29,22 +34,15 @@ import { NotificationCard } from './NotificationCard';
  */
 export function AlertsScreen(): React.JSX.Element {
   const notifications = useNotificationsList();
-  const { setItems, markAllRead } = useNotificationsActions();
+  const { markAllRead } = useNotificationsActions();
   const { openNotification } = useOpenNotification();
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const hasLoadedOnce = useNotificationsLoaded();
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
-  const fetchNotifications = useCallback(
-    async (signal: AbortSignal): Promise<void> => {
-      const items = await alertsApi.list(signal);
-      setItems(items);
-    },
-    [setItems],
-  );
-  const { run: refetch, isLoading, error } = useAsyncAction('Alerts', fetchNotifications);
+  const { run: refetch, isLoading, error } = useAsyncAction('Alerts', loadNotifications);
 
   useEffect(() => {
-    refetch().finally(() => setHasLoadedOnce(true));
+    void refetch();
   }, [refetch]);
 
   const handleRefresh = useCallback((): void => {

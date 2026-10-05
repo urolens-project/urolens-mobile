@@ -4,6 +4,8 @@ import { render, fireEvent, screen } from '@testing-library/react-native';
 import { NotificationsPreview } from '@features/alerts/components/NotificationsPreview';
 import { refreshNotifications } from '@features/alerts/store/notificationsStore';
 import apiClient from '@lib/apiClient';
+import { useAuthStore } from '@lib/auth/authStore';
+import { UserRole } from '@app-types/enums';
 import { router } from 'expo-router';
 import { navigateToSpecimenByServerId } from '@lib/notifications/notificationHandler';
 
@@ -40,7 +42,11 @@ async function seedNotifications(data: ReturnType<typeof notification>[]): Promi
   await refreshNotifications();
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach((): void => {
+  jest.clearAllMocks();
+  useAuthStore.getState().clearAuth();
+  useAuthStore.getState().setAuthenticated('medtech-1', UserRole.MEDTECH, 'medtech01');
+});
 
 describe('NotificationsPreview', () => {
   it('shows the most recent notifications and the unread count', async () => {
