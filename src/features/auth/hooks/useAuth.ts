@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { router } from 'expo-router';
 
+import { claimLocalDataFor } from '@db/sync/claimLocalData';
 import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
@@ -61,6 +62,9 @@ export function useAuth(): UseAuthResult {
       }
       try {
         const data = await authApi.login(username, password);
+        // Before anything is saved or shown: never let this user see or send another
+        // user's local data.
+        await claimLocalDataFor(data.userId);
         // Drop any session left over from a previous login, then choose where this one lives.
         await tokenStorage.clearAll();
         tokenStorage.setSessionOnly(!keepLoggedIn);
