@@ -84,6 +84,12 @@ export const tokenStorage = {
     return value ? Number(value) : null;
   },
 
+  /** @description Clears the background timestamp once the session resumes, so a
+   * later cold start cannot expire it using an earlier background period. */
+  async removeLastActiveAt(): Promise<void> {
+    await deleteItem(LAST_ACTIVE_AT_KEY);
+  },
+
   async clearAll(): Promise<void> {
     await deleteItem(ACCESS_TOKEN_KEY);
     await deleteItem(USER_ID_KEY);

@@ -29,10 +29,12 @@ export function SessionTimeoutHandler(): null {
           await tokenStorage.saveLastActiveAt(backgroundTime.current);
         } else if (nextState === 'active' && backgroundTime.current !== null) {
           const elapsed = Date.now() - backgroundTime.current;
+          backgroundTime.current = null;
           if (elapsed >= SESSION_TIMEOUT_MS) {
             await logout('inactivity');
+          } else {
+            await tokenStorage.removeLastActiveAt();
           }
-          backgroundTime.current = null;
         }
       },
     );
