@@ -7,6 +7,7 @@ import { alertsApi } from '@features/alerts/api/alertsApi';
 import {
   loadNotifications,
   refreshNotifications,
+  useNotificationsActions,
   useNotificationsList,
   useNotificationsLoaded,
   useUnreadNotificationCount,
@@ -38,6 +39,11 @@ interface NotificationsSnapshot {
   unreadCount: number;
 }
 
+interface NotificationReadState extends NotificationsSnapshot {
+  markRead: (notificationId: string) => void;
+  markAllRead: () => void;
+}
+
 function useNotificationsSnapshot(): NotificationsSnapshot {
   return {
     items: useNotificationsList(),
@@ -46,10 +52,91 @@ function useNotificationsSnapshot(): NotificationsSnapshot {
   };
 }
 
+function useNotificationReadState(): NotificationReadState {
+  return { ...useNotificationsSnapshot(), ...useNotificationsActions() };
+}
+
 beforeEach((): void => {
   jest.clearAllMocks();
   authStoreApi.clearAuth();
   useAuthStore.getState().setAuthenticated('medtech-a', UserRole.MEDTECH, 'medtechA');
+});
+
+describe('notification read status during refresh', (): void => {
+  it.each([loadNotifications, refreshNotifications])(
+    'keeps marked notifications read when a stale refresh finishes (%#)',
+    async (load: () => Promise<void>): Promise<void> => {
+      const { result } = renderHook(useNotificationReadState);
+      jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+      await act(async (): Promise<void> => {
+        await load();
+      });
+      let resolveRefresh!: (items: NotificationItem[]) => void;
+      jest.mocked(alertsApi.list).mockImplementationOnce(
+        (): Promise<NotificationItem[]> =>
+          new Promise((resolve): void => {
+            resolveRefresh = resolve;
+          }),
+      );
+      const refresh = load();
+
+      await act(async (): Promise<void> => {
+        result.current.markAllRead();
+        resolveRefresh([MEDTECH_A_NOTIFICATION, MEDTECH_B_NOTIFICATION]);
+        await refresh;
+      });
+
+      expect(result.current.items).toEqual([
+        { ...MEDTECH_A_NOTIFICATION, isRead: true },
+        MEDTECH_B_NOTIFICATION,
+      ]);
+      expect(result.current.unreadCount).toBe(1);
+    },
+  );
+
+  it('keeps a single notification read when a refresh starts after it is marked', async (): Promise<void> => {
+    const { result } = renderHook(useNotificationReadState);
+    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION, MEDTECH_B_NOTIFICATION]);
+    await act(async (): Promise<void> => {
+      await refreshNotifications();
+      result.current.markRead(MEDTECH_A_NOTIFICATION.notificationId);
+      await refreshNotifications();
+    });
+
+    expect(result.current.items).toEqual([
+      { ...MEDTECH_A_NOTIFICATION, isRead: true },
+      MEDTECH_B_NOTIFICATION,
+    ]);
+    expect(result.current.unreadCount).toBe(1);
+  });
+
+  it('accepts read status saved on another device', async (): Promise<void> => {
+    const { result } = renderHook(useNotificationReadState);
+    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+    await act(async (): Promise<void> => {
+      await refreshNotifications();
+      jest.mocked(alertsApi.list).mockResolvedValue([{ ...MEDTECH_A_NOTIFICATION, isRead: true }]);
+      await refreshNotifications();
+    });
+
+    expect(result.current.items[0].isRead).toBe(true);
+    expect(result.current.unreadCount).toBe(0);
+  });
+
+  it('does not carry local read status into another account', async (): Promise<void> => {
+    const { result } = renderHook(useNotificationReadState);
+    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+    await act(async (): Promise<void> => {
+      await refreshNotifications();
+      result.current.markAllRead();
+      authStoreApi.clearAuth();
+      useAuthStore.getState().setAuthenticated('medtech-b', UserRole.MEDTECH, 'medtechB');
+      await refreshNotifications();
+    });
+
+    expect(result.current.items[0].isRead).toBe(false);
+    expect(result.current.unreadCount).toBe(1);
+  });
 });
 
 describe('notification cache account isolation', (): void => {
