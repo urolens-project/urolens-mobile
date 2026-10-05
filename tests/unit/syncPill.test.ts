@@ -65,4 +65,50 @@ describe('getSyncPill', () => {
       'Offline • Showing cached data',
     );
   });
+
+  describe('changes the server refused (UROLENS-220)', () => {
+    const synced = { isOnline: true, sync: sync('succeeded', 1), lastSyncAt: 1 };
+
+    it('says one change could not be sent, and where to look', () => {
+      expect(getSyncPill({ ...synced, failedActionCount: 1 })).toEqual({
+        label: "1 change couldn't be sent • See Profile",
+        tone: 'error',
+      });
+    });
+
+    it('counts several', () => {
+      expect(getSyncPill({ ...synced, failedActionCount: 3 }).label).toBe(
+        "3 changes couldn't be sent • See Profile",
+      );
+    });
+
+    it('says nothing about it when there are none', () => {
+      expect(getSyncPill({ ...synced, failedActionCount: 0 }).label).toBe(
+        'Online • Queue Synchronized',
+      );
+    });
+
+    it('shows it even before the first sync of this session finishes', () => {
+      expect(
+        getSyncPill({
+          isOnline: true,
+          sync: sync('syncing'),
+          lastSyncAt: null,
+          failedActionCount: 2,
+        }).tone,
+      ).toBe('error');
+    });
+
+    it('being offline is said first: nothing can be sent or checked right now', () => {
+      expect(getSyncPill({ ...synced, isOnline: false, failedActionCount: 2 }).label).toBe(
+        'Offline • Showing cached data',
+      );
+    });
+
+    it('a failed sync is said first: the list itself may be stale', () => {
+      expect(getSyncPill({ ...synced, sync: sync('failed', 1), failedActionCount: 2 }).label).toBe(
+        'Online • Sync failed, showing cached data',
+      );
+    });
+  });
 });

@@ -5,6 +5,7 @@ import { act, render, fireEvent, within } from '@testing-library/react-native';
 import QueueScreen from '../../../app/(medtech)/queue';
 import { useQueue } from '@features/queue/hooks/useQueue';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { useFailedActionCount } from '@hooks/useFailedActionCount';
 import { useSyncStatus } from '@hooks/useSyncStatus';
 import type { QueueItem } from '@features/queue/types';
 
@@ -21,6 +22,7 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('@features/queue/hooks/useQueue', () => ({ useQueue: jest.fn() }));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
 jest.mock('@hooks/useSyncStatus', () => ({ useSyncStatus: jest.fn() }));
+jest.mock('@hooks/useFailedActionCount', () => ({ useFailedActionCount: jest.fn(() => 0) }));
 jest.mock('@lib/auth/authStore', () => ({
   useUsername: jest.fn(() => 'medtech'),
 }));
@@ -278,6 +280,24 @@ describe('the list header of the Queue', () => {
     (useSyncStatus as jest.Mock).mockReturnValue(sync);
     setQueue([item('A')]);
     expect(headerOf(render(<QueueScreen />)).getByText(text)).toBeTruthy();
+  });
+});
+
+describe('changes the server refused (UROLENS-220)', () => {
+  const headerOf = (view: Screen) => render(listOf(view).props.ListHeaderComponent);
+
+  afterEach(() => {
+    (useFailedActionCount as jest.Mock).mockReturnValue(0);
+  });
+
+  it('warns on the status pill and points to Profile', () => {
+    (useFailedActionCount as jest.Mock).mockReturnValue(2);
+    setQueue([item('A')]);
+
+    const header = headerOf(render(<QueueScreen />));
+
+    expect(header.getByText("2 changes couldn't be sent • See Profile")).toBeTruthy();
+    expect(header.queryByText('Online • Queue Synchronized')).toBeNull();
   });
 });
 
