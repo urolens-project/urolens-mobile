@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { tokenStorage } from '@lib/auth/tokenStorage';
 import { database } from '../database';
+import { adoptUnownedLocalData } from './localDataOwner';
 import { pullChanges } from './pullChanges';
 import { hasPendingActions, pushChanges, requeueLegacyFailedActions } from './pushChanges';
 
@@ -57,6 +59,7 @@ export async function synchronize(): Promise<void> {
   isSyncing = true;
   setSyncStatus({ state: 'syncing' });
   try {
+    await adoptUnownedLocalData(await tokenStorage.getUserId());
     const lastSyncedAt = await AsyncStorage.getItem(LAST_SYNC_KEY);
 
     // 1. Push FIRST — Send upstream local modifications so the server can run conflict checks
@@ -98,4 +101,13 @@ export async function synchronize(): Promise<void> {
 /** @description Whether a sync cycle is currently running. */
 export function getIsSyncing(): boolean {
   return isSyncing;
+}
+
+/**
+ * @description Forgets the last sync's outcome, as if the app had never synced. Used
+ * when the local data is wiped for a different user (see claimLocalDataFor), so no
+ * screen says "synchronized" about data that is no longer there.
+ */
+export function resetSyncStatus(): void {
+  setSyncStatus({ state: 'idle', lastSuccessAt: null });
 }
