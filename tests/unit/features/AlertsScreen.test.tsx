@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import AlertsScreen from '../../../app/(medtech)/alerts';
 import apiClient from '@lib/apiClient';
+import { useAuthStore } from '@lib/auth/authStore';
+import { UserRole } from '@app-types/enums';
 import { router } from 'expo-router';
 import { navigateToSpecimenByServerId } from '@lib/notifications/notificationHandler';
 
@@ -49,7 +51,11 @@ async function tapAlert(n: ApiNotification) {
   fireEvent.press(card.getByText(n.message as string));
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach((): void => {
+  jest.clearAllMocks();
+  useAuthStore.getState().clearAuth();
+  useAuthStore.getState().setAuthenticated('medtech-1', UserRole.MEDTECH, 'medtech01');
+});
 
 describe('the alert list', () => {
   // The React warning "Each child in a list should have a unique key prop".
