@@ -3,6 +3,8 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '@src/theme';
 
+import { Icon } from '@components/Icon';
+
 const DEFAULT_IMAGE_ASPECT_RATIO = 4 / 3;
 
 export interface ResultImagePanelProps {
@@ -20,24 +22,31 @@ export function ResultImagePanel({ imageUrl }: ResultImagePanelProps): React.JSX
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Microscopy image</Text>
-      {isImageAvailable ? (
-        <Image
-          source={{ uri: imageUrl }}
-          style={[styles.image, { aspectRatio }]}
-          resizeMode="contain"
-          accessibilityLabel="Microscopy image"
-          onLoad={(event): void => {
-            const { width, height } = event.nativeEvent.source;
-            if (width > 0 && height > 0) setAspectRatio(width / height);
-          }}
-          onError={(): void => setHasImageError(true)}
-        />
-      ) : (
-        <Text style={styles.message}>
-          Microscopy image unavailable. Connect and reload the result to try again.
+      <View style={styles.header}>
+        <Icon name="image-outline" size={16} color={colors.teal} />
+        <Text accessibilityRole="header" style={styles.title}>
+          Sample Image
         </Text>
-      )}
+      </View>
+      <View style={styles.content}>
+        {isImageAvailable ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={[styles.image, { aspectRatio }]}
+            resizeMode="contain"
+            accessibilityLabel="Microscopy image"
+            onLoad={(event): void => {
+              const { width, height } = event.nativeEvent.source;
+              if (width > 0 && height > 0) setAspectRatio(width / height);
+            }}
+            onError={(): void => setHasImageError(true)}
+          />
+        ) : (
+          <Text style={styles.message}>
+            Microscopy image unavailable. Connect and pull down to refresh.
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -46,11 +55,23 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.white,
     margin: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    gap: spacing.md,
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.gray200,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.creamAlt,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.gray200,
   },
   title: { ...typography.label, color: colors.ink },
+  content: { padding: spacing.lg },
   image: {
     width: '100%',
     backgroundColor: colors.gray100,

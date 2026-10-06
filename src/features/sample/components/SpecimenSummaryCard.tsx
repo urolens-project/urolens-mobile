@@ -4,6 +4,8 @@ import type { ResultStatus } from '@db/models/AnalysisResult';
 import { formatDateTime } from '@lib/dateTime';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
+import { Icon } from '@components/Icon';
+
 import { getSampleStatusLabel } from '@features/queue/lib/sampleState';
 import type { QueueItem } from '@features/queue/types';
 
@@ -50,13 +52,21 @@ export function SpecimenSummaryCard({
       </View>
 
       <View style={styles.card}>
-        <DetailRow label="Patient UID" value={specimen.patientUid} />
-        <View style={styles.divider} />
-        <DetailRow label="Test Type" value={specimen.testType} />
-        <View style={styles.divider} />
-        <DetailRow label="Status" value={getSampleStatusLabel(specimen.status, resultStatus)} />
-        <View style={styles.divider} />
-        <DetailRow label="Received" value={formatDateTime(specimen.receivedAt)} />
+        <View style={styles.detailsHeader}>
+          <Icon name="person-outline" size={16} color={colors.teal} />
+          <Text accessibilityRole="header" style={styles.title}>
+            Patient & Sample
+          </Text>
+        </View>
+        <View style={styles.detailsBody}>
+          <DetailRow label="Patient UID" value={specimen.patientUid} />
+          <View style={styles.divider} />
+          <DetailRow label="Test Type" value={specimen.testType} />
+          <View style={styles.divider} />
+          <DetailRow label="Status" value={getSampleStatusLabel(specimen.status, resultStatus)} />
+          <View style={styles.divider} />
+          <DetailRow label="Received" value={formatDateTime(specimen.receivedAt)} />
+        </View>
       </View>
     </>
   );
@@ -91,10 +101,22 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.white,
     borderRadius: radius.xl,
-    borderWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.1)',
-    padding: spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.gray200,
+    overflow: 'hidden',
     marginBottom: spacing.md,
   },
-  divider: { height: 0.5, backgroundColor: 'rgba(0,0,0,0.08)' },
+  detailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.creamAlt,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.gray200,
+  },
+  title: { ...typography.label, color: colors.ink },
+  detailsBody: { padding: spacing.lg },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.gray200 },
 });
