@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, View, Text, StyleSheet } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,8 +14,14 @@ import {
 import { colors, radius } from '@src/theme';
 
 import { Icon } from '@components/Icon';
+import { NotificationBadge } from '@components/NotificationBadge';
 
 import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
+import { NotificationsPreview } from '@features/alerts/components/NotificationsPreview';
+import {
+  refreshNotifications,
+  useUnreadNotificationCount,
+} from '@features/alerts/store/notificationsStore';
 
 /**
  * @description Initials shown on the profile tab avatar, e.g. "Jane Doe" -> "JD".
@@ -43,6 +49,25 @@ function TabProfileAvatar({ focused }: TabProfileAvatarProps): React.JSX.Element
   );
 }
 
+interface AlertsTabIconProps {
+  color: string;
+  size: number;
+}
+
+/**
+ * @description Alerts tab icon with an unread-count badge, so the count is visible
+ * from any medtech screen, not just the Alerts tab itself.
+ */
+function AlertsTabIcon({ color, size }: AlertsTabIconProps): React.JSX.Element {
+  const unreadCount = useUnreadNotificationCount();
+  return (
+    <View>
+      <Icon name="notifications-outline" size={size} color={color} />
+      <NotificationBadge count={unreadCount} />
+    </View>
+  );
+}
+
 /**
  * @description Layout for the (medtech) tab group. Redirects unauthenticated or
  * non-medtech sessions to login, keeps the local DB synced while active, and renders
@@ -52,21 +77,29 @@ export default function MedTechLayout(): React.JSX.Element {
   const { isAuthenticated, role } = useAuthStore();
   const wasConnected = useRef<boolean | null>(null);
   const insets = useSafeAreaInsets();
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || role !== UserRole.MEDTECH) return;
 
     synchronize();
+    refreshNotifications();
     registerForPushNotifications();
     const cleanupListeners = registerNotificationListeners();
 
     const appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next === 'active') synchronize();
+      if (next === 'active') {
+        synchronize();
+        refreshNotifications();
+      }
     });
 
     const netInfoUnsub = NetInfo.addEventListener((state) => {
       const isConnected = state.isConnected ?? false;
-      if (isConnected && wasConnected.current === false) synchronize();
+      if (isConnected && wasConnected.current === false) {
+        synchronize();
+        refreshNotifications();
+      }
       wasConnected.current = isConnected;
     });
 
@@ -82,7 +115,7 @@ export default function MedTechLayout(): React.JSX.Element {
   }
 
   return (
-    <>
+    <SessionActivityGate>
       <SessionTimeoutHandler />
       <Tabs
         // Detail screens (sample/[id], capture, reject, override) are hidden
@@ -127,11 +160,18 @@ export default function MedTechLayout(): React.JSX.Element {
         />
         <Tabs.Screen
           name="alerts"
+          // Pressing the tab icon (the app's notification bell) opens a preview over
+          // the current screen instead of navigating to the Alerts tab — "See all" in
+          // the preview is the only way from there to the full page.
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setIsPreviewOpen(true);
+            },
+          }}
           options={{
             title: 'Alerts',
-            tabBarIcon: ({ color, size }) => (
-              <Icon name="notifications-outline" size={size} color={color} />
-            ),
+            tabBarIcon: ({ color, size }) => <AlertsTabIcon color={color} size={size} />,
           }}
         />
         <Tabs.Screen
@@ -158,6 +198,7 @@ export default function MedTechLayout(): React.JSX.Element {
           options={{ href: null, tabBarStyle: { display: 'none' } }}
         />
       </Tabs>
+      <NotificationsPreview visible={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} />
     </>
   );
 }
