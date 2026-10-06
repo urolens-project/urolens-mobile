@@ -16,6 +16,7 @@ import { colors, radius } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
+import { SessionActivityGate } from '@features/auth/components/SessionActivityGate';
 
 /**
  * @description Initials shown on the profile tab avatar, e.g. "Jane Doe" -> "JD".
@@ -82,7 +83,7 @@ export default function MedTechLayout(): React.JSX.Element {
   }
 
   return (
-    <>
+    <SessionActivityGate>
       <SessionTimeoutHandler />
       <Tabs
         // Detail screens (sample/[id], capture, reject, override) are hidden
@@ -158,7 +159,7 @@ export default function MedTechLayout(): React.JSX.Element {
           options={{ href: null, tabBarStyle: { display: 'none' } }}
         />
       </Tabs>
-    </>
+    </SessionActivityGate>
   );
 }
 
