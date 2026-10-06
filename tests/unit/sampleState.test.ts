@@ -61,9 +61,9 @@ describe('getSampleActions', () => {
       expect(actions.canRetake).toBe(true);
     });
 
-    it('offers only Retake after the Supervisor returns the result', () => {
+    it('offers re-confirmation and Retake after the Supervisor returns the result', () => {
       const actions = getSampleActions('ASSIGNED', 'RETURNED_FOR_CORRECTION');
-      expect(actions.canConfirm).toBe(false);
+      expect(actions.canConfirm).toBe(true);
       expect(actions.canRetake).toBe(true);
     });
 
