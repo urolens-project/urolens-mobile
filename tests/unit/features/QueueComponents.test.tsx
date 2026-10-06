@@ -42,21 +42,21 @@ describe('QueueHeader', () => {
     onSync: jest.fn(),
   };
 
-  it('shows the brand, the title, the count, the date, the role and the username', () => {
+  it('shows the title, count, date and username in the compact header', () => {
     const view = render(<QueueHeader {...baseProps} />);
     expect(view.getByText('UroLens')).toBeTruthy();
     expect(view.getByText('Laboratory Diagnostics')).toBeTruthy();
+    expect(view.getByText('Medical Technologist')).toBeTruthy();
     expect(view.getByText('My Sample Queue')).toBeTruthy();
     expect(view.getByText('6 Active Samples')).toBeTruthy();
     expect(view.getByText('Sep 20, 2026')).toBeTruthy();
-    expect(view.getByText('Medical Technologist')).toBeTruthy();
     expect(view.getByText('maria.santos')).toBeTruthy();
   });
 
   it('leaves the username out when there is none', () => {
     const view = render(<QueueHeader {...baseProps} username={null} />);
     expect(view.queryByText('maria.santos')).toBeNull();
-    expect(view.getByText('Medical Technologist')).toBeTruthy();
+    expect(view.getByText('Sep 20, 2026')).toBeTruthy();
   });
 
   it('the Sync button calls onSync', () => {
