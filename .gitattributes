@@ -1,0 +1,15 @@
+# Normalize text files to LF in the repo regardless of core.autocrlf on any
+# contributor's machine (Windows lint-staged relies on git-apply producing
+# byte-identical patches, which core.autocrlf=true breaks).
+* text=auto eol=lf
+
+# Keep binary assets untouched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary

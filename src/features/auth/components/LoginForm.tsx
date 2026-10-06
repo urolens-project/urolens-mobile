@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 import { colors, spacing } from '@src/theme';
 
@@ -23,7 +24,8 @@ export interface LoginFormProps {
  */
 export function LoginForm({ reason }: LoginFormProps): React.JSX.Element {
   // 1. Store / service hooks
-  const { login, isSubmitting, error } = useAuth();
+  const { login, isSubmitting, isLocked, error } = useAuth();
+  const { sessionMessage } = useLocalSearchParams<{ sessionMessage?: string }>();
 
   // 3. State & derived
   const [username, setUsername] = useState('');
@@ -33,12 +35,17 @@ export function LoginForm({ reason }: LoginFormProps): React.JSX.Element {
   const [isForgotPasswordVisible, setIsForgotPasswordVisible] = useState(false);
   const [isInactivityBannerDismissed, setIsInactivityBannerDismissed] = useState(false);
   const showInactivityBanner = reason === 'inactivity' && !isInactivityBannerDismissed;
+  // Shown once after apiClient redirects here for an expired/ended/idle session; a real
+  // submit error (below) takes over the same banner once the medtech tries to log in again.
+  const [sessionNotice, setSessionNotice] = useState(sessionMessage ?? null);
+  const displayError = error ?? sessionNotice;
 
   // 4. Refs
   const passwordRef = useRef<TextInput>(null);
 
   // 6. Handlers
   const handleSubmit = useCallback((): void => {
+    setSessionNotice(null);
     void login(username, password, keepLoggedIn);
   }, [login, username, password, keepLoggedIn]);
 
@@ -90,8 +97,9 @@ export function LoginForm({ reason }: LoginFormProps): React.JSX.Element {
           keepLoggedIn={keepLoggedIn}
           onToggleKeepLoggedIn={handleToggleKeepLoggedIn}
           onForgotPassword={handleOpenForgotPassword}
-          error={error}
+          error={displayError}
           isSubmitting={isSubmitting}
+          isLocked={isLocked}
           onSubmit={handleSubmit}
         />
         <LoginFooter />

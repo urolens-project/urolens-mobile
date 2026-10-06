@@ -23,6 +23,7 @@ import {
   refreshNotifications,
   useUnreadNotificationCount,
 } from '@features/alerts/store/notificationsStore';
+import { TokenRefreshHandler } from '@features/auth/components/TokenRefreshHandler';
 
 /**
  * @description Initials shown on the profile tab avatar, e.g. "Jane Doe" -> "JD".
@@ -118,6 +119,7 @@ export default function MedTechLayout(): React.JSX.Element {
   return (
     <SessionActivityGate>
       <SessionTimeoutHandler />
+      <TokenRefreshHandler />
       <Tabs
         // Detail screens (sample/[id], capture, reject, override) are hidden
         // tab routes reachable from more than one tab (Queue, Reports, Alerts).
