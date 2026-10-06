@@ -12,16 +12,31 @@ let mockParams: { id?: string; resultId?: string } = {};
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
   useRouter: () => mockRouter,
+  router: {
+    push: (...args: unknown[]) => mockRouter.push(...args),
+    replace: (...args: unknown[]) => mockRouter.replace(...args),
+  },
 }));
-jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
+jest.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: 'SafeAreaView',
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0 }),
+}));
 jest.mock('@db/database', () => ({ database: { get: jest.fn() } }));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: () => ({ isOnline: true }) }));
 jest.mock('@features/result-confirmation/hooks/useConfirmAction', () => ({
   useConfirmAction: jest.fn(),
 }));
 jest.mock('@features/queue/lib/startAnalysis', () => ({ startAnalysis: jest.fn() }));
-jest.mock('@features/result-confirmation/components/ResultReviewScreen', () => ({
-  ResultReviewScreen: () => require('react').createElement('Text', null, 'REVIEW_SCREEN'),
+jest.mock('@features/result-confirmation/hooks/useResultReviewDetail', () => ({
+  useResultReviewDetail: () => ({
+    detail: null,
+    isLoading: false,
+    error: null,
+    refresh: jest.fn(),
+  }),
+}));
+jest.mock('@nozbe/watermelondb/hooks', () => ({
+  useDatabase: () => require('@db/database').database,
 }));
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
@@ -101,7 +116,12 @@ function setupDb({
       return { query: () => ({ observeWithColumns: () => observable(result ? [result] : []) }) };
     }
     if (table === 'manual_overrides') {
-      return { query: () => ({ observeWithColumns: () => observable(overrides) }) };
+      return {
+        query: () => ({
+          observe: () => observable(overrides),
+          observeWithColumns: () => observable(overrides),
+        }),
+      };
     }
     throw new Error(`unexpected table ${table}`);
   });
@@ -111,7 +131,9 @@ async function openScreen(setup: DbSetup = {}, params = { id: 'spec-1' } as type
   setupDb(setup);
   mockParams = params;
   const view = render(<SampleDetailRoute />);
-  await view.findByText('Sample Detail');
+  await waitFor(() =>
+    expect(view.queryByText('Sample Detail') || view.queryByText('Analysis Result')).toBeTruthy(),
+  );
   return view;
 }
 
@@ -270,14 +292,20 @@ describe('confirming a result', () => {
     expect(Alert.alert).not.toHaveBeenCalled();
   });
 
-  it('does not alert on success', async () => {
+  it('reports success and returns to the Confirmation Queue', async () => {
     mockConfirm.mockResolvedValue({ status: 'confirmed' });
     const view = await openScreen({ result: makeResult() });
 
     fireEvent.press(view.getByText('Confirm Result'));
 
     await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
-    expect(Alert.alert).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Result Confirmed',
+        expect.stringContaining('submitted for supervisor approval'),
+      ),
+    );
+    expect(mockRouter.replace).toHaveBeenCalledWith('/(medtech)/queue');
   });
 });
 
@@ -412,10 +440,11 @@ describe('an escalated result', () => {
 // ── Returned / status label ──────────────────────────────────────────────────
 
 describe('a result returned for correction', () => {
-  it('shows the banner and offers only Retake', async () => {
+  it('shows the banner and offers Retake and re-confirmation', async () => {
     const view = await openScreen({ result: makeResult({ status: 'RETURNED_FOR_CORRECTION' }) });
 
-    expect(view.getByText(/The supervisor has returned this result/)).toBeTruthy();
+    expect(view.getAllByText('Returned for Correction').length).toBeGreaterThan(0);
+    expect(view.getByText('Re-confirm & Submit')).toBeTruthy();
     expect(view.getByText('Retake Image')).toBeTruthy();
     expect(view.queryByText('Confirm Result')).toBeNull();
     expect(view.queryByText('Reject Specimen')).toBeNull();
@@ -435,7 +464,7 @@ describe('the Status row', () => {
     const view = await openScreen({
       result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL' }),
     });
-    expect(view.getAllByText('Pending Supervisor Approval').length).toBeGreaterThan(0);
+    expect(view.getByText('Awaiting supervisor review.')).toBeTruthy();
   });
 });
 
@@ -444,7 +473,7 @@ describe('the Status row', () => {
 describe('AI Findings', () => {
   it('shows the AI counts as reported when nothing was overridden', async () => {
     const view = await openScreen({ result: makeResult() });
-    expect(view.getByText('Wbc')).toBeTruthy();
+    expect(view.getByText('wbc')).toBeTruthy();
     expect(view.getByText('12')).toBeTruthy();
     expect(view.queryByText(/Overridden/)).toBeNull();
   });
@@ -466,14 +495,14 @@ describe('AI Findings', () => {
       overrides: [{ parameter: 'bacteria', correctedValue: 0 }],
     });
 
-    expect(view.getByText('Bacteria')).toBeTruthy();
+    expect(view.getByText('bacteria')).toBeTruthy();
     expect(view.getByText('Overridden · AI: 4')).toBeTruthy();
     expect(view.queryByText('No particles detected.')).toBeNull();
   });
 
   it('says "No particles detected." when there is nothing to list', async () => {
     const view = await openScreen({ result: makeResult({ aiFindings: {} }) });
-    expect(view.getByText('No particles detected.')).toBeTruthy();
+    expect(view.getByText('No particles detected')).toBeTruthy();
   });
 });
 
@@ -492,7 +521,7 @@ describe('Smart Diagnosis', () => {
     expect(
       view.getByText('Smart Diagnosis is generated after you confirm this result.'),
     ).toBeTruthy();
-    expect(view.queryByText(/unavailable/i)).toBeNull();
+    expect(view.queryByText('Diagnosis unavailable')).toBeNull();
   });
 
   it('says a queued confirmation is waiting to sync', async () => {
@@ -517,7 +546,7 @@ describe('Smart Diagnosis', () => {
     const view = await openScreen({
       result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL', smartDiagnosis: noIndicators }),
     });
-    expect(view.getByText('No significant diagnostic indicators found.')).toBeTruthy();
+    expect(view.getByText(/No significant clinical indicators detected/)).toBeTruthy();
   });
 
   it('does not dress a condition with no level as Low', async () => {
@@ -532,9 +561,9 @@ describe('Smart Diagnosis', () => {
         },
       }),
     });
-    expect(view.getByText('High')).toBeTruthy();
-    expect(view.getByText('—')).toBeTruthy();
-    expect(view.getAllByText('Low')).toHaveLength(1);
+    expect(view.getByText('Gout: HIGH')).toBeTruthy();
+    expect(view.getByText('Glomerulonephritis: Unavailable')).toBeTruthy();
+    expect(view.getByText('Nephrolithiasis: LOW')).toBeTruthy();
   });
 });
 
@@ -542,11 +571,10 @@ describe('Smart Diagnosis', () => {
 
 describe('the result-review route (resultId param)', () => {
   it('shows the review screen', async () => {
-    setupDb();
+    setupDb({ result: makeResult() });
     mockParams = { id: 'spec-1', resultId: 'srv-res-1' };
     const view = render(<SampleDetailRoute />);
-    expect(view.getByText('REVIEW_SCREEN')).toBeTruthy();
-    await act(async () => {});
+    await view.findByText('Analysis Result');
   });
 
   it('falls back to the regular view if the specimen has been rejected', async () => {
@@ -558,7 +586,7 @@ describe('the result-review route (resultId param)', () => {
     const view = render(<SampleDetailRoute />);
 
     await view.findByText('Sample Detail');
-    expect(view.queryByText('REVIEW_SCREEN')).toBeNull();
+    expect(view.queryByText('Analysis Result')).toBeNull();
     expect(view.getAllByText('Specimen Rejected').length).toBeGreaterThan(0);
     expect(view.queryByText('Confirm Result')).toBeNull();
   });
