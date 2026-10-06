@@ -35,6 +35,10 @@ jest.mock('@features/alerts/store/notificationsStore', () => ({
   refreshNotifications: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('@features/alerts/api/alertsApi', () => ({
+  alertsApi: { markRead: jest.fn(() => Promise.resolve()) },
+}));
+
 // Platform is already mocked in setup.ts — override per test via direct assignment
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -43,6 +47,7 @@ import apiClient from '@lib/apiClient';
 import { synchronize } from '@db/sync/syncManager';
 import { database } from '@db/database';
 import { refreshNotifications } from '@features/alerts/store/notificationsStore';
+import { alertsApi } from '@features/alerts/api/alertsApi';
 
 import {
   registerForPushNotifications,
@@ -63,6 +68,7 @@ const mockRouterPush = router.push as jest.Mock;
 const mockSynchronize = synchronize as jest.Mock;
 const mockDbGet = database.get as jest.Mock;
 const mockRefreshNotifications = refreshNotifications as jest.Mock;
+const mockMarkRead = alertsApi.markRead as jest.Mock;
 
 // Flush the microtask queue so async work inside the (un-awaited) response
 // listener callback — the specimen lookup — resolves before assertions run.
@@ -80,6 +86,7 @@ beforeEach(() => {
   mockApiPost.mockResolvedValue(undefined);
   mockSynchronize.mockResolvedValue(undefined);
   mockRefreshNotifications.mockResolvedValue(undefined);
+  mockMarkRead.mockResolvedValue(undefined);
   mockDbGet.mockReturnValue({
     query: jest.fn(() => ({ fetch: jest.fn().mockResolvedValue([]) })),
   });
@@ -332,6 +339,50 @@ describe('registerNotificationListeners', () => {
       },
     });
     expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/alerts');
+  });
+
+  it('marks the notification read using data.notification_id when a push is tapped', async () => {
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: { data: { notification_type: 'SAMPLE_ASSIGNED', notification_id: 'notif-9' } },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockMarkRead).toHaveBeenCalledWith('notif-9');
+    expect(mockRefreshNotifications).toHaveBeenCalled();
+  });
+
+  it('does not call markRead when the push payload has no notification_id', () => {
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: { content: { data: { notification_type: 'SAMPLE_ASSIGNED' } } },
+      },
+    });
+
+    expect(mockMarkRead).not.toHaveBeenCalled();
+  });
+
+  it('still navigates even if marking read on tap fails', async () => {
+    mockMarkRead.mockRejectedValue(new Error('network error'));
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: { data: { notification_type: 'SAMPLE_ASSIGNED', notification_id: 'notif-9' } },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/queue');
   });
 
   it('navigates to alerts when notification_type is missing', () => {
