@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
-import AnalysisResult from '@db/models/AnalysisResult';
+import type AnalysisResult from '@db/models/AnalysisResult';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { useAsyncAction } from '@hooks/useAsyncAction';
 import { getErrorMessage } from '@lib/errorMessage';
 
 import { confirmResultCore } from '../lib/confirmResultCore';
@@ -18,7 +19,10 @@ export type ConfirmActionResult =
   | { status: 'failed'; message: string };
 
 interface UseConfirmActionReturn {
-  confirmResult: (result: AnalysisResult) => Promise<ConfirmActionResult>;
+  confirmResult: (
+    result: AnalysisResult,
+    beforeConfirm?: (signal: AbortSignal) => Promise<void>,
+  ) => Promise<ConfirmActionResult>;
   isConfirming: boolean;
   error: string | null;
 }
@@ -31,29 +35,49 @@ interface UseConfirmActionReturn {
  */
 export function useConfirmAction(): UseConfirmActionReturn {
   const { isOnline } = useNetworkStatus();
-  const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Ref guard prevents double-submission regardless of React re-render timing.
   const confirmingRef = useRef(false);
 
-  const confirmResult = async (result: AnalysisResult): Promise<ConfirmActionResult> => {
-    if (confirmingRef.current) return { status: 'busy' };
-    confirmingRef.current = true;
-    setIsConfirming(true);
-    setError(null);
+  const action = useCallback(
+    async (
+      signal: AbortSignal,
+      result: AnalysisResult,
+      beforeConfirm?: (signal: AbortSignal) => Promise<void>,
+    ): Promise<ConfirmActionResult> => {
+      setError(null);
+      try {
+        await beforeConfirm?.(signal);
+        if (signal.aborted) return { status: 'busy' };
+        await confirmResultCore({ result, isOnline });
+        if (signal.aborted) return { status: 'busy' };
+        return { status: 'confirmed' };
+      } catch (error: unknown) {
+        const message = getErrorMessage(error, 'Failed to confirm result');
+        console.error('[ResultConfirmation]', error);
+        setError(message);
+        return { status: 'failed', message };
+      }
+    },
+    [isOnline],
+  );
+  const { run, isLoading: isConfirming } = useAsyncAction('ResultConfirmation', action);
 
-    try {
-      await confirmResultCore({ result, isOnline });
-      return { status: 'confirmed' };
-    } catch (err) {
-      const message = getErrorMessage(err, 'Failed to confirm result');
-      setError(message);
-      return { status: 'failed', message };
-    } finally {
-      confirmingRef.current = false;
-      setIsConfirming(false);
-    }
-  };
+  const confirmResult = useCallback(
+    async (
+      result: AnalysisResult,
+      beforeConfirm?: (signal: AbortSignal) => Promise<void>,
+    ): Promise<ConfirmActionResult> => {
+      if (confirmingRef.current) return { status: 'busy' };
+      confirmingRef.current = true;
+      try {
+        return (await run(result, beforeConfirm)) ?? { status: 'busy' };
+      } finally {
+        confirmingRef.current = false;
+      }
+    },
+    [run],
+  );
 
   return { confirmResult, isConfirming, error };
 }

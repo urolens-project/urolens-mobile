@@ -1,12 +1,13 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { colors, spacing } from '@src/theme';
+import { colors, spacing, typography, fontWeight } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
 export interface ResultReviewTitleBarProps {
   topInset: number;
   isConfirmed: boolean;
+  subtitle?: string;
   onBack: () => void;
 }
 
@@ -15,27 +16,30 @@ export interface ResultReviewTitleBarProps {
  * the result is still awaiting the medtech's confirmation or already submitted.
  * @param topInset - Safe-area top inset added to the bar's top padding.
  * @param isConfirmed - Whether the result has already been confirmed.
- * @param onBack - Navigates back to the sample detail screen.
+ * @param subtitle - Specific stage label when the result has moved through review.
+ * @param onBack - Navigates back to the Confirmation Queue.
  */
 export function ResultReviewTitleBar({
   topInset,
   isConfirmed,
+  subtitle,
   onBack,
 }: ResultReviewTitleBarProps): React.JSX.Element {
   return (
-    <View style={[styles.titleBar, { paddingTop: topInset + 12 }]}>
+    <View style={[styles.container, { paddingTop: topInset + spacing.md }]}>
       <TouchableOpacity
         style={styles.titleBarBack}
         onPress={onBack}
         accessibilityRole="button"
-        accessibilityLabel="Back to sample detail"
+        accessibilityLabel="Back to Confirmation Queue"
       >
         <Icon name="chevron-back" size={26} color={colors.teal} />
       </TouchableOpacity>
       <View style={styles.titleBarContent}>
         <Text style={styles.titleBarText}>Analysis Result</Text>
         <Text style={styles.titleBarSub}>
-          {isConfirmed ? 'Submitted for Supervisor approval' : 'Pending your confirmation'}
+          {subtitle ??
+            (isConfirmed ? 'Submitted for Supervisor approval' : 'Pending your confirmation')}
         </Text>
       </View>
     </View>
@@ -43,34 +47,33 @@ export function ResultReviewTitleBar({
 }
 
 const styles = StyleSheet.create({
-  titleBar: {
+  container: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.sm,
-    borderBottomWidth: 0.5,
-    // TODO(theme): near-black hairline at 0.08 alpha not in palette.
-    borderBottomColor: 'rgba(0,0,0,0.08)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.gray200,
     backgroundColor: colors.cream,
   },
   titleBarBack: {
-    width: 44,
-    height: 44,
+    width: spacing.jumbo,
+    height: spacing.jumbo,
     justifyContent: 'center',
     alignItems: 'center',
   },
   titleBarContent: {
     flex: 1,
-    paddingRight: 44,
+    paddingRight: spacing.jumbo,
   },
   titleBarText: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...typography.titleLg,
+    fontWeight: fontWeight.bold,
     color: colors.ink,
   },
   titleBarSub: {
-    fontSize: 13,
+    ...typography.body,
     color: colors.warmGray500,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
 });
