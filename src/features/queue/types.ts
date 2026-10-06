@@ -29,7 +29,6 @@ export interface QueueItem {
   id: string;
   serverId: string | null;
   sampleUid: string;
-  patientName: string;
   patientUid: string;
   testType: string;
   status: SpecimenStatus;

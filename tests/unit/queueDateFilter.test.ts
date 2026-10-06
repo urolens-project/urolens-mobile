@@ -51,7 +51,6 @@ async function seed(rows: Record<string, unknown>[]) {
       await database.get<Specimen>('specimens').create((s) => {
         Object.assign(s as unknown as Record<string, unknown>, {
           sampleUid: `SMP-${row.serverId}`,
-          patientName: 'x',
           patientUid: `PT-${row.serverId}`,
           testType: 'Urinalysis',
           ...row,

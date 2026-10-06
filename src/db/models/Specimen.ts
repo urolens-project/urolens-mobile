@@ -6,7 +6,6 @@ export default class Specimen extends Model {
 
   @field('server_id') serverId!: string | null;
   @field('sample_uid') sampleUid!: string;
-  @field('patient_name') patientName!: string;
   @field('patient_uid') patientUid!: string;
   @field('test_type') testType!: string;
   @field('status') status!: string;

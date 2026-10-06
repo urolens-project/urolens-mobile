@@ -21,7 +21,6 @@ export function mapServerToLocal(table: string, record: ServerRecord): Record<st
       return {
         ...base,
         sampleUid: record['sample_uid'],
-        patientName: record['patient_name'],
         patientUid: record['patient_uid'],
         testType: record['test_type'],
         status: record['status'],
