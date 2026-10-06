@@ -4,23 +4,25 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
-import { SESSION_WARNING_MINUTES } from '../constants/sessionTimeout.constant';
-
 export interface SessionExpiryWarningModalProps {
   visible: boolean;
   onStaySignedIn: () => void;
+  /** Minutes until sign-out, from the session's idleWarningSeconds. */
+  warningMinutes: number;
 }
 
 /**
- * @description Warns the medtech their session is about to expire from inactivity,
- * matching web's 2-minute warning. Any tap on "Stay Signed In" — or anywhere else in
- * the app, via the activity gate that owns this modal's visibility — cancels it.
+ * @description Warns the medtech their session is about to expire from inactivity, using
+ * the active session's own warning lead time. Any tap on "Stay Signed In" — or anywhere
+ * else in the app, via the activity gate that owns this modal's visibility — cancels it.
  * @param visible - Whether the warning is shown.
  * @param onStaySignedIn - Called when the medtech confirms they're still there.
+ * @param warningMinutes - Minutes until sign-out, shown in the message.
  */
 export function SessionExpiryWarningModal({
   visible,
   onStaySignedIn,
+  warningMinutes,
 }: SessionExpiryWarningModalProps): React.JSX.Element {
   return (
     <Modal
@@ -38,8 +40,8 @@ export function SessionExpiryWarningModal({
 
           <Text style={styles.title}>Session Expiring Soon</Text>
           <Text style={styles.body}>
-            Your session will expire in {SESSION_WARNING_MINUTES} minutes due to inactivity. Tap
-            anywhere or press the button below to stay signed in.
+            Your session will expire in {warningMinutes} minutes due to inactivity. Tap anywhere or
+            press the button below to stay signed in.
           </Text>
 
           <TouchableOpacity

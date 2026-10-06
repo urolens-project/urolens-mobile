@@ -3,7 +3,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { tokenStorage } from '@lib/auth/tokenStorage';
 
-import { SESSION_TIMEOUT_MS } from '../constants/sessionTimeout.constant';
+import { getSessionTiming } from '../lib/sessionTiming';
 import { useAuth } from '../hooks/useAuth';
 
 /**
@@ -30,7 +30,8 @@ export function SessionTimeoutHandler(): null {
         } else if (nextState === 'active' && backgroundTime.current !== null) {
           const elapsed = Date.now() - backgroundTime.current;
           backgroundTime.current = null;
-          if (elapsed >= SESSION_TIMEOUT_MS) {
+          const { timeoutMs } = await getSessionTiming();
+          if (elapsed >= timeoutMs) {
             await logout('inactivity');
           } else {
             await tokenStorage.removeLastActiveAt();
