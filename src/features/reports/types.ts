@@ -32,7 +32,7 @@ export const REPORT_CATEGORY_ORDER: ReportCategory[] = [
 
 export const REPORT_CATEGORY_TITLES: Record<ReportCategory, string> = {
   PENDING_APPROVAL: 'Pending Supervisor Approval',
-  ESCALATED: 'Escalated to Supervisor',
+  ESCALATED: 'Escalated by Supervisor',
   APPROVED: 'Approved by Supervisor',
   RELEASED: 'Released',
   REJECTED: 'Rejected',
