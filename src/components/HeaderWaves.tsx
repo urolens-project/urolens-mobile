@@ -38,24 +38,23 @@ export const LANDING_WAVES: WavePreset = {
   backFrom: -95,
 };
 
-// The Queue's header: the Reports curve mirrored — the header is lowest right of
-// centre and the lighter wave shows on the left — so the two screens read as
-// relatives without being the same shape.
+// Offset curves for the Queue's narrow wave strip. The header scales their height
+// to keep the lighter back wave close to the front at every screen width.
 export const QUEUE_WAVES: WavePreset = {
   frontDiameter: 3,
   frontCenter: 0.6,
   backDiameter: 2.4,
-  backCenter: 0.18,
-  backDip: 6,
+  backCenter: 0.3,
+  backDip: spacing.xxs,
   frontFrom: -54,
   backFrom: -76,
 };
 
 // Flatter, shallower curve — the compact category headers.
 export const COMPACT_WAVES: WavePreset = {
-  frontDiameter: 3.4,
+  frontDiameter: 2.4,
   frontCenter: 0.36,
-  backDiameter: 3,
+  backDiameter: 1.5,
   backCenter: 0.82,
   backDip: 5,
   frontFrom: -44,
@@ -75,6 +74,10 @@ export interface HeaderWavesProps {
   // rhythms, so the curve is never quite the same shape twice. Off (the default),
   // the waves sit still once they've flowed in.
   flow?: boolean;
+  /** Scales drift and bob distances to fit a smaller wave area. */
+  flowScale?: number;
+  /** Flattens the circles vertically while preserving their full-width curves. */
+  curveScale?: number;
 }
 
 // How far each wave wanders while flowing. Sideways drift is what reshapes the curve
@@ -139,6 +142,8 @@ function useFlow(active: boolean, duration: number): Animated.Value {
  * @param enter - 0→1 entrance progress for the front wave.
  * @param enterBack - 0→1 entrance progress for the back wave.
  * @param flow - Keeps the waves drifting/bobbing after they enter. Defaults to false.
+ * @param flowScale - Motion-distance scale for compact wave areas. Defaults to 1.
+ * @param curveScale - Vertical circle scale for shallow curves. Defaults to 1.
  */
 export function HeaderWaves({
   width,
@@ -148,9 +153,14 @@ export function HeaderWaves({
   enter,
   enterBack,
   flow = false,
+  flowScale = 1,
+  curveScale = 1,
 }: HeaderWavesProps): React.JSX.Element {
   const frontDiameter = width * preset.frontDiameter;
   const backDiameter = width * preset.backDiameter;
+  // Scaling around each circle's centre keeps its lowest point anchored to the strip.
+  const frontOffset = (frontDiameter * (1 + curveScale)) / 2;
+  const backOffset = (backDiameter * (1 + curveScale)) / 2;
 
   // The two waves move in opposite directions, so they slide across each other.
   const frontFlow = useFlow(flow, FLOW.front.duration);
@@ -164,15 +174,19 @@ export function HeaderWaves({
       {
         translateX: frontFlow.interpolate({
           inputRange: [0, 1],
-          outputRange: [-width * FLOW.front.driftX, width * FLOW.front.driftX],
+          outputRange: [
+            -width * FLOW.front.driftX * flowScale,
+            width * FLOW.front.driftX * flowScale,
+          ],
         }),
       },
       {
         translateY: frontFlow.interpolate({
           inputRange: [0, 1],
-          outputRange: [FLOW.front.bobY, -FLOW.front.bobY],
+          outputRange: [FLOW.front.bobY * flowScale, -FLOW.front.bobY * flowScale],
         }),
       },
+      { scaleY: curveScale },
     ],
   };
   const backStyle = {
@@ -186,22 +200,26 @@ export function HeaderWaves({
       {
         translateX: backFlow.interpolate({
           inputRange: [0, 1],
-          outputRange: [width * FLOW.back.driftX, -width * FLOW.back.driftX],
+          outputRange: [
+            width * FLOW.back.driftX * flowScale,
+            -width * FLOW.back.driftX * flowScale,
+          ],
         }),
       },
       {
         translateY: backFlow.interpolate({
           inputRange: [0, 1],
-          outputRange: [-FLOW.back.bobY, FLOW.back.bobY],
+          outputRange: [-FLOW.back.bobY * flowScale, FLOW.back.bobY * flowScale],
         }),
       },
+      { scaleY: curveScale },
     ],
   };
 
   return (
     <>
       {/* Solid strip so the status-bar area is always fully covered. */}
-      <View style={[styles.topFill, { height: topInset + spacing.huge }]} />
+      <View style={[styles.topFill, { height: topInset + spacing.xs }]} />
 
       <Animated.View
         style={[
@@ -211,7 +229,7 @@ export function HeaderWaves({
             height: backDiameter,
             borderRadius: backDiameter / 2,
             left: width * preset.backCenter - backDiameter / 2,
-            top: height + preset.backDip - backDiameter,
+            top: height + preset.backDip - backOffset,
             backgroundColor: TEAL_LIGHT,
           },
           backStyle,
@@ -225,7 +243,7 @@ export function HeaderWaves({
             height: frontDiameter,
             borderRadius: frontDiameter / 2,
             left: width * preset.frontCenter - frontDiameter / 2,
-            top: height - frontDiameter,
+            top: height - frontOffset,
             backgroundColor: TEAL,
           },
           frontStyle,
