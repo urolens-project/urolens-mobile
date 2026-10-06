@@ -9,10 +9,11 @@ import type { ApiError } from '@app-types/domain';
 import type { UserRole } from '@app-types/enums';
 
 import { authApi } from '../api/authApi';
+import type { LogoutReason } from '../types';
 
 export interface UseAuthResult {
   login: (username: string, password: string, keepLoggedIn?: boolean) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (reason?: LogoutReason) => Promise<void>;
   isSubmitting: boolean;
   error: string | null;
 }
@@ -87,17 +88,22 @@ export function useAuth(): UseAuthResult {
     [runLogin],
   );
 
-  const logout = useCallback(async (): Promise<void> => {
-    try {
-      await authApi.logout();
-    } catch {
-      // Continue logout even if the server call fails.
-    } finally {
-      await tokenStorage.clearAll();
-      clearAuth();
-      router.replace('/(auth)/login');
-    }
-  }, [clearAuth]);
+  const logout = useCallback(
+    async (reason?: LogoutReason): Promise<void> => {
+      try {
+        await authApi.logout();
+      } catch {
+        // Continue logout even if the server call fails.
+      } finally {
+        await tokenStorage.clearAll();
+        clearAuth();
+        router.replace(
+          reason ? { pathname: '/(auth)/login', params: { reason } } : '/(auth)/login',
+        );
+      }
+    },
+    [clearAuth],
+  );
 
   return { login, logout, isSubmitting, error: error?.message ?? null };
 }
