@@ -10,7 +10,7 @@ import { database } from '@db/database';
 import { apiClient } from '@lib/apiClient';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { PendingSyncAction, PendingSyncStatus } from '@/types/enums';
-import { Alert } from 'react-native';
+import { Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 
 jest.mock('@lib/auth/authStore', () => ({ useUserId: () => 'medtech-int' }));
@@ -131,14 +131,28 @@ describe('Result Confirmation — integration (TASK-MOB-09-12)', () => {
         },
       });
       const view = await openResult();
-      expect(view.getByText('Patient UID: PT-1')).toBeTruthy();
-      expect(view.getByText('Sample ID: SMP-1')).toBeTruthy();
+      expect(view.getByText('Patient UID')).toBeTruthy();
+      expect(view.getByText('PT-1')).toBeTruthy();
+      expect(view.getByText('Sample ID')).toBeTruthy();
+      expect(view.getByText('SMP-1')).toBeTruthy();
       expect(view.getByLabelText('Microscopy image').props.source.uri).toBe(mockDetail.imageUrl);
       expect(view.getByText('Recount the casts')).toBeTruthy();
       expect(view.getByText('Re-confirm & Submit')).toBeTruthy();
       expect(view.queryByLabelText('Annotation notes')).toBeNull();
       expect(view.queryByText('Draw')).toBeNull();
       expect(view.queryByText('Save annotations')).toBeNull();
+    });
+
+    it('refreshes result details by pulling down without a reload link', async () => {
+      const view = await openResult();
+      expect(view.queryByText('Reload result details')).toBeNull();
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: { ...mockDetail, sampleUid: 'SMP-2' },
+      });
+      act(() => {
+        view.UNSAFE_getByType(ScrollView).props.refreshControl.props.onRefresh();
+      });
+      await waitFor(() => expect(view.getByText('SMP-2')).toBeTruthy());
     });
 
     it('confirms directly without saving annotations', async () => {
@@ -334,6 +348,88 @@ describe('Result Confirmation — integration (TASK-MOB-09-12)', () => {
   });
 
   describe('smart diagnosis failure isolation', () => {
+    it('does not revive cached diagnosis after the server reports failure', async (): Promise<void> => {
+      setupDatabaseMock({
+        ...mockResult,
+        smartDiagnosis: {
+          gout: { level: 'HIGH' },
+          glomerulonephritis: { level: 'LOW' },
+          nephrolithiasis: { level: 'LOW' },
+          no_significant_indicators: false,
+        },
+      } as unknown as typeof mockResult);
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          ...mockDetail,
+          status: 'PENDING_SUPERVISOR_APPROVAL',
+          smartDiagnosisUnavailable: true,
+        },
+      });
+      const view = render(
+        <ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />,
+      );
+      await waitFor(() => expect(view.getByText('Diagnosis unavailable')).toBeTruthy());
+      expect(view.queryByLabelText('Gout: High')).toBeNull();
+    });
+
+    it('renders backend scores without supporting evidence before confirmation', async (): Promise<void> => {
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          ...mockDetail,
+          smartDiagnosis: {
+            goutScore: 'HIGH',
+            gnScore: 'LOW',
+            nephroScore: 'MODERATE',
+            noSignificantIndicators: false,
+            evidenceMap: {
+              gout: {
+                evidence: [
+                  {
+                    particle_name: 'crystals',
+                    particle_display_name: 'Crystals',
+                    detected_count: 60,
+                    normal_range_max: 5,
+                    contribution_role: 'primary',
+                  },
+                ],
+              },
+            },
+          },
+        },
+      });
+      const view = render(
+        <ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />,
+      );
+      await waitFor(() => expect(view.getByLabelText('Gout: High')).toBeTruthy());
+      expect(view.getByLabelText('Glomerulonephritis: Low')).toBeTruthy();
+      expect(view.getByLabelText('Nephrolithiasis: Moderate')).toBeTruthy();
+      expect(view.queryByText('Supporting evidence')).toBeNull();
+      expect(view.queryByText(/reference maximum/)).toBeNull();
+      expect(view.getByText('Preview')).toBeTruthy();
+    });
+
+    it('shows no indicators for a valid all-low detail response', async (): Promise<void> => {
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          ...mockDetail,
+          status: 'APPROVED',
+          smartDiagnosis: {
+            goutScore: 'LOW',
+            gnScore: 'LOW',
+            nephroScore: 'LOW',
+            noSignificantIndicators: true,
+          },
+        },
+      });
+      const view = render(
+        <ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />,
+      );
+      await waitFor(() =>
+        expect(view.getByText('No significant diagnostic indicators found.')).toBeTruthy(),
+      );
+      expect(view.queryByText('Preview')).toBeNull();
+    });
+
     it('shows unavailable message when smartDiagnosisUnavailable=true', () => {
       setupDatabaseMock({ ...mockResult, smartDiagnosisUnavailable: true });
       render(<ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />);
