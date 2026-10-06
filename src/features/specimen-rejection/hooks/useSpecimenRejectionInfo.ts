@@ -2,79 +2,120 @@ import { useEffect, useState } from 'react';
 import { Q } from '@nozbe/watermelondb';
 
 import { database } from '@db/database';
-import AnalysisResult from '@db/models/AnalysisResult';
-import Specimen from '@db/models/Specimen';
+import type AnalysisResult from '@db/models/AnalysisResult';
+import type Specimen from '@db/models/Specimen';
 import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
-import type { SpecimenStatus } from '@app-types/enums';
+import { useUserId } from '@lib/auth/authStore';
+import { getErrorMessage } from '@lib/errorMessage';
 
-import { getRejectBlockedReason } from '@features/queue/lib/sampleState';
-
-export interface SpecimenInfo {
-  sampleUid: string;
-  patientUid: string;
-  serverId: string | null;
-  status: SpecimenStatus;
-}
+import {
+  RESULT_REJECTION_COLUMNS,
+  SPECIMEN_REJECTION_COLUMNS,
+} from '../constants/specimenRejection.constant';
+import { getRejectionEligibilityMessage } from '../lib/rejectionEligibility';
+import { mapSpecimenToRejectionInfo } from '../mappers/specimenRejection.mapper';
+import type { SpecimenInfo } from '../types';
 
 export interface UseSpecimenRejectionInfoResult {
   specimenInfo: SpecimenInfo | null;
   isLoadingSpecimen: boolean;
-  /** Non-null when the workflow disallows rejecting this specimen right now. */
   blockedReason: string | null;
 }
 
+interface RejectionInfoState extends UseSpecimenRejectionInfoResult {
+  specimenId: string;
+  userId: string | null;
+}
+
 /**
- * @description Loads the specimen and its latest analysis result live via WatermelonDB,
- * and derives whether rejection is currently blocked. This screen is reachable straight
- * from the Queue and from a notification (not only from Sample Detail), so it enforces
- * the block rule itself rather than trusting the caller.
- * @param specimenId - Local specimen id from the route.
+ * @description Observes assignment and the latest result, keeping rejection blocked until both load.
+ * @param specimenId - Local specimen identifier from the route.
  */
 export function useSpecimenRejectionInfo(specimenId: string): UseSpecimenRejectionInfoResult {
-  const [specimenInfo, setSpecimenInfo] = useState<SpecimenInfo | null>(null);
-  const [resultStatus, setResultStatus] = useState<AnalysisResult['status'] | null>(null);
-  const [isLoadingSpecimen, setIsLoadingSpecimen] = useState(true);
+  const userId = useUserId();
+  const [state, setState] = useState<RejectionInfoState>({
+    specimenId,
+    userId,
+    specimenInfo: null,
+    isLoadingSpecimen: true,
+    blockedReason: null,
+  });
 
   useEffect(() => {
-    if (!specimenId) return;
+    let isActive = true;
+    let unsubscribeResult: (() => void) | undefined;
+    const publish = (value: UseSpecimenRejectionInfoResult): void => {
+      if (isActive) setState({ ...value, specimenId, userId });
+    };
+    const handleError = (error: unknown): void => {
+      console.error('[SpecimenRejection] Failed to load specimen', error);
+      publish({
+        specimenInfo: null,
+        isLoadingSpecimen: false,
+        blockedReason: getErrorMessage(
+          error,
+          'Unable to load this specimen. Return to the queue and try again.',
+        ),
+      });
+    };
+    if (!specimenId) {
+      publish({
+        specimenInfo: null,
+        isLoadingSpecimen: false,
+        blockedReason: getRejectionEligibilityMessage(null, userId, null),
+      });
+      return;
+    }
 
-    const sub = database
+    const subscription = database
       .get<Specimen>('specimens')
       .query(Q.where('id', specimenId))
-      .observeWithColumns(['status', 'server_id'])
-      .subscribe((results) => {
-        if (results[0]) {
-          setSpecimenInfo({
-            sampleUid: results[0].sampleUid,
-            patientUid: results[0].patientUid,
-            serverId: results[0].serverId,
-            status: results[0].status as SpecimenStatus,
-          });
-        }
-        setIsLoadingSpecimen(false);
+      .observeWithColumns(SPECIMEN_REJECTION_COLUMNS)
+      .subscribe({
+        next: (specimens): void => {
+          unsubscribeResult?.();
+          const specimen = specimens[0] ?? null;
+          const specimenInfo = specimen ? mapSpecimenToRejectionInfo(specimen) : null;
+          const blockedReason = getRejectionEligibilityMessage(specimen, userId, null);
+          if (blockedReason || !specimen?.serverId) {
+            publish({ specimenInfo, isLoadingSpecimen: false, blockedReason });
+            return;
+          }
+          const serverId = specimen.serverId;
+          publish({ specimenInfo, isLoadingSpecimen: true, blockedReason: null });
+          const resultSubscription = database
+            .get<AnalysisResult>('analysis_results')
+            .query(Q.where('specimen_id', serverId))
+            .observeWithColumns(RESULT_REJECTION_COLUMNS)
+            .subscribe({
+              next: (results): void => {
+                const resultStatus =
+                  latestAnalysisResultsBySpecimen(results).get(serverId)?.status ?? null;
+                publish({
+                  specimenInfo,
+                  isLoadingSpecimen: false,
+                  blockedReason: getRejectionEligibilityMessage(specimen, userId, resultStatus),
+                });
+              },
+              error: handleError,
+            });
+          unsubscribeResult = (): void => resultSubscription.unsubscribe();
+        },
+        error: handleError,
       });
-    return () => sub.unsubscribe();
-  }, [specimenId]);
+    return (): void => {
+      isActive = false;
+      subscription.unsubscribe();
+      unsubscribeResult?.();
+    };
+  }, [specimenId, userId]);
 
-  const specimenServerId = specimenInfo?.serverId;
-  useEffect(() => {
-    if (!specimenServerId) return;
-
-    const sub = database
-      .get<AnalysisResult>('analysis_results')
-      .query(Q.where('specimen_id', specimenServerId))
-      .observeWithColumns(['status'])
-      .subscribe((results) => {
-        setResultStatus(
-          latestAnalysisResultsBySpecimen(results).get(specimenServerId)?.status ?? null,
-        );
-      });
-    return () => sub.unsubscribe();
-  }, [specimenServerId]);
-
-  const blockedReason = specimenInfo
-    ? getRejectBlockedReason(specimenInfo.status, resultStatus)
-    : null;
-
-  return { specimenInfo, isLoadingSpecimen, blockedReason };
+  if (state.specimenId !== specimenId || state.userId !== userId) {
+    return { specimenInfo: null, isLoadingSpecimen: true, blockedReason: null };
+  }
+  return {
+    specimenInfo: state.specimenInfo,
+    isLoadingSpecimen: state.isLoadingSpecimen,
+    blockedReason: state.blockedReason,
+  };
 }

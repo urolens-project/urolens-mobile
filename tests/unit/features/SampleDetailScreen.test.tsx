@@ -265,7 +265,6 @@ describe('Reject Specimen', () => {
 
   it.each([
     ['confirmed (awaiting Supervisor)', 'PENDING_SUPERVISOR_APPROVAL'],
-    ['returned for correction', 'RETURNED_FOR_CORRECTION'],
     ['escalated', 'CRITICAL_ESCALATED'],
     ['approved', 'APPROVED'],
     ['released', 'RELEASED'],
@@ -471,14 +470,14 @@ describe('an escalated result', () => {
 // ── Returned / status label ──────────────────────────────────────────────────
 
 describe('a result returned for correction', () => {
-  it('shows the banner and offers Retake and re-confirmation', async () => {
+  it('shows the banner and offers Retake and Reject', async () => {
     const view = await openScreen({ result: makeResult({ status: 'RETURNED_FOR_CORRECTION' }) });
 
     expect(view.getAllByText('Returned for Correction').length).toBeGreaterThan(0);
     expect(view.getByText('Re-confirm & Submit')).toBeTruthy();
     expect(view.getByText('Retake Image')).toBeTruthy();
     expect(view.queryByText('Confirm Result')).toBeNull();
-    expect(view.queryByText('Reject Specimen')).toBeNull();
+    expect(view.getByText('Reject Specimen')).toBeTruthy();
   });
 });
 

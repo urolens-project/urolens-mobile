@@ -1,85 +1,128 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { Q } from '@nozbe/watermelondb';
 
 import { database } from '@db/database';
-import Specimen from '@db/models/Specimen';
-import PendingSync from '@db/models/PendingSync';
-import apiClient from '@lib/apiClient';
-import { getErrorMessage } from '@lib/errorMessage';
-import { PendingSyncAction, PendingSyncStatus, RejectionReason } from '@app-types/enums';
+import type AnalysisResult from '@db/models/AnalysisResult';
+import type Specimen from '@db/models/Specimen';
+import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
+import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { authStoreApi } from '@lib/auth/authStore';
+import { getErrorMessage } from '@lib/errorMessage';
+import { RejectionReason } from '@app-types/enums';
 
-// What a reject attempt came to. The failure message is returned rather than only
-// stored in `error`: a caller that awaits reject() and then reads `error` gets the
-// value from the render that created its handler — never this attempt's.
-export type RejectResult = { status: 'rejected' } | { status: 'failed'; message: string };
+import { specimenRejectionApi } from '../api/specimenRejectionApi';
+import { MAX_REJECTION_NOTE_LENGTH } from '../constants/specimenRejection.constant';
+import { getRejectionEligibilityMessage } from '../lib/rejectionEligibility';
+import { persistRejection } from '../lib/persistRejection';
+import { mapRejectionToReceipt } from '../mappers/specimenRejection.mapper';
+import type { RejectResult, RejectionReceipt, SpecimenRejectRequest } from '../types';
+
+export type { RejectResult } from '../types';
 
 export interface UseRejectSpecimenResult {
   reject: (reason: RejectionReason, note?: string) => Promise<RejectResult>;
   isLoading: boolean;
-  error: string | null;
+  hasAcceptedRejection: boolean;
+}
+
+interface AcceptedRejection {
+  localSpecimenId: string;
+  userId: string | null;
+  payload: SpecimenRejectRequest;
+  receipt: RejectionReceipt;
 }
 
 /**
- * @description Rejects a specimen: posts to the server when online, or queues the
- * rejection for the next sync when offline, and marks the specimen REJECTED locally
- * either way so the Queue reflects it immediately.
- * @param specimenId - Local WatermelonDB id of the specimen to reject.
+ * @description Rejects an assigned specimen, atomically saving offline work and preventing duplicate submissions.
+ * @param specimenId - Local specimen identifier.
  */
 export function useRejectSpecimen(specimenId: string): UseRejectSpecimenResult {
   const { isOnline } = useNetworkStatus();
+  const [hasAcceptedRejection, setHasAcceptedRejection] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const acceptedRef = useRef<AcceptedRejection | null>(null);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const reject = useCallback(
-    async (reason: RejectionReason, note?: string): Promise<RejectResult> => {
-      setIsLoading(true);
-      setError(null);
+  const action = useCallback(
+    async (signal: AbortSignal, reason: RejectionReason, note = ''): Promise<RejectResult> => {
       try {
         const specimen = await database.get<Specimen>('specimens').find(specimenId);
-
-        if (!specimen.serverId) {
-          throw new Error('Specimen has not been synced to the server yet.');
-        }
-
-        const payload: Record<string, string> = { reasonCode: reason };
-        if (note?.trim()) payload.freeTextNote = note.trim();
-
-        if (isOnline) {
-          await apiClient.post(`/specimens/${specimen.serverId}/reject`, payload);
-        }
-
-        await database.write(async () => {
-          if (!isOnline) {
-            await database.get<PendingSync>('pending_sync').create((r) => {
-              r.entity = 'specimens';
-              r.entityId = specimen.serverId!;
-              r.action = PendingSyncAction.REJECT_SPECIMEN;
-              r.payloadJson = JSON.stringify(payload);
-              r.status = PendingSyncStatus.PENDING;
-              r.createdAt = Date.now();
-            });
+        const userId = authStoreApi.getUserId();
+        const accepted = acceptedRef.current;
+        if (accepted) {
+          if (accepted.localSpecimenId !== specimenId || accepted.userId !== userId) {
+            throw new Error('Return to the queue to refresh this specimen.');
           }
-          await specimen.update((s) => {
-            s.status = 'REJECTED';
-            s.rejectionReason = reason;
-            s.rejectionNote = note?.trim() || null;
-            s.rejectedAt =
-              new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).replace(' ', 'T') +
-              '+08:00';
-          });
-        });
-        return { status: 'rejected' };
-      } catch (err) {
-        const message = getErrorMessage(err, 'Failed to reject specimen');
-        setError(message);
+          await persistRejection(specimen, accepted.payload, accepted.receipt, false);
+          acceptedRef.current = null;
+          setHasAcceptedRejection(false);
+          return { status: 'rejected', isQueued: false };
+        }
+
+        const results = specimen.serverId
+          ? await database
+              .get<AnalysisResult>('analysis_results')
+              .query(Q.where('specimen_id', specimen.serverId))
+              .fetch()
+          : [];
+        const resultStatus = specimen.serverId
+          ? (latestAnalysisResultsBySpecimen(results).get(specimen.serverId)?.status ?? null)
+          : null;
+        const blockedReason = getRejectionEligibilityMessage(
+          specimen,
+          authStoreApi.getUserId(),
+          resultStatus,
+        );
+        if (blockedReason) throw new Error(blockedReason);
+        if (!Object.values(RejectionReason).includes(reason))
+          throw new Error('Select a rejection reason.');
+        if (note.length > MAX_REJECTION_NOTE_LENGTH) {
+          throw new Error(`Notes must be ${MAX_REJECTION_NOTE_LENGTH} characters or fewer.`);
+        }
+        const payload: SpecimenRejectRequest = { reasonCode: reason };
+        if (note.trim()) payload.freeTextNote = note.trim();
+        const serverId = specimen.serverId!;
+        if (signal.aborted) return { status: 'busy' };
+
+        let receipt: RejectionReceipt = {
+          specimenId: serverId,
+          rejectedAt: new Date().toISOString(),
+        };
+        if (isOnline) {
+          receipt = mapRejectionToReceipt(
+            await specimenRejectionApi.reject(serverId, payload, signal),
+          );
+          acceptedRef.current = { localSpecimenId: specimenId, userId, payload, receipt };
+          setHasAcceptedRejection(true);
+        }
+        await persistRejection(specimen, payload, receipt, !isOnline);
+        acceptedRef.current = null;
+        setHasAcceptedRejection(false);
+        return { status: 'rejected', isQueued: !isOnline };
+      } catch (error: unknown) {
+        if (signal.aborted) return { status: 'busy' };
+        console.error('[SpecimenRejection] Failed to reject specimen', error);
+        const message = acceptedRef.current
+          ? 'The server accepted this rejection, but this device could not save it. Retry to update this device.'
+          : getErrorMessage(error, 'Failed to reject specimen. Please try again.');
         return { status: 'failed', message };
-      } finally {
-        setIsLoading(false);
       }
     },
     [specimenId, isOnline],
   );
+  const { run, isLoading } = useAsyncAction('SpecimenRejection', action);
+  const reject = useCallback(
+    async (reason: RejectionReason, note?: string): Promise<RejectResult> => {
+      if (isSubmittingRef.current) return { status: 'busy' };
+      isSubmittingRef.current = true;
+      try {
+        return (await run(reason, note)) ?? { status: 'busy' };
+      } finally {
+        isSubmittingRef.current = false;
+      }
+    },
+    [run],
+  );
 
-  return { reject, isLoading, error };
+  return { reject, isLoading, hasAcceptedRejection };
 }

@@ -15,6 +15,7 @@ import { Icon } from '@components/Icon';
 import type { RejectionReason } from '@app-types/enums';
 
 import { REJECTION_REASONS } from '../constants/rejectionReason.constant';
+import { MAX_REJECTION_NOTE_LENGTH } from '../constants/specimenRejection.constant';
 import { RejectionReasonCard } from './RejectionReasonCard';
 
 export interface RejectionReasonModalProps {
@@ -24,6 +25,7 @@ export interface RejectionReasonModalProps {
   onNoteChange: (text: string) => void;
   onConfirm: () => void;
   isLoading: boolean;
+  isReadOnly?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export interface RejectionReasonModalProps {
  * @param onNoteChange - Called as the note is edited.
  * @param onConfirm - Called when Confirm Rejection is pressed.
  * @param isLoading - Shows a spinner and disables Confirm while the rejection is in flight.
+ * @param isReadOnly - Locks accepted values while retrying a failed local save.
  */
 export function RejectionReasonModal({
   selectedReason,
@@ -43,8 +46,11 @@ export function RejectionReasonModal({
   onNoteChange,
   onConfirm,
   isLoading,
+  isReadOnly = false,
 }: RejectionReasonModalProps): React.JSX.Element {
   const scrollRef = useRef<ScrollView>(null);
+  const isFormLocked = isLoading || isReadOnly;
+  const isConfirmDisabled = !selectedReason || isLoading || note.length > MAX_REJECTION_NOTE_LENGTH;
 
   return (
     <ScrollView
@@ -55,7 +61,7 @@ export function RejectionReasonModal({
     >
       {/* Warning banner */}
       <View style={styles.warningBanner}>
-        <Icon name="warning-outline" size={18} color={colors.amber800} />
+        <Icon name="warning-outline" size={spacing.xl} color={colors.amber800} />
         <Text style={styles.warningText}>
           Rejecting a specimen is permanent and cannot be undone.
         </Text>
@@ -70,6 +76,7 @@ export function RejectionReasonModal({
             reason={r}
             isSelected={selectedReason === r.value}
             onSelect={() => onSelectReason(r.value)}
+            isDisabled={isFormLocked}
           />
         ))}
       </View>
@@ -84,29 +91,34 @@ export function RejectionReasonModal({
         placeholderTextColor={colors.gray400}
         multiline
         numberOfLines={3}
-        maxLength={500}
+        maxLength={MAX_REJECTION_NOTE_LENGTH}
+        editable={!isFormLocked}
         textAlignVertical="top"
         accessibilityLabel="Additional notes"
         onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
       />
-      <Text style={styles.charCount}>{note.length}/500</Text>
+      <Text style={styles.charCount}>
+        {note.length}/{MAX_REJECTION_NOTE_LENGTH}
+      </Text>
 
       {/* Confirm button */}
       <TouchableOpacity
-        style={[styles.confirmBtn, !selectedReason && styles.confirmBtnDisabled]}
+        style={[styles.confirmBtn, isConfirmDisabled && styles.confirmBtnDisabled]}
         onPress={onConfirm}
-        disabled={!selectedReason || isLoading}
+        disabled={isConfirmDisabled}
         activeOpacity={0.8}
         accessibilityRole="button"
-        accessibilityLabel="Confirm rejection"
-        accessibilityState={{ disabled: !selectedReason || isLoading }}
+        accessibilityLabel={isReadOnly ? 'Retry saving rejection' : 'Confirm rejection'}
+        accessibilityState={{ disabled: isConfirmDisabled, busy: isLoading }}
       >
         {isLoading ? (
           <ActivityIndicator color={colors.white} size="small" />
         ) : (
           <>
-            <Icon name="close-circle-outline" size={20} color={colors.white} />
-            <Text style={styles.confirmBtnText}>Confirm Rejection</Text>
+            <Icon name="close-circle-outline" size={spacing.xl} color={colors.white} />
+            <Text style={styles.confirmBtnText}>
+              {isReadOnly ? 'Retry Saving Rejection' : 'Confirm Rejection'}
+            </Text>
           </>
         )}
       </TouchableOpacity>
@@ -135,7 +147,7 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.body,
     color: colors.amber800,
-    lineHeight: 18,
+    lineHeight: spacing.xl,
   },
 
   sectionTitle: {
@@ -158,9 +170,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.gray200,
     padding: spacing.md,
-    fontSize: 14,
+    ...typography.bodyLg,
     color: colors.gray800,
-    minHeight: 88,
+    minHeight: spacing.huge * 2 + spacing.sm,
     marginBottom: spacing.xs,
   },
   charCount: {
@@ -177,13 +189,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: colors.red700,
     borderRadius: radius.lg,
-    paddingVertical: 15, // TODO(theme): between spacing.mlg(14)/lg(16); left exact.
+    paddingVertical: spacing.lg,
   },
   confirmBtnDisabled: {
     backgroundColor: colors.gray300,
   },
   confirmBtnText: {
-    fontSize: 16,
+    ...typography.title,
     fontWeight: fontWeight.semibold,
     color: colors.white,
   },

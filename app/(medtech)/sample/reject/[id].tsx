@@ -7,5 +7,5 @@ import { RejectSpecimenScreen } from '@features/specimen-rejection/components/Re
  */
 export default function RejectSpecimenRoute(): React.JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>();
-  return <RejectSpecimenScreen specimenId={id ?? ''} />;
+  return <RejectSpecimenScreen key={id} specimenId={id ?? ''} />;
 }

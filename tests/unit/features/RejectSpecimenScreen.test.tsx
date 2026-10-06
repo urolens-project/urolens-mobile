@@ -13,6 +13,7 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
 jest.mock('@db/database', () => ({ database: { get: jest.fn() } }));
+jest.mock('@lib/auth/authStore', () => ({ useUserId: () => 'medtech-1' }));
 jest.mock('@src/features/specimen-rejection/hooks/useRejectSpecimen', () => ({
   useRejectSpecimen: jest.fn(),
 }));
@@ -40,8 +41,8 @@ jest.mock('@src/features/specimen-rejection/components/RejectionReasonModal', ()
 type Row = Record<string, unknown>;
 
 const observable = <T,>(value: T) => ({
-  subscribe: (cb: (v: T) => void) => {
-    cb(value);
+  subscribe: (observer: { next: (v: T) => void }) => {
+    observer.next(value);
     return { unsubscribe: jest.fn() };
   },
 });
@@ -61,6 +62,7 @@ const specimen = (over: Row = {}): Row => ({
   sampleUid: 'SMP-1',
   patientUid: 'PT-1',
   status: 'ASSIGNED',
+  medtechId: 'medtech-1',
   ...over,
 });
 
@@ -88,6 +90,7 @@ describe('the reject screen', () => {
   it.each([
     ['there is no result yet', null],
     ['the result still awaits confirmation', 'PENDING_CONFIRM'],
+    ['the supervisor returned it for correction', 'RETURNED_FOR_CORRECTION'],
   ])('shows the reason form when %s', (_label, resultStatus) => {
     setupDb(specimen(), resultStatus ? result(resultStatus) : null);
     const view = render(<RejectSpecimenScreen />);
@@ -99,7 +102,6 @@ describe('the reject screen', () => {
   // from Sample Detail — so it enforces the rule itself.
   it.each([
     ['confirmed', 'PENDING_SUPERVISOR_APPROVAL'],
-    ['returned for correction', 'RETURNED_FOR_CORRECTION'],
     ['escalated', 'CRITICAL_ESCALATED'],
     ['approved', 'APPROVED'],
   ])('refuses, with an explanation, once the result is %s', (_label, resultStatus) => {
@@ -127,6 +129,13 @@ describe('the reject screen', () => {
 
     expect(mockRouter.replace).toHaveBeenCalledWith('/(medtech)/sample/spec-1');
   });
+
+  it.each([null, 'other-medtech'])('blocks a specimen assigned to %s', (medtechId) => {
+    setupDb(specimen({ medtechId }), null);
+    const view = render(<RejectSpecimenScreen />);
+    expect(view.getByText(/only reject a specimen assigned to you/)).toBeTruthy();
+    expect(view.queryByText('REASON_FORM')).toBeNull();
+  });
 });
 
 describe('rejecting a specimen', () => {
@@ -147,6 +156,24 @@ describe('rejecting a specimen', () => {
     );
     expect(mockReject).toHaveBeenCalledWith('OTHER', '');
     expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('explains that an offline rejection still needs to sync', async () => {
+    mockReject.mockResolvedValue({ status: 'rejected', isQueued: true });
+    submit();
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Rejection queued',
+        expect.stringMatching(/back online/),
+      ),
+    );
+    expect(mockRouter.replace).toHaveBeenCalledWith('/(medtech)/sample/spec-1');
+  });
+
+  it('ignores another tap while a rejection is in progress', () => {
+    (useRejectSpecimen as jest.Mock).mockReturnValue({ reject: mockReject, isLoading: true });
+    submit();
+    expect(mockReject).not.toHaveBeenCalled();
   });
 
   // Bug: the alert read `error` from the render that created the handler, so it always
