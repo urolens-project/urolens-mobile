@@ -11,6 +11,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 
 import { useIsFocused } from '@react-navigation/native';
 import { useUsername } from '@lib/auth/authStore';
+import { useFailedActionCount } from '@hooks/useFailedActionCount';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { useSyncStatus } from '@hooks/useSyncStatus';
 import { spacing } from '@src/theme';
@@ -69,6 +70,7 @@ export function useQueuePresentation(): UseQueuePresentationResult {
   const username = useUsername();
   const { isOnline } = useNetworkStatus();
   const syncStatus = useSyncStatus();
+  const failedActionCount = useFailedActionCount();
   const reduceMotion = useReduceMotion();
   const isFocused = useIsFocused();
   const queue = useQueue();
@@ -110,7 +112,7 @@ export function useQueuePresentation(): UseQueuePresentationResult {
     return isOnline && syncStatus.state === 'failed' ? new Error('Queue sync failed') : null;
   }, [queue.error, syncStatus.state, isOnline]);
   const isLoading = !error && (queue.isLoading || (isSyncing && queue.allItems.length === 0));
-  const syncPill = getSyncPill({ isOnline, sync: syncStatus, lastSyncAt });
+  const syncPill = getSyncPill({ isOnline, sync: syncStatus, lastSyncAt, failedActionCount });
   const stickyRest = getStickyRest(spacing.lg, topBlockHeight, spacing.mlg);
   const rowsTop = spacing.lg + listHeaderHeight;
   const hasVariableRows = queue.items.some((item): boolean => item.isReturnedForCorrection);
