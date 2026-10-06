@@ -127,13 +127,15 @@ describe('pullChanges', () => {
   it('requests /sync/pull without a query param on a full sync', async () => {
     (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
     await pullChanges(null);
-    expect(apiClient.get).toHaveBeenCalledWith('/sync/pull');
+    expect(apiClient.get).toHaveBeenCalledWith('/sync/pull', { signal: undefined });
   });
 
   it('sends lastSyncedAt as a camelCase query param on a delta sync', async () => {
     (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
     await pullChanges('2026-09-10T00:00:00Z');
-    expect(apiClient.get).toHaveBeenCalledWith('/sync/pull?lastSyncedAt=2026-09-10T00%3A00%3A00Z');
+    expect(apiClient.get).toHaveBeenCalledWith('/sync/pull?lastSyncedAt=2026-09-10T00%3A00%3A00Z', {
+      signal: undefined,
+    });
   });
 
   it('returns the server timestamp for the caller to persist', async () => {
