@@ -13,7 +13,6 @@ const item: QueueItem = {
   id: 'local-1',
   serverId: 'srv-1',
   sampleUid: 'SMP-2026-0040',
-  patientName: 'x',
   patientUid: 'PT-10200',
   testType: 'Urinalysis',
   status: 'ASSIGNED',

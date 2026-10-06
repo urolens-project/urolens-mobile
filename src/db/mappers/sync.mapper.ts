@@ -21,13 +21,13 @@ export function mapServerToLocal(table: string, record: ServerRecord): Record<st
       return {
         ...base,
         sampleUid: record['sample_uid'],
-        patientName: record['patient_name'],
         patientUid: record['patient_uid'],
         testType: record['test_type'],
         status: record['status'],
         priorityLevel: record['priority_level'] ?? null,
         receivedAt: record['received_at'],
         assignedAt: record['assigned_at'] ?? null,
+        completedAt: record['completed_at'] ?? null,
         medtechId: record['medtech_id'] ?? null,
         rejectionReason: record['rejection_reason'] ?? null,
         rejectionNote: record['rejection_note'] ?? null,
@@ -49,6 +49,9 @@ export function mapServerToLocal(table: string, record: ServerRecord): Record<st
         specimenId: record['specimen_id'],
         aiFindingsJson: JSON.stringify(record['ai_findings'] ?? {}),
         flaggedAnomaliesJson: JSON.stringify(record['flagged_anomalies'] ?? {}),
+        particleClassesJson: record['particle_classes']
+          ? JSON.stringify(record['particle_classes'])
+          : null,
         smartDiagnosisJson: record['smart_diagnosis']
           ? JSON.stringify(record['smart_diagnosis'])
           : null,
@@ -57,7 +60,24 @@ export function mapServerToLocal(table: string, record: ServerRecord): Record<st
         imageId: record['image_id'] ?? null,
         confirmedAt: record['confirmed_at'] ?? null,
         confirmedBy: record['confirmed_by'] ?? null,
+        approvedAt: record['approved_at'] ?? null,
+        releasedAt: record['released_at'] ?? null,
         returnReason: record['return_reason'] ?? null,
+      };
+
+    case 'manual_overrides':
+      // Pulled from the server, so it's already synced — matches how a confirmed
+      // override response is mapped locally (manualOverride.mapper.ts's mapManualOverride).
+      return {
+        ...base,
+        resultId: record['result_id'],
+        parameter: record['parameter_name'],
+        originalAiValue: record['original_ai_value'] ?? null,
+        correctedValue: record['corrected_value'],
+        rationale: record['rationale'],
+        overriddenBy: record['medtech_id'],
+        isSynced: true,
+        createdAt: Date.parse(record['overridden_at'] as string),
       };
 
     default:

@@ -1,9 +1,18 @@
 import type { PriorityLevel } from '@features/queue/types';
 
-// Read-only "done" states — everything the MedTech has finished acting on.
-// RETURNED_FOR_CORRECTION is deliberately excluded: that one goes back into
-// the Queue (SRS UC 3.4), it isn't finished.
-export type ReportCategory = 'PENDING_APPROVAL' | 'APPROVED' | 'RELEASED' | 'REJECTED';
+// Read-only "done" (or out-of-the-MedTech's-hands) states. RETURNED_FOR_CORRECTION is
+// deliberately excluded: that one goes back into the Queue (SRS UC 3.4), it isn't finished.
+export type ReportCategory =
+  | 'PENDING_APPROVAL'
+  | 'ESCALATED'
+  | 'APPROVED'
+  | 'RELEASED'
+  | 'REJECTED';
+
+// GET /results/medtech/history doesn't have an ESCALATED category — an escalated result's
+// specimen is never "finished" at the specimen level, so it's always in the synced window
+// and never ages into server-side history.
+export type HistoryReportCategory = Exclude<ReportCategory, 'ESCALATED'>;
 
 export type ReportPeriod = 'ALL' | 'LAST_7_DAYS' | 'LAST_30_DAYS';
 
@@ -15,6 +24,7 @@ export interface ReportPeriodOption {
 
 export const REPORT_CATEGORY_ORDER: ReportCategory[] = [
   'PENDING_APPROVAL',
+  'ESCALATED',
   'APPROVED',
   'RELEASED',
   'REJECTED',
@@ -22,6 +32,7 @@ export const REPORT_CATEGORY_ORDER: ReportCategory[] = [
 
 export const REPORT_CATEGORY_TITLES: Record<ReportCategory, string> = {
   PENDING_APPROVAL: 'Pending Supervisor Approval',
+  ESCALATED: 'Escalated to Supervisor',
   APPROVED: 'Approved by Supervisor',
   RELEASED: 'Released',
   REJECTED: 'Rejected',
@@ -30,6 +41,7 @@ export const REPORT_CATEGORY_TITLES: Record<ReportCategory, string> = {
 // One-line explanation shown on each category card.
 export const REPORT_CATEGORY_DESCRIPTIONS: Record<ReportCategory, string> = {
   PENDING_APPROVAL: 'Confirmed results waiting for a supervisor to review and approve.',
+  ESCALATED: 'Results flagged as critical, escalated for the supervisor’s immediate review.',
   APPROVED: 'Results a supervisor has reviewed and approved.',
   RELEASED: 'Approved results that have been released and delivered.',
   REJECTED: 'Specimens rejected for quality issues such as volume or labeling.',

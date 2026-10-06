@@ -12,6 +12,9 @@ jest.mock('@lib/auth/tokenStorage', (): object => ({
   tokenStorage: {
     saveLastActiveAt: jest.fn().mockResolvedValue(undefined),
     removeLastActiveAt: jest.fn().mockResolvedValue(undefined),
+    // null means "no session meta yet" — getSessionTiming() falls back to the built-in
+    // SESSION_TIMEOUT_MS default, which is what every assertion below is written against.
+    getSessionMeta: jest.fn().mockResolvedValue(null),
   },
 }));
 jest.mock('@features/auth/hooks/useAuth', (): object => ({ useAuth: jest.fn() }));
@@ -129,6 +132,29 @@ describe('SessionTimeoutHandler', (): void => {
     expect(tokenStorage.saveLastActiveAt).toHaveBeenLastCalledWith(START_TIME + SESSION_TIMEOUT_MS);
     expect(tokenStorage.removeLastActiveAt).toHaveBeenCalledTimes(2);
     expect(mockLogout).not.toHaveBeenCalled();
+  });
+
+  it("uses the role's stored idleTimeoutMinutes instead of the built-in default", async (): Promise<void> => {
+    jest.mocked(tokenStorage.getSessionMeta).mockResolvedValue({
+      expiresAt: '2026-01-01T01:00:00Z',
+      sessionExpiresAt: '2026-01-01T08:00:00Z',
+      idleTimeoutMinutes: 60,
+      idleWarningSeconds: 120,
+    });
+    const storedTimeoutMs = 60 * 60 * 1000;
+    renderHook(SessionTimeoutHandler);
+
+    await changeAppState('background');
+    jest.setSystemTime(START_TIME + SESSION_TIMEOUT_MS); // past the 30-min default, not the stored 60-min
+    await changeAppState('active');
+
+    expect(mockLogout).not.toHaveBeenCalled();
+
+    await changeAppState('background');
+    jest.setSystemTime(START_TIME + SESSION_TIMEOUT_MS + storedTimeoutMs);
+    await changeAppState('active');
+
+    expect(mockLogout).toHaveBeenCalledWith('inactivity');
   });
 
   it('removes the app state listener on unmount', async (): Promise<void> => {

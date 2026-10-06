@@ -45,6 +45,16 @@ async function renderAlerts(data: ApiNotification[]) {
   return waitFor(() => screen.UNSAFE_root.findByType('SectionList' as never));
 }
 
+// GET /notifications/unread-count shares the same mocked apiClient.get as the list — route
+// by URL so the badge-count fetch doesn't resolve with the list's array as its body.
+function mockGetByUrl(listData: ApiNotification[], unreadCount: number): void {
+  get.mockImplementation((url: string) =>
+    url === '/notifications/unread-count'
+      ? Promise.resolve({ data: { unreadCount } })
+      : Promise.resolve({ data: listData }),
+  );
+}
+
 async function tapAlert(n: ApiNotification) {
   const list = await renderAlerts([n]);
   const card = render(list.props.renderItem({ item: n }));
@@ -200,5 +210,60 @@ describe('tapping an alert', () => {
       }),
     );
     expect(navigate).toHaveBeenCalledWith('server-result-2');
+  });
+});
+
+describe('the unread-only toggle refetches from the server', () => {
+  it('requests unreadOnly=true instead of only filtering the already-loaded page', async () => {
+    mockGetByUrl([notification({ notificationId: 'n-1', isRead: false })], 1);
+    render(<AlertsScreen />);
+    await waitFor(() => screen.UNSAFE_root.findByType('SectionList' as never));
+
+    fireEvent.press(screen.getByText('Unread only'));
+
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/notifications', {
+        params: { unreadOnly: true },
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+});
+
+describe('loading more notifications', () => {
+  const fullPage = Array.from({ length: 50 }, (_, i) =>
+    notification({ notificationId: `n-${i}`, isRead: false }),
+  );
+
+  it('shows a "Load more" control once a full page has loaded', async () => {
+    mockGetByUrl(fullPage, 50);
+    render(<AlertsScreen />);
+    const list = await waitFor(() => screen.UNSAFE_root.findByType('SectionList' as never));
+
+    expect(list.props.ListFooterComponent).not.toBeNull();
+  });
+
+  it('does not show "Load more" when fewer than a full page loaded', async () => {
+    mockGetByUrl([notification({ notificationId: 'n-1' })], 1);
+    render(<AlertsScreen />);
+    const list = await waitFor(() => screen.UNSAFE_root.findByType('SectionList' as never));
+
+    expect(list.props.ListFooterComponent).toBeNull();
+  });
+
+  it('fetches the next page before the oldest loaded notification on tap', async () => {
+    mockGetByUrl(fullPage, 50);
+    render(<AlertsScreen />);
+    const list = await waitFor(() => screen.UNSAFE_root.findByType('SectionList' as never));
+
+    const footer = render(list.props.ListFooterComponent);
+    fireEvent.press(footer.getByText('Load more'));
+
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/notifications', {
+        params: { before: 'n-49', unreadOnly: false },
+        signal: undefined,
+      }),
+    );
   });
 });

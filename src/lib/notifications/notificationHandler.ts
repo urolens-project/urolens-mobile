@@ -7,6 +7,7 @@ import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import apiClient from '@lib/apiClient';
 import { synchronize } from '@db/sync/syncManager';
+import { alertsApi } from '@features/alerts/api/alertsApi';
 import { refreshNotifications } from '@features/alerts/store/notificationsStore';
 
 // Show alerts in foreground as a banner
@@ -119,7 +120,15 @@ export function registerNotificationListeners(): () => void {
     const data = response.notification.request.content.data as {
       notification_type?: string;
       entity_id?: string;
+      notification_id?: string;
     };
+
+    if (data?.notification_id) {
+      alertsApi
+        .markRead(data.notification_id)
+        .then(() => refreshNotifications())
+        .catch((err: unknown) => console.error('[Notifications] failed to mark read on tap', err));
+    }
 
     switch (data?.notification_type) {
       case 'SAMPLE_ASSIGNED':

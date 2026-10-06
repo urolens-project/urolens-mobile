@@ -15,7 +15,7 @@ import {
 import type { NotificationItem } from '@features/alerts/types';
 
 jest.mock('@features/alerts/api/alertsApi', (): object => ({
-  alertsApi: { list: jest.fn() },
+  alertsApi: { list: jest.fn(), getUnreadCount: jest.fn() },
 }));
 
 const MEDTECH_A_NOTIFICATION: NotificationItem = {
@@ -56,6 +56,17 @@ function useNotificationReadState(): NotificationReadState {
   return { ...useNotificationsSnapshot(), ...useNotificationsActions() };
 }
 
+// Mocks both alertsApi.list and alertsApi.getUnreadCount consistently, as the real
+// backend would for the same snapshot: the server's unread-count reflects exactly what
+// the list response says is unread, unless a test overrides it to simulate staleness.
+function mockServerSnapshot(
+  items: NotificationItem[],
+  unreadCount: number = items.filter((item) => !item.isRead).length,
+): void {
+  jest.mocked(alertsApi.list).mockResolvedValue(items);
+  jest.mocked(alertsApi.getUnreadCount).mockResolvedValue(unreadCount);
+}
+
 beforeEach((): void => {
   jest.clearAllMocks();
   authStoreApi.clearAuth();
@@ -67,7 +78,7 @@ describe('notification read status during refresh', (): void => {
     'keeps marked notifications read when a stale refresh finishes (%#)',
     async (load: () => Promise<void>): Promise<void> => {
       const { result } = renderHook(useNotificationReadState);
-      jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+      mockServerSnapshot([MEDTECH_A_NOTIFICATION]);
       await act(async (): Promise<void> => {
         await load();
       });
@@ -78,6 +89,9 @@ describe('notification read status during refresh', (): void => {
             resolveRefresh = resolve;
           }),
       );
+      // The stale response still reports both as unread (the server hasn't processed the
+      // mark-all-read PATCH below yet) — getUnreadCount is just as stale as the list here.
+      jest.mocked(alertsApi.getUnreadCount).mockResolvedValueOnce(2);
       const refresh = load();
 
       await act(async (): Promise<void> => {
@@ -90,13 +104,14 @@ describe('notification read status during refresh', (): void => {
         { ...MEDTECH_A_NOTIFICATION, isRead: true },
         MEDTECH_B_NOTIFICATION,
       ]);
+      // Locally-known-read (A) overrides the stale response for the count too, same as items.
       expect(result.current.unreadCount).toBe(1);
     },
   );
 
   it('keeps a single notification read when a refresh starts after it is marked', async (): Promise<void> => {
     const { result } = renderHook(useNotificationReadState);
-    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION, MEDTECH_B_NOTIFICATION]);
+    mockServerSnapshot([MEDTECH_A_NOTIFICATION, MEDTECH_B_NOTIFICATION], 2);
     await act(async (): Promise<void> => {
       await refreshNotifications();
       result.current.markRead(MEDTECH_A_NOTIFICATION.notificationId);
@@ -112,10 +127,10 @@ describe('notification read status during refresh', (): void => {
 
   it('accepts read status saved on another device', async (): Promise<void> => {
     const { result } = renderHook(useNotificationReadState);
-    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+    mockServerSnapshot([MEDTECH_A_NOTIFICATION]);
     await act(async (): Promise<void> => {
       await refreshNotifications();
-      jest.mocked(alertsApi.list).mockResolvedValue([{ ...MEDTECH_A_NOTIFICATION, isRead: true }]);
+      mockServerSnapshot([{ ...MEDTECH_A_NOTIFICATION, isRead: true }]);
       await refreshNotifications();
     });
 
@@ -125,7 +140,7 @@ describe('notification read status during refresh', (): void => {
 
   it('does not carry local read status into another account', async (): Promise<void> => {
     const { result } = renderHook(useNotificationReadState);
-    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+    mockServerSnapshot([MEDTECH_A_NOTIFICATION]);
     await act(async (): Promise<void> => {
       await refreshNotifications();
       result.current.markAllRead();
@@ -142,7 +157,7 @@ describe('notification read status during refresh', (): void => {
 describe('notification cache account isolation', (): void => {
   it('clears the list, loaded flag, and unread badge on logout', async (): Promise<void> => {
     const { result } = renderHook(useNotificationsSnapshot);
-    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+    mockServerSnapshot([MEDTECH_A_NOTIFICATION]);
     await act(async (): Promise<void> => {
       await refreshNotifications();
     });
@@ -161,7 +176,7 @@ describe('notification cache account isolation', (): void => {
 
   it('clears the cache on a direct account switch', async (): Promise<void> => {
     const { result } = renderHook(useNotificationsSnapshot);
-    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+    mockServerSnapshot([MEDTECH_A_NOTIFICATION]);
     await act(async (): Promise<void> => {
       await refreshNotifications();
       useAuthStore.getState().setAuthenticated('medtech-b', UserRole.MEDTECH, 'medtechB');
@@ -180,13 +195,14 @@ describe('notification cache account isolation', (): void => {
             resolveOldRequest = resolve;
           }),
       );
+      jest.mocked(alertsApi.getUnreadCount).mockResolvedValue(1);
       const { result } = renderHook(useNotificationsSnapshot);
       const oldRequest = load();
 
       await act(async (): Promise<void> => {
         authStoreApi.clearAuth();
         useAuthStore.getState().setAuthenticated('medtech-b', UserRole.MEDTECH, 'medtechB');
-        jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_B_NOTIFICATION]);
+        mockServerSnapshot([MEDTECH_B_NOTIFICATION]);
         await loadNotifications();
         resolveOldRequest([MEDTECH_A_NOTIFICATION]);
         await oldRequest;
@@ -208,6 +224,7 @@ describe('notification cache account isolation', (): void => {
           resolveOldRequest = resolve;
         }),
     );
+    jest.mocked(alertsApi.getUnreadCount).mockResolvedValue(1);
     const { result } = renderHook(useNotificationsSnapshot);
     const oldRequest = refreshNotifications();
 
@@ -227,12 +244,13 @@ describe('notification cache account isolation', (): void => {
     await refreshNotifications();
 
     expect(alertsApi.list).not.toHaveBeenCalled();
+    expect(alertsApi.getUnreadCount).not.toHaveBeenCalled();
   });
 
   it('does not cache an aborted screen request', async (): Promise<void> => {
     const { result } = renderHook(useNotificationsSnapshot);
     const controller = new AbortController();
-    jest.mocked(alertsApi.list).mockResolvedValue([MEDTECH_A_NOTIFICATION]);
+    mockServerSnapshot([MEDTECH_A_NOTIFICATION]);
 
     await act(async (): Promise<void> => {
       const request = loadNotifications(controller.signal);
@@ -241,5 +259,20 @@ describe('notification cache account isolation', (): void => {
     });
 
     expect(result.current).toEqual({ items: [], hasLoadedOnce: false, unreadCount: 0 });
+  });
+});
+
+describe('the unread badge beyond the loaded page', (): void => {
+  // The bug this fixes: the badge used to be derived from `items` (capped at one page),
+  // so a medtech with more unread notifications than fit on a page saw an undercount.
+  it('reflects the server-wide unread count, not just what fits in the loaded page', async (): Promise<void> => {
+    const { result } = renderHook(useUnreadNotificationCount);
+    mockServerSnapshot([MEDTECH_A_NOTIFICATION], 137);
+
+    await act(async (): Promise<void> => {
+      await refreshNotifications();
+    });
+
+    expect(result.current).toBe(137);
   });
 });

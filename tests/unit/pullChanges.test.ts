@@ -149,11 +149,13 @@ describe('pullChanges', () => {
     await pullChanges(null);
 
     const [created] = mockCollections.get('specimens')!.created;
+    // The server always sends patient_name as "" now (RA 10173 data minimization); the
+    // app dropped its local column for it, so the mapper must not produce this field.
+    expect(created).not.toHaveProperty('patientName');
     expect(created).toEqual(
       expect.objectContaining({
         serverId: 'spec-1',
         sampleUid: 'S-001',
-        patientName: 'Jane Doe',
         patientUid: 'P-001',
         testType: 'URINALYSIS',
         status: 'PENDING',
@@ -267,5 +269,171 @@ describe('pullChanges', () => {
     expect(updateMock).toHaveBeenCalledTimes(1);
     expect(existingRecord['sampleUid']).toBe('S-001');
     expect(existingRecord['serverId']).toBe('spec-1');
+  });
+
+  it('maps completed_at, approved_at, released_at, and particle_classes', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({
+      data: {
+        timestamp: '2026-09-12T00:00:00.000Z',
+        changes: {
+          specimens: {
+            created: [
+              {
+                id: 'spec-3',
+                sample_uid: 'S-003',
+                patient_name: '',
+                patient_uid: 'P-003',
+                test_type: 'URINALYSIS',
+                status: 'COMPLETED',
+                received_at: '2026-09-11T10:00:00Z',
+                completed_at: '2026-09-12T08:00:00Z',
+              },
+            ],
+            updated: [],
+          },
+          analysisResults: {
+            created: [
+              {
+                id: 'ar-3',
+                specimen_id: 'spec-3',
+                ai_findings: {},
+                flagged_anomalies: {},
+                particle_classes: { RBC: 4 },
+                smart_diagnosis: null,
+                smart_diagnosis_unavailable: false,
+                status: 'RELEASED',
+                confirmed_at: '2026-09-11T11:00:00Z',
+                approved_at: '2026-09-11T12:00:00Z',
+                released_at: '2026-09-12T07:00:00Z',
+              },
+            ],
+            updated: [],
+          },
+        },
+      },
+    });
+
+    await pullChanges(null);
+
+    expect(mockCollections.get('specimens')!.created[0]).toEqual(
+      expect.objectContaining({ completedAt: '2026-09-12T08:00:00Z' }),
+    );
+    expect(mockCollections.get('analysis_results')!.created[0]).toEqual(
+      expect.objectContaining({
+        approvedAt: '2026-09-11T12:00:00Z',
+        releasedAt: '2026-09-12T07:00:00Z',
+        particleClassesJson: JSON.stringify({ RBC: 4 }),
+      }),
+    );
+  });
+
+  it('maps a snake_case row under the camelCase "manualOverrides" wrapper key', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({
+      data: {
+        timestamp: '2026-09-12T00:00:00.000Z',
+        changes: {
+          manualOverrides: {
+            created: [
+              {
+                id: 'mo-1',
+                result_id: 'ar-1',
+                parameter_name: 'RBC',
+                original_ai_value: 3,
+                corrected_value: 5,
+                rationale: 'Recounted manually.',
+                medtech_id: 'mt-1',
+                overridden_at: '2026-09-11T12:00:00Z',
+              },
+            ],
+            updated: [],
+          },
+        },
+      },
+    });
+
+    await pullChanges(null);
+
+    const [created] = mockCollections.get('manual_overrides')!.created;
+    expect(created).toEqual(
+      expect.objectContaining({
+        serverId: 'mo-1',
+        resultId: 'ar-1',
+        parameter: 'RBC',
+        originalAiValue: 3,
+        correctedValue: 5,
+        rationale: 'Recounted manually.',
+        overriddenBy: 'mt-1',
+        isSynced: true,
+        createdAt: Date.parse('2026-09-11T12:00:00Z'),
+      }),
+    );
+  });
+
+  describe('deleted list', () => {
+    function existingWithServerId(serverId: string): Record<string, unknown> {
+      const record: Record<string, unknown> = { serverId };
+      record['destroyPermanently'] = jest.fn().mockResolvedValue(undefined);
+      return record;
+    }
+
+    it('removes a local specimen whose server id is in the deleted list', async () => {
+      const staying = existingWithServerId('spec-keep');
+      const aged = existingWithServerId('spec-gone');
+      mockCollections.set('specimens', { created: [], existing: [staying, aged] });
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: {
+            specimens: { created: [], updated: [], deleted: ['spec-gone'] },
+          },
+        },
+      });
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(aged['destroyPermanently']).toHaveBeenCalledTimes(1);
+      expect(staying['destroyPermanently']).not.toHaveBeenCalled();
+    });
+
+    it('removes rows across every table that reports a deleted list in the same sync', async () => {
+      const specimen = existingWithServerId('spec-gone');
+      const assignment = existingWithServerId('qa-gone');
+      const result = existingWithServerId('ar-gone');
+      const override = existingWithServerId('mo-gone');
+      mockCollections.set('specimens', { created: [], existing: [specimen] });
+      mockCollections.set('queue_assignments', { created: [], existing: [assignment] });
+      mockCollections.set('analysis_results', { created: [], existing: [result] });
+      mockCollections.set('manual_overrides', { created: [], existing: [override] });
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: {
+            specimens: { created: [], updated: [], deleted: ['spec-gone'] },
+            queueAssignments: { created: [], updated: [], deleted: ['qa-gone'] },
+            analysisResults: { created: [], updated: [], deleted: ['ar-gone'] },
+            manualOverrides: { created: [], updated: [], deleted: ['mo-gone'] },
+          },
+        },
+      });
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(specimen['destroyPermanently']).toHaveBeenCalledTimes(1);
+      expect(assignment['destroyPermanently']).toHaveBeenCalledTimes(1);
+      expect(result['destroyPermanently']).toHaveBeenCalledTimes(1);
+      expect(override['destroyPermanently']).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when deleted is absent or empty (full sync, or existing app versions)', async () => {
+      // A server id not present in fixtureResponse()'s created rows, so processCreates
+      // doesn't also touch this record — isolates the assertion to processDeletes.
+      const existing = existingWithServerId('spec-unrelated');
+      mockCollections.set('specimens', { created: [], existing: [existing] });
+      (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+
+      await pullChanges(null);
+
+      expect(existing['destroyPermanently']).not.toHaveBeenCalled();
+    });
   });
 });

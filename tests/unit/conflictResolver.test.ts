@@ -80,9 +80,9 @@ describe('conflictResolver', () => {
     it('returns SERVER_WINS for non-status column on specimens', () => {
       const result = resolveConflict({
         table: 'specimens',
-        column: 'patient_name',
-        serverValue: 'Juan Dela Cruz',
-        clientValue: 'J. Dela Cruz',
+        column: 'sample_uid',
+        serverValue: 'SAMPLE-002',
+        clientValue: 'SAMPLE-002-local',
         localRecord: {},
       });
       expect(result).toBe('SERVER_WINS');

@@ -43,6 +43,9 @@ export default class AnalysisResult extends Model {
   @field('smart_diagnosis_unavailable') smartDiagnosisUnavailable!: boolean;
   @field('confirmed_at') confirmedAt!: string | null;
   @field('confirmed_by') confirmedBy!: string | null;
+  @field('approved_at') approvedAt!: string | null;
+  @field('released_at') releasedAt!: string | null;
+  @field('particle_classes_json') particleClassesJson!: string | null;
   @field('return_reason') returnReason!: string | null;
   @field('is_synced') isSynced!: boolean;
   @field('created_at') createdAt!: number;
@@ -52,6 +55,16 @@ export default class AnalysisResult extends Model {
   get aiFindings(): AIFindings {
     try {
       return JSON.parse(this.aiFindingsJson) as AIFindings;
+    } catch {
+      return {};
+    }
+  }
+
+  // Computed getter — MedTech-confirmed classification after any overrides, parsed safely
+  get particleClasses(): AIFindings {
+    if (!this.particleClassesJson) return {};
+    try {
+      return JSON.parse(this.particleClassesJson) as AIFindings;
     } catch {
       return {};
     }

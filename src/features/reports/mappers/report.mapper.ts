@@ -10,12 +10,34 @@ function resultStatusToCategory(status: ResultStatus): ReportCategory | null {
   switch (status) {
     case 'PENDING_SUPERVISOR_APPROVAL':
       return 'PENDING_APPROVAL';
+    case 'CRITICAL_ESCALATED':
+      return 'ESCALATED';
     case 'APPROVED':
       return 'APPROVED';
     case 'RELEASED':
       return 'RELEASED';
     default:
       return null;
+  }
+}
+
+/**
+ * @description The date a result actually reached its category, for correct within-section
+ * sorting — not just whichever date happens to be set. Approved/Released sort by their own
+ * dates rather than confirmedAt, which is just when the MedTech submitted it.
+ */
+function finalizedAtForCategory(
+  category: ReportCategory,
+  result: AnalysisResult,
+  specimen: Specimen,
+): string {
+  switch (category) {
+    case 'APPROVED':
+      return result.approvedAt ?? result.confirmedAt ?? specimen.receivedAt;
+    case 'RELEASED':
+      return result.releasedAt ?? result.confirmedAt ?? specimen.receivedAt;
+    default:
+      return result.confirmedAt ?? specimen.receivedAt;
   }
 }
 
@@ -62,7 +84,11 @@ export function mapReportsToUi(specimens: Specimen[], results: AnalysisResult[])
     const specimen = specimenByServerId.get(result.specimenId);
     if (!category || !specimen || specimen.status === 'REJECTED') continue;
     items.push(
-      mapSpecimenToReportItem(specimen, category, result.confirmedAt ?? specimen.receivedAt),
+      mapSpecimenToReportItem(
+        specimen,
+        category,
+        finalizedAtForCategory(category, result, specimen),
+      ),
     );
   }
 
