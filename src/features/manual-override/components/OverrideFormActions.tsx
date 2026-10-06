@@ -7,8 +7,10 @@ import { Icon } from '@components/Icon';
 export interface OverrideFormActionsProps {
   originalAiValue: number;
   error: string | null;
+  validationError: string | null;
   isValid: boolean;
   isSubmitting: boolean;
+  isOnline: boolean;
   onSubmit: () => void;
   onCancel: () => void;
 }
@@ -17,33 +19,45 @@ export interface OverrideFormActionsProps {
  * @description Preservation notice, any submit error, and the submit/cancel buttons.
  * @param originalAiValue - Shown in the preservation notice for context.
  * @param error - Submission error message, if any.
+ * @param validationError - Explains why the entered values cannot be submitted.
  * @param isValid - Whether the form's current values are submittable.
  * @param isSubmitting - Whether a submission is in flight.
+ * @param isOnline - Distinguishes direct submission from an offline queued correction.
  * @param onSubmit - Called when Submit is tapped.
  * @param onCancel - Called when Cancel is tapped.
  */
 export function OverrideFormActions({
   originalAiValue,
   error,
+  validationError,
   isValid,
   isSubmitting,
+  isOnline,
   onSubmit,
   onCancel,
 }: OverrideFormActionsProps): React.JSX.Element {
+  const submitLabel = isOnline ? 'Submit Override' : 'Queue Override';
   return (
     <>
       <View style={styles.notice}>
-        <Icon name="information-circle-outline" size={16} color={colors.teal} style={styles.noticeIcon} />
+        <Icon name="information-circle-outline" color={colors.teal} />
         <Text style={styles.noticeText}>
-          Both the original AI value ({originalAiValue}) and your corrected value will be stored
-          and visible to the Supervisor.
+          Both the original AI value ({originalAiValue}) and your corrected value will be stored and
+          visible to the Supervisor.
         </Text>
       </View>
 
+      {validationError && (
+        <Text accessibilityRole="alert" style={styles.errorText}>
+          {validationError}
+        </Text>
+      )}
       {error && (
         <View style={styles.errorBanner}>
-          <Icon name="alert-circle-outline" size={15} color={colors.red600} style={styles.noticeIcon} />
-          <Text style={styles.errorText}>{error}</Text>
+          <Icon name="alert-circle-outline" color={colors.red600} />
+          <Text accessibilityRole="alert" style={styles.errorText}>
+            {error}
+          </Text>
         </View>
       )}
 
@@ -51,13 +65,18 @@ export function OverrideFormActions({
         style={[styles.submitButton, (!isValid || isSubmitting) && styles.submitButtonDisabled]}
         onPress={onSubmit}
         disabled={!isValid || isSubmitting}
-        accessibilityLabel="Submit override"
+        accessibilityLabel={submitLabel}
         accessibilityRole="button"
+        accessibilityState={{ disabled: !isValid || isSubmitting, busy: isSubmitting }}
       >
         {isSubmitting ? (
-          <ActivityIndicator size="small" color={colors.white} />
+          <ActivityIndicator
+            accessibilityLabel="Saving override"
+            size="small"
+            color={colors.white}
+          />
         ) : (
-          <Text style={styles.submitButtonText}>Submit Override</Text>
+          <Text style={styles.submitButtonText}>{submitLabel}</Text>
         )}
       </TouchableOpacity>
 
@@ -81,18 +100,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tealTint3,
     borderRadius: radius.md,
     padding: spacing.mlg,
-    borderWidth: 0.5,
-    borderColor: 'rgba(46,125,122,0.25)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.tealTint8,
     gap: spacing.sm,
-  },
-  noticeIcon: {
-    marginTop: 1,
   },
   noticeText: {
     flex: 1,
     ...typography.body,
     color: colors.teal,
-    lineHeight: 18,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -100,7 +115,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.red50,
     borderRadius: radius.md,
     padding: spacing.md,
-    borderWidth: 0.5,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.red200,
     gap: spacing.sm,
   },
@@ -108,7 +123,6 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.body,
     color: colors.red600,
-    lineHeight: 18,
   },
   submitButton: {
     paddingVertical: spacing.lg,
