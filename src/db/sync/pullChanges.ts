@@ -5,6 +5,7 @@ import { apiClient } from '@lib/apiClient';
 
 import { resolveConflict, applyResolution } from './conflictResolver';
 import { dedupeByServerId } from './dedupeByServerId';
+import { throwIfSyncCancelled } from './syncCancellation';
 
 interface SyncChanges {
   changes: {
@@ -19,13 +20,21 @@ interface SyncChanges {
  * @description Pulls server changes since the last sync and writes them into the
  * local WatermelonDB, resolving field-level conflicts and deduping afterward.
  * @param lastSyncedAt - ISO timestamp of the last successful sync, or null for a full sync.
+ * @param signal - Cancels transport and rejects obsolete responses before applying local writes.
  */
-export async function pullChanges(lastSyncedAt: string | null): Promise<string> {
+export async function pullChanges(
+  lastSyncedAt: string | null,
+  signal?: AbortSignal,
+): Promise<string> {
+  throwIfSyncCancelled(signal);
   const params = lastSyncedAt ? `?lastSyncedAt=${encodeURIComponent(lastSyncedAt)}` : '';
-  const response = await apiClient.get<SyncChanges>(`/sync/pull${params}`);
+  const response = await apiClient.get<SyncChanges>(`/sync/pull${params}`, { signal });
+  throwIfSyncCancelled(signal);
   const { changes, timestamp } = response.data;
 
-  await database.write(async () => {
+  await database.write(async (): Promise<void> => {
+    // The writer can be queued behind other work after the response has arrived.
+    throwIfSyncCancelled(signal);
     if (changes.specimens) {
       await processCreates('specimens', changes.specimens.created);
       await processUpdates('specimens', changes.specimens.updated);
@@ -47,6 +56,7 @@ export async function pullChanges(lastSyncedAt: string | null): Promise<string> 
     await dedupeByServerId('analysis_results');
   });
 
+  throwIfSyncCancelled(signal);
   return timestamp;
 }
 
