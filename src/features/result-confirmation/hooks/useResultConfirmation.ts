@@ -16,9 +16,7 @@ export interface UseResultConfirmationReturn {
   isLoading: boolean;
   isConfirming: boolean;
   error: string | null;
-  confirmResult: (
-    beforeConfirm?: (signal: AbortSignal) => Promise<void>,
-  ) => Promise<ConfirmActionResult>;
+  confirmResult: () => Promise<ConfirmActionResult>;
 }
 
 interface ResultSnapshot {
@@ -67,15 +65,10 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
     return (): void => subscription.unsubscribe();
   }, [resultId]);
 
-  const confirmResult = useCallback(
-    async (
-      beforeConfirm?: (signal: AbortSignal) => Promise<void>,
-    ): Promise<ConfirmActionResult> => {
-      if (!result) return { status: 'failed', message: 'Result not found. Please retry.' };
-      return confirmAction(result, beforeConfirm);
-    },
-    [result, confirmAction],
-  );
+  const confirmResult = useCallback(async (): Promise<ConfirmActionResult> => {
+    if (!result) return { status: 'failed', message: 'Result not found. Please retry.' };
+    return confirmAction(result);
+  }, [result, confirmAction]);
 
   const aiFindings = useMemo<AIFindingEntry[]>(
     (): AIFindingEntry[] => (snapshot.result ? deriveFindings(snapshot.result.aiFindings) : []),

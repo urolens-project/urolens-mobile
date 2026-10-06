@@ -108,161 +108,70 @@ beforeEach(() => {
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
   (apiClient.post as jest.Mock).mockResolvedValue({ data: { id: 'conf-int-01' } });
   (apiClient.get as jest.Mock).mockResolvedValue({ data: mockDetail });
-  (apiClient.patch as jest.Mock).mockResolvedValue({
-    data: { annotationNotes: '', spatialAnnotations: [] },
-  });
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('Result Confirmation — integration (TASK-MOB-09-12)', () => {
-  describe('review corrections (URO-146)', () => {
-    async function openEditableResult() {
+  describe('image review without manual annotations', () => {
+    async function openResult(): Promise<ReturnType<typeof render>> {
       const view = render(
         <ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />,
       );
-      await waitFor(() =>
-        expect(view.getByLabelText('Annotation notes').props.editable).toBe(true),
-      );
+      await waitFor(() => expect(view.getByLabelText('Microscopy image')).toBeTruthy());
       return view;
     }
 
-    it("loads patient context, image, return reason and only the signed-in reviewer's editable notes", async () => {
+    it('loads patient context, microscopy image and return reason without an editor', async () => {
       (apiClient.get as jest.Mock).mockResolvedValue({
         data: {
           ...mockDetail,
           status: 'RETURNED_FOR_CORRECTION',
           returnReason: 'Recount the casts',
-          annotations: [
-            {
-              reviewedBy: 'medtech-int',
-              reviewerRole: 'MEDTECH',
-              annotationNotes: 'My saved note',
-              spatialAnnotations: [],
-            },
-            {
-              reviewedBy: 'supervisor-int',
-              reviewerRole: 'SUPERVISOR',
-              annotationNotes: 'Supervisor note',
-              spatialAnnotations: [],
-            },
-          ],
         },
       });
-      const view = await openEditableResult();
+      const view = await openResult();
       expect(view.getByText('Patient UID: PT-1')).toBeTruthy();
       expect(view.getByText('Sample ID: SMP-1')).toBeTruthy();
       expect(view.getByLabelText('Microscopy image').props.source.uri).toBe(mockDetail.imageUrl);
       expect(view.getByText('Recount the casts')).toBeTruthy();
-      expect(view.getByLabelText('Annotation notes').props.value).toBe('My saved note');
-      expect(view.getByText('Supervisor note')).toBeTruthy();
       expect(view.getByText('Re-confirm & Submit')).toBeTruthy();
+      expect(view.queryByLabelText('Annotation notes')).toBeNull();
+      expect(view.queryByText('Draw')).toBeNull();
+      expect(view.queryByText('Save annotations')).toBeNull();
     });
 
-    it('waits for dirty annotations to finish saving before confirming', async () => {
-      let resolveSave!: (response: unknown) => void;
-      (apiClient.patch as jest.Mock).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveSave = resolve;
-          }),
-      );
-      const view = await openEditableResult();
-      fireEvent.changeText(view.getByLabelText('Annotation notes'), 'Possible cast cluster');
+    it('confirms directly without saving annotations', async () => {
+      const view = await openResult();
       await act(async () => {
         fireEvent.press(view.getByText('Confirm Result'));
       });
-      expect(apiClient.patch).toHaveBeenCalledWith(
-        '/results/result-int-01/annotate',
-        { annotationNotes: 'Possible cast cluster', spatialAnnotations: [] },
-        expect.objectContaining({ signal: expect.anything() }),
-      );
-      expect(apiClient.post).not.toHaveBeenCalled();
-      await act(async () => {
-        resolveSave({ data: {} });
-      });
+      expect(apiClient.patch).not.toHaveBeenCalled();
       expect(apiClient.post).toHaveBeenCalledWith('/results/result-int-01/confirm', {});
       expect(router.replace).toHaveBeenCalledWith('/(medtech)/queue');
     });
 
-    it('automatically saves a drawn spatial box with the confirmation', async () => {
-      const view = await openEditableResult();
-      act(() => {
-        view
-          .getByTestId('annotation-image')
-          .props.onLayout({ nativeEvent: { layout: { width: 300, height: 200 } } });
-        view
-          .getByLabelText('Microscopy image')
-          .props.onLoad({ nativeEvent: { source: { width: 600, height: 400 } } });
-      });
-      const image = view.getByTestId('annotation-image');
-      fireEvent(image, 'responderGrant', {
-        nativeEvent: { locationX: 30, locationY: 40, pageX: 30, pageY: 40 },
-      });
-      fireEvent(image, 'responderMove', { nativeEvent: { pageX: 90, pageY: 100 } });
-      fireEvent(image, 'responderRelease');
-      await act(async () => {
-        fireEvent.press(view.getByText('Confirm Result'));
-      });
-      expect(apiClient.patch).toHaveBeenCalledWith(
-        '/results/result-int-01/annotate',
-        {
-          annotationNotes: '',
-          spatialAnnotations: [
-            expect.objectContaining({ x: 10, y: 20, w: 20, h: 30, particleType: 'bacteria' }),
-          ],
-        },
-        expect.anything(),
-      );
-      expect(apiClient.post).toHaveBeenCalledTimes(1);
-    });
-
-    it('retains a successfully saved correction when confirmation fails and retries without saving again', async () => {
+    it('keeps the review open after confirmation fails and allows retry', async () => {
       (apiClient.post as jest.Mock).mockRejectedValueOnce({
         code: 'PENDING_RETAKE',
         message: 'A retake is pending.',
       });
-      const view = await openEditableResult();
-      fireEvent.changeText(view.getByLabelText('Annotation notes'), 'Saved correction');
+      const view = await openResult();
       await act(async () => {
         fireEvent.press(view.getByText('Confirm Result'));
       });
       expect(Alert.alert).toHaveBeenCalledWith('Confirmation Failed', 'A retake is pending.');
       expect(router.replace).not.toHaveBeenCalled();
-      expect(view.getByLabelText('Annotation notes').props.value).toBe('Saved correction');
       await act(async () => {
         fireEvent.press(view.getByText('Confirm Result'));
       });
-      expect(apiClient.patch).toHaveBeenCalledTimes(1);
+      expect(apiClient.patch).not.toHaveBeenCalled();
       expect(apiClient.post).toHaveBeenCalledTimes(2);
       expect(router.replace).toHaveBeenCalledWith('/(medtech)/queue');
     });
 
-    it('stops on a failed annotation save, keeps the draft, and allows a successful retry', async () => {
-      (apiClient.patch as jest.Mock).mockRejectedValueOnce({ message: 'Storage unavailable' });
-      const view = await openEditableResult();
-      fireEvent.changeText(view.getByLabelText('Annotation notes'), 'Retain this correction');
-      await act(async () => {
-        fireEvent.press(view.getByText('Confirm Result'));
-      });
-      expect(apiClient.post).not.toHaveBeenCalled();
-      expect(mockUpdate).not.toHaveBeenCalled();
-      expect(router.replace).not.toHaveBeenCalled();
-      expect(view.getByLabelText('Annotation notes').props.value).toBe('Retain this correction');
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Confirmation Failed',
-        expect.stringContaining('Annotations were not saved'),
-      );
-      (apiClient.patch as jest.Mock).mockResolvedValue({ data: {} });
-      await act(async () => {
-        fireEvent.press(view.getByText('Confirm Result'));
-      });
-      expect(apiClient.post).toHaveBeenCalledTimes(1);
-    });
-
-    it('does not queue a confirmation with unsaved notes after the connection is lost', async () => {
-      const view = await openEditableResult();
-      fireEvent.changeText(view.getByLabelText('Annotation notes'), 'Unsaved offline correction');
+    it('queues confirmation when connectivity is lost during review', async () => {
+      const view = await openResult();
       (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
       view.rerender(<ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />);
       await act(async () => {
@@ -270,41 +179,20 @@ describe('Result Confirmation — integration (TASK-MOB-09-12)', () => {
       });
       expect(apiClient.patch).not.toHaveBeenCalled();
       expect(apiClient.post).not.toHaveBeenCalled();
-      expect(mockCreate).not.toHaveBeenCalled();
-      expect(
-        view.getByText(/Connect to the internet to save your annotation changes/),
-      ).toBeTruthy();
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(router.replace).toHaveBeenCalledWith('/(medtech)/queue');
     });
 
-    it('saves deleted boxes as an empty list, then distinctly reports a successful resubmission', async () => {
+    it('reports successful resubmission of a returned result', async () => {
       (apiClient.get as jest.Mock).mockResolvedValue({
-        data: {
-          ...mockDetail,
-          status: 'RETURNED_FOR_CORRECTION',
-          returnReason: 'Correct the image annotation',
-          annotations: [
-            {
-              reviewedBy: 'medtech-int',
-              reviewerRole: 'MEDTECH',
-              annotationNotes: 'Existing note',
-              spatialAnnotations: [
-                { id: 'a1', x: 10, y: 20, w: 20, h: 30, particleType: 'crystals' },
-              ],
-            },
-          ],
-        },
+        data: { ...mockDetail, status: 'RETURNED_FOR_CORRECTION', returnReason: 'Recount casts' },
       });
-      const view = await openEditableResult();
-      fireEvent.press(view.getByText('Box 1: Crystals'));
-      fireEvent.press(view.getByText('Delete box'));
+      const view = await openResult();
       await act(async () => {
         fireEvent.press(view.getByText('Re-confirm & Submit'));
       });
-      expect(apiClient.patch).toHaveBeenCalledWith(
-        '/results/result-int-01/annotate',
-        { annotationNotes: 'Existing note', spatialAnnotations: [] },
-        expect.anything(),
-      );
+      expect(apiClient.patch).not.toHaveBeenCalled();
+      expect(apiClient.post).toHaveBeenCalledWith('/results/result-int-01/confirm', {});
       expect(Alert.alert).toHaveBeenCalledWith(
         'Result Re-submitted',
         'The result has been re-submitted for supervisor approval.',
@@ -314,50 +202,38 @@ describe('Result Confirmation — integration (TASK-MOB-09-12)', () => {
 
     it.each(['PENDING_SUPERVISOR_APPROVAL', 'APPROVED', 'RELEASED', 'CRITICAL_ESCALATED'])(
       'makes %s results read-only and offers no confirmation or retake',
-      async (status) => {
+      async (status): Promise<void> => {
         (apiClient.get as jest.Mock).mockResolvedValue({ data: { ...mockDetail, status } });
-        const view = render(
-          <ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />,
-        );
-        await waitFor(() =>
-          expect(view.getByLabelText('Annotation notes').props.editable).toBe(false),
-        );
-        await waitFor(() => expect(view.queryByText('Confirm Result')).toBeNull());
+        const view = await openResult();
+        expect(view.queryByText('Confirm Result')).toBeNull();
         expect(view.queryByText('Retake Image')).toBeNull();
-        expect(view.queryByText('Draw')).toBeNull();
+        expect(view.queryByLabelText('Override rbc')).toBeNull();
       },
     );
 
-    it('warns before navigating away from unsaved notes', async () => {
-      const view = await openEditableResult();
-      fireEvent.changeText(view.getByLabelText('Annotation notes'), 'Unsaved observation');
+    it('returns to the queue directly', async () => {
+      const view = await openResult();
       fireEvent.press(view.getByLabelText('Back to Confirmation Queue'));
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Unsaved annotations',
-        expect.any(String),
-        expect.any(Array),
-      );
-      expect(router.replace).not.toHaveBeenCalled();
+      expect(Alert.alert).not.toHaveBeenCalled();
+      expect(router.replace).toHaveBeenCalledWith('/(medtech)/queue');
     });
 
-    it('saves draft notes before opening the existing override route', async () => {
-      const view = await openEditableResult();
-      fireEvent.changeText(view.getByLabelText('Annotation notes'), 'Keep this observation');
-      await act(async () => {
-        fireEvent.press(view.getByLabelText('Override rbc'));
-      });
-      expect(apiClient.patch).toHaveBeenCalledWith(
-        '/results/result-int-01/annotate',
-        { annotationNotes: 'Keep this observation', spatialAnnotations: [] },
-        expect.anything(),
-      );
+    it('opens the existing value override route without an annotation save', async () => {
+      const view = await openResult();
+      fireEvent.press(view.getByLabelText('Override rbc'));
+      expect(apiClient.patch).not.toHaveBeenCalled();
       expect(router.push).toHaveBeenCalledWith(
         expect.objectContaining({ pathname: '/(medtech)/sample/override/[id]' }),
       );
       expect(apiClient.post).not.toHaveBeenCalled();
     });
-  });
 
+    it('shows an unavailable message when the image cannot be loaded', async () => {
+      const view = await openResult();
+      fireEvent(view.getByLabelText('Microscopy image'), 'error');
+      expect(view.getByText(/Microscopy image unavailable/)).toBeTruthy();
+    });
+  });
   describe('rendering', () => {
     it('renders the AI disclaimer as the first element', () => {
       render(<ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />);

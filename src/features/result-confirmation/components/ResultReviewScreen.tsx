@@ -11,14 +11,13 @@ import { OfflineBanner } from '@components/OfflineBanner';
 import type { QueueItem } from '@features/queue/types';
 import { getSampleActions, getSampleStatusLabel } from '@features/queue/lib/sampleState';
 
-import { useResultAnnotations } from '../hooks/useResultAnnotations';
 import { useResultConfirmation } from '../hooks/useResultConfirmation';
 import { useResultReviewDetail } from '../hooks/useResultReviewDetail';
 import { useResultReviewActions } from '../hooks/useResultReviewActions';
 import { mapSmartDiagnosis } from '../mappers/resultReview.mapper';
 import { AIDisclaimer } from './AIDisclaimer';
 import { AIFindingsPanel } from './AIFindingsPanel';
-import { ResultAnnotationPanel } from './ResultAnnotationPanel';
+import { ResultImagePanel } from './ResultImagePanel';
 import { ResultPatientSummary } from './ResultPatientSummary';
 import { ResultReviewActionBar } from './ResultReviewActionBar';
 import { ResultReviewTitleBar } from './ResultReviewTitleBar';
@@ -32,7 +31,7 @@ export interface ResultReviewScreenProps {
 }
 
 /**
- * @description Reviews patient context, the microscopy image and AI findings, and saves corrections before submission.
+ * @description Reviews patient context, the microscopy image and AI findings before confirmation.
  * @param resultId - Server result identifier.
  * @param specimenId - Local specimen identifier used by the queue and capture flow.
  * @param specimen - Optional local patient/sample context for offline review.
@@ -62,12 +61,11 @@ export function ResultReviewScreen({
     error: detailError,
     refresh,
   } = useResultReviewDetail(resultId, localRevision);
-  const annotations = useResultAnnotations(detail);
   const isQueuedSubmission = result?.status === 'PENDING_SUPERVISOR_APPROVAL' && !result.isSynced;
   const status = isQueuedSubmission ? result.status : (detail?.status ?? result?.status ?? '');
   const canEdit = status === 'PENDING_CONFIRM' || status === 'RETURNED_FOR_CORRECTION';
   const isReturned = status === 'RETURNED_FOR_CORRECTION';
-  const isBusy = isConfirming || annotations.isSaving;
+  const isBusy = isConfirming;
   const isConfirmed = !canEdit;
   let subtitle = 'Pending your confirmation';
   if (isReturned) subtitle = 'Returned for Correction';
@@ -90,9 +88,6 @@ export function ResultReviewScreen({
       canEdit,
       canReject,
       isReturned,
-      isDirty: annotations.isDirty,
-      saveBeforeConfirm: annotations.saveBeforeConfirm,
-      saveAnnotations: annotations.save,
       confirmResult,
     });
 
@@ -148,10 +143,7 @@ export function ResultReviewScreen({
           />
         </View>
         {isDetailLoading && (
-          <ActivityIndicator
-            color={colors.teal}
-            accessibilityLabel="Loading image and annotations"
-          />
+          <ActivityIndicator color={colors.teal} accessibilityLabel="Loading result details" />
         )}
         {detailError && (
           <Text accessibilityRole="alert" style={styles.errorText}>
@@ -167,20 +159,7 @@ export function ResultReviewScreen({
         >
           <Text style={styles.link}>Reload result details</Text>
         </Pressable>
-        <ResultAnnotationPanel
-          imageUrl={detail?.imageUrl ?? null}
-          draft={annotations.draft}
-          otherAnnotations={detail?.otherAnnotations ?? []}
-          isEditable={canEdit && !!detail && !isBusy}
-          isDirty={annotations.isDirty}
-          isSaving={annotations.isSaving}
-          error={annotations.error?.message ?? null}
-          onNotesChange={annotations.setNotes}
-          onBoxesChange={annotations.setBoxes}
-          onSave={(): void => {
-            void annotations.save();
-          }}
-        />
+        <ResultImagePanel key={detail?.imageUrl} imageUrl={detail?.imageUrl ?? null} />
         <AIFindingsPanel
           resultId={resultId}
           findings={detail?.aiFindings ?? aiFindings}

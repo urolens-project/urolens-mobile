@@ -1,30 +1,15 @@
 import type { components } from '@app-types/api';
 import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
 
-import type {
-  ResultReviewDetail,
-  AnnotationDraft,
-  SmartDiagnosisResult,
-  AIFindingEntry,
-  ReviewerAnnotation,
-} from '../types';
+import type { ResultReviewDetail, SmartDiagnosisResult, AIFindingEntry } from '../types';
 
 /**
- * @description Keeps API data and other reviewers' corrections separate from the editable draft.
+ * @description Maps server result details to the mobile review model.
  * @param dto - Backend result detail.
- * @param userId - The MedTech whose own annotation may be edited.
  */
 export function mapResultReviewDetail(
   dto: components['schemas']['FullResultDetail'],
-  userId: string | null,
 ): ResultReviewDetail {
-  const ownAnnotation = dto.annotations.find(
-    (annotation): boolean => annotation.reviewedBy === userId,
-  );
-  const annotation: AnnotationDraft = {
-    annotationNotes: ownAnnotation?.annotationNotes ?? '',
-    spatialAnnotations: ownAnnotation?.spatialAnnotations ?? [],
-  };
   return {
     resultId: dto.resultId,
     specimenId: dto.specimenId,
@@ -35,7 +20,6 @@ export function mapResultReviewDetail(
     imageUrl: dto.imageUrl ?? null,
     status: dto.status,
     returnReason: dto.returnReason ?? null,
-    annotation,
     aiFindings: Object.entries(dto.aiFindings).map(
       ([parameter, count]): AIFindingEntry => ({
         parameter,
@@ -45,16 +29,6 @@ export function mapResultReviewDetail(
     ),
     smartDiagnosis: mapSmartDiagnosis(dto.smartDiagnosis as SmartDiagnosisJson | null),
     smartDiagnosisUnavailable: dto.smartDiagnosisUnavailable,
-    otherAnnotations: dto.annotations
-      .filter((item): boolean => item.reviewedBy !== userId)
-      .map(
-        (item): ReviewerAnnotation => ({
-          reviewedBy: item.reviewedBy,
-          reviewerRole: item.reviewerRole,
-          annotationNotes: item.annotationNotes ?? '',
-          spatialAnnotations: item.spatialAnnotations ?? [],
-        }),
-      ),
   };
 }
 
