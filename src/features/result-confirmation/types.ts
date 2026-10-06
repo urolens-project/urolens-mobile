@@ -31,25 +31,6 @@ export interface ConfirmResultPayload {
   resultId: string;
 }
 
-export interface SpatialAnnotation {
-  id: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  particleType: string;
-}
-
-export interface AnnotationDraft {
-  annotationNotes: string;
-  spatialAnnotations: SpatialAnnotation[];
-}
-
-export interface ReviewerAnnotation extends AnnotationDraft {
-  reviewedBy: string;
-  reviewerRole: string;
-}
-
 export interface ResultReviewDetail {
   resultId: string;
   specimenId: string;
@@ -60,8 +41,6 @@ export interface ResultReviewDetail {
   imageUrl: string | null;
   status: string;
   returnReason: string | null;
-  annotation: AnnotationDraft;
-  otherAnnotations: ReviewerAnnotation[];
   aiFindings: AIFindingEntry[];
   smartDiagnosis: SmartDiagnosisResult | null;
   smartDiagnosisUnavailable: boolean;
