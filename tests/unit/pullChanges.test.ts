@@ -149,11 +149,13 @@ describe('pullChanges', () => {
     await pullChanges(null);
 
     const [created] = mockCollections.get('specimens')!.created;
+    // The server always sends patient_name as "" now (RA 10173 data minimization); the
+    // app dropped its local column for it, so the mapper must not produce this field.
+    expect(created).not.toHaveProperty('patientName');
     expect(created).toEqual(
       expect.objectContaining({
         serverId: 'spec-1',
         sampleUid: 'S-001',
-        patientName: 'Jane Doe',
         patientUid: 'P-001',
         testType: 'URINALYSIS',
         status: 'PENDING',

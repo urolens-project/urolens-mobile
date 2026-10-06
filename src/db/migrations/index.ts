@@ -108,5 +108,14 @@ export default schemaMigrations({
         `),
       ],
     },
+    {
+      toVersion: 6,
+      steps: [
+        // The server always sends patient_name as "" now (RA 10173 data minimization —
+        // the app shows only the patient code) — see sync_service.py's pull(). Nothing
+        // reads this column locally; drop it rather than keep storing an always-empty field.
+        unsafeExecuteSql('ALTER TABLE specimens DROP COLUMN patient_name;'),
+      ],
+    },
   ],
 });

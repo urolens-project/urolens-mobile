@@ -31,7 +31,6 @@ const item = (id: string, overrides: Partial<QueueItem> = {}): QueueItem => ({
   id,
   serverId: `srv-${id}`,
   sampleUid: `SMP-${id}`,
-  patientName: 'x',
   patientUid: `PT-${id}`,
   testType: 'URINALYSIS_-_ROUTINE',
   status: 'ASSIGNED',

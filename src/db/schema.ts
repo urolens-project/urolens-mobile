@@ -1,14 +1,13 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 5,
+  version: 6,
   tables: [
     tableSchema({
       name: 'specimens',
       columns: [
         { name: 'server_id', type: 'string', isOptional: true },
         { name: 'sample_uid', type: 'string' },
-        { name: 'patient_name', type: 'string' },
         { name: 'patient_uid', type: 'string' },
         { name: 'test_type', type: 'string' },
         { name: 'status', type: 'string' },
