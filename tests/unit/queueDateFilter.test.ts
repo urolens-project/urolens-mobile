@@ -27,7 +27,7 @@ import { Database } from '@nozbe/watermelondb';
 import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
 import { schema } from '../../src/db/schema';
 import Specimen from '../../src/db/models/Specimen';
-import { buildQuery } from '../../src/features/queue/hooks/useQueue';
+import { buildQuery } from '../../src/features/queue/lib/queueQuery';
 import { clinicDayRange } from '../../src/lib/dateTime';
 
 // Server-style timestamps (what the backend syncs down): UTC with +00:00.

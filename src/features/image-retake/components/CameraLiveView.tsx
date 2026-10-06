@@ -42,7 +42,12 @@ export function CameraLiveView({
         <View style={styles.viewfinderGuide} />
 
         <View style={styles.cameraHeader}>
-          <TouchableOpacity onPress={onGoBack} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={onGoBack}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Leave capture"
+          >
             <Icon name="close" size={22} color="rgba(255,255,255,0.9)" />
           </TouchableOpacity>
           <Text style={styles.cameraTitle}>Specimen Capture</Text>

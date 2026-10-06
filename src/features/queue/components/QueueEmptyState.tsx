@@ -1,38 +1,32 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
-import { colors, fontWeight, spacing, typography } from '@src/theme';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
 import type { FilterOption } from '../types';
 
-export interface QueueEmptyStateProps {
-  isOnline: boolean;
-  filter: FilterOption;
-  reduceMotion: boolean;
-}
-
 interface EmptyStateDescription {
   icon: 'cloud-offline-outline' | 'filter-outline' | 'checkmark-circle-outline';
   color: string;
-  tint: string;
   title: string;
   sub: string;
 }
 
 /**
- * @description What to say when the list is empty, and the picture that goes with it. The
- * words and the conditions are the Queue's original ones; only the presentation is new.
+ * @description Distinguishes missing offline data and empty filters from a completed queue.
  * @param isOnline - Whether the device currently has connectivity.
  * @param filter - The active queue filter.
  */
-function describe({ isOnline, filter }: Pick<QueueEmptyStateProps, 'isOnline' | 'filter'>): EmptyStateDescription {
+function describe({
+  isOnline,
+  filter,
+}: Pick<QueueEmptyStateProps, 'isOnline' | 'filter'>): EmptyStateDescription {
   if (!isOnline) {
     return {
       icon: 'cloud-offline-outline',
       color: colors.amber600,
-      tint: colors.amber100,
       title: "You're offline",
       sub: 'Connect to sync your latest queue.',
     };
@@ -41,7 +35,6 @@ function describe({ isOnline, filter }: Pick<QueueEmptyStateProps, 'isOnline' | 
     return {
       icon: 'filter-outline',
       color: colors.gray500,
-      tint: colors.gray200,
       title: 'No matches',
       sub: 'Try selecting a different filter.',
     };
@@ -49,10 +42,15 @@ function describe({ isOnline, filter }: Pick<QueueEmptyStateProps, 'isOnline' | 
   return {
     icon: 'checkmark-circle-outline',
     color: colors.teal,
-    tint: colors.tealTint,
-    title: 'Queue is clear',
-    sub: 'No samples are currently assigned to you.',
+    title: 'You’re all caught up',
+    sub: 'No samples are currently waiting on you.',
   };
+}
+
+export interface QueueEmptyStateProps {
+  isOnline: boolean;
+  filter: FilterOption;
+  reduceMotion: boolean;
 }
 
 /**
@@ -62,11 +60,16 @@ function describe({ isOnline, filter }: Pick<QueueEmptyStateProps, 'isOnline' | 
  * @param filter - The active queue filter.
  * @param reduceMotion - Disables the floating animation.
  */
-export function QueueEmptyState({ isOnline, filter, reduceMotion }: QueueEmptyStateProps): React.JSX.Element {
-  const { icon, color, tint, title, sub } = describe({ isOnline, filter });
+export function QueueEmptyState({
+  isOnline,
+  filter,
+  reduceMotion,
+}: QueueEmptyStateProps): React.JSX.Element {
+  const { icon, color, title, sub } = describe({ isOnline, filter });
+  const hasFilter = filter !== 'ALL';
 
   const float = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
+  useEffect((): (() => void) | undefined => {
     float.setValue(0);
     if (reduceMotion) return;
     const loop = Animated.loop(
@@ -86,18 +89,32 @@ export function QueueEmptyState({ isOnline, filter, reduceMotion }: QueueEmptySt
       ]),
     );
     loop.start();
-    return () => loop.stop();
+    return (): void => loop.stop();
   }, [reduceMotion, float]);
 
   const floatStyle = {
-    transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [-4, 4] }) }],
+    transform: [
+      {
+        translateY: float.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-spacing.xs, spacing.xs],
+        }),
+      },
+    ],
   };
 
   return (
-    <View style={styles.empty}>
-      <Animated.View style={[styles.disc, { backgroundColor: tint }, floatStyle]}>
+    <View style={styles.container}>
+      <Animated.View
+        style={[
+          styles.disc,
+          hasFilter && styles.discFiltered,
+          !isOnline && styles.discOffline,
+          floatStyle,
+        ]}
+      >
         <View style={styles.discInner}>
-          <Icon name={icon} size={38} color={color} />
+          <Icon name={icon} size={spacing.huge} color={color} />
         </View>
       </Animated.View>
       <Text style={styles.title}>{title}</Text>
@@ -107,31 +124,34 @@ export function QueueEmptyState({ isOnline, filter, reduceMotion }: QueueEmptySt
 }
 
 const styles = StyleSheet.create({
-  empty: {
+  container: {
     alignItems: 'center',
-    paddingTop: 44, // TODO(theme): between spacing.xxxl(32)/huge(40); left exact.
+    paddingTop: spacing.huge,
     paddingHorizontal: spacing.xxxl,
     gap: spacing.smd,
   },
   disc: {
-    width: 104,
-    height: 104,
-    borderRadius: 52, // Half of width/height above — computed circle radius.
+    width: spacing.jumbo * 2 + spacing.sm,
+    height: spacing.jumbo * 2 + spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.tealTint,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 6, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
+    marginBottom: spacing.sm,
   },
+  discFiltered: { backgroundColor: colors.gray200 },
+  discOffline: { backgroundColor: colors.amber100 },
   discInner: {
-    width: 74,
-    height: 74,
-    borderRadius: 37, // Half of width/height above — computed circle radius.
+    width: spacing.huge + spacing.xxxl + spacing.xxs,
+    height: spacing.huge + spacing.xxxl + spacing.xxs,
+    borderRadius: radius.pill,
     backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: spacing.xxs },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
+    shadowRadius: spacing.sm,
     elevation: 3,
   },
   title: {

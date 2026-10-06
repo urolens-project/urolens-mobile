@@ -7,6 +7,7 @@ import { Icon } from '@components/Icon';
 import { DropReveal } from '@components/DropReveal';
 
 import { CurvedHeader } from './CurvedHeader';
+import { ReportDataNotice } from './ReportDataNotice';
 import { CARD_RADIUS, ReportCategoryCard } from './ReportCategoryCard';
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import type { ReportCategory, ReportSection } from '../types';
@@ -19,6 +20,8 @@ export interface ReportsLandingViewProps {
   reduceMotion: boolean;
   sections: ReportSection[];
   isOnline: boolean;
+  isLoading: boolean;
+  hasError: boolean;
   isRefreshing: boolean;
   onRefresh: () => Promise<void>;
   onSelectCategory: (category: ReportCategory) => void;
@@ -33,6 +36,8 @@ export interface ReportsLandingViewProps {
  * @param reduceMotion - Disables entrance animation.
  * @param sections - The four report categories with their items.
  * @param isOnline - Gates pull-to-refresh and shows the offline note.
+ * @param isLoading - Shows a loading notice before category counts are ready.
+ * @param hasError - Surfaces a loading or sync failure while retaining cached reports.
  * @param isRefreshing - Drives the pull-to-refresh spinner.
  * @param onRefresh - Triggers a manual sync.
  * @param onSelectCategory - Drills into a category's list.
@@ -45,12 +50,14 @@ export function ReportsLandingView({
   reduceMotion,
   sections,
   isOnline,
+  isLoading,
+  hasError,
   isRefreshing,
   onRefresh,
   onSelectCategory,
 }: ReportsLandingViewProps): React.JSX.Element {
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <CurvedHeader
         username={username}
         totalCount={totalCount}
@@ -71,25 +78,28 @@ export function ReportsLandingView({
         }
         showsVerticalScrollIndicator={false}
       >
+        <ReportDataNotice isLoading={isLoading} hasError={hasError} />
         <View style={styles.categoryList}>
-          {sections.map((section, index) => (
-            <DropReveal
-              key={section.category}
-              index={index}
-              playKey={playKey}
-              reduceMotion={reduceMotion}
-              accent={REPORT_CATEGORY_STYLES[section.category].color}
-              radius={CARD_RADIUS}
-            >
-              <ReportCategoryCard
-                category={section.category}
-                title={section.title}
-                count={section.data.length}
-                onPress={onSelectCategory}
-                animate={!reduceMotion}
-              />
-            </DropReveal>
-          ))}
+          {sections.map(
+            (section, index): React.JSX.Element => (
+              <DropReveal
+                key={section.category}
+                index={index}
+                playKey={playKey}
+                reduceMotion={reduceMotion}
+                accent={REPORT_CATEGORY_STYLES[section.category].color}
+                radius={CARD_RADIUS}
+              >
+                <ReportCategoryCard
+                  category={section.category}
+                  title={section.title}
+                  count={section.data.length}
+                  onPress={onSelectCategory}
+                  animate={!reduceMotion}
+                />
+              </DropReveal>
+            ),
+          )}
         </View>
 
         {!isOnline && (
@@ -104,7 +114,7 @@ export function ReportsLandingView({
 }
 
 const styles = StyleSheet.create({
-  safe: {
+  container: {
     flex: 1,
     backgroundColor: colors.gray100,
   },

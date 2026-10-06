@@ -4,11 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { getIsSyncing, synchronize } from '@db/sync/syncManager';
 import { useAsyncAction } from '@hooks/useAsyncAction';
+import { appInfo } from '@lib/appInfo';
 import { formatShortDateTime } from '@lib/dateTime';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { FailedActionsList } from './FailedActionsList';
 import { InfoRow } from './InfoRow';
 import { InfoRowSeparator } from './InfoRowSeparator';
 
@@ -32,8 +34,9 @@ function formatSyncTime(iso: string | null): string {
 }
 
 /**
- * @description "Data" card: last-sync status, a manual sync trigger, and app version.
- * Owns its own last-sync state — nothing about sync is needed outside this card.
+ * @description "Data" card: last-sync status, a manual sync trigger, any changes the
+ * server refused, and app version. Owns its own last-sync state — nothing about sync
+ * is needed outside this card.
  */
 export function ProfileSyncCard(): React.JSX.Element {
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -79,8 +82,9 @@ export function ProfileSyncCard(): React.JSX.Element {
           )}
         </TouchableOpacity>
       </View>
+      <FailedActionsList />
       <InfoRowSeparator />
-      <InfoRow icon="phone-portrait-outline" label="App Version" value="1.0.0" />
+      <InfoRow icon="phone-portrait-outline" label="App Version" value={appInfo.version} />
     </View>
   );
 }
