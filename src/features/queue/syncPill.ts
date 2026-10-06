@@ -36,17 +36,17 @@ export function getSyncPill({
   if (!isOnline) {
     return { label: 'Offline • Showing cached data', tone: 'caution' };
   }
-  if (sync.state === 'syncing') {
-    return { label: 'Online • Syncing…', tone: 'ok' };
-  }
   if (sync.state === 'failed') {
     return { label: 'Online • Sync failed, showing cached data', tone: 'error' };
   }
-  // The sync itself worked, but something the MedTech did never reached the server.
+  // Refused changes still need attention while another sync is running.
   // The details, and the way to clear this, are on the Profile tab.
   if (failedActionCount > 0) {
     const changes = failedActionCount === 1 ? '1 change' : `${failedActionCount} changes`;
     return { label: `${changes} couldn't be sent • See Profile`, tone: 'error' };
+  }
+  if (sync.state === 'syncing') {
+    return { label: 'Online • Syncing…', tone: 'ok' };
   }
   const hasSynced = lastSyncAt !== null || sync.lastSuccessAt !== null;
   if (!hasSynced) {
