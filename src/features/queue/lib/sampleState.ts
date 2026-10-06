@@ -24,7 +24,6 @@ const BEGINNABLE_STATUSES: readonly SpecimenStatus[] = ['ASSIGNED', 'IN_QUEUE', 
 // Supervisor's workflow, so rejecting the specimen would strand it.
 const SUBMITTED_RESULT_STATUSES: readonly ResultState[] = [
   'PENDING_SUPERVISOR_APPROVAL',
-  'RETURNED_FOR_CORRECTION',
   'CRITICAL_ESCALATED',
   'APPROVED',
   'RELEASED',
@@ -35,7 +34,7 @@ const SUBMITTED_RESULT_STATUSES: readonly ResultState[] = [
  * MedTech — or null when it can. This is the one rule for Reject; it mirrors the server
  * (specimen_service.rejectSpecimen), so the app never offers what the API refuses.
  * Reject is only for a specimen still in the MedTech's hands: no result yet, or a
- * result awaiting their own confirmation.
+ * result awaiting their own confirmation or returned for correction.
  * @param specimenStatus - The specimen's current status.
  * @param resultStatus - The specimen's latest analysis result status, if any.
  */

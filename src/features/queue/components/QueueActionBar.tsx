@@ -15,7 +15,7 @@ export interface QueueActionBarProps {
   item: QueueItem | null;
   proceedLabel: string;
   /**
-   * False once the result has left the MedTech's hands (e.g. a Supervisor returned it):
+   * False while the result is with the Supervisor or has been approved/released:
    * the specimen can't be rejected any more, so the button isn't offered.
    */
   canReject?: boolean;
