@@ -38,7 +38,7 @@ jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
-import { renderHook, act } from '@testing-library/react-native';
+import { renderHook, act, cleanup } from '@testing-library/react-native/pure';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueue } from '../../src/features/queue/hooks/useQueue';
 import { database } from '../../src/db/database';
@@ -91,12 +91,15 @@ function makeSpecimen(overrides: Partial<Record<string, unknown>> = {}) {
  * only care about the initial mount can use emitItems(); tests that drive a
  * returnedServerIds-triggered re-subscription read the tail of the array directly.
  */
-const subscribeCalls: Array<{ cb: (rows: unknown[]) => void }> = [];
+const subscribeCalls: Array<{ cb: (rows: unknown[]) => void; onError: (error: Error) => void }> =
+  [];
 const mockUnsubscribe = jest.fn();
 let capturedQuery: jest.Mock;
 
 function emitItems(specimens: ReturnType<typeof makeSpecimen>[]) {
   subscribeCalls[0]?.cb(specimens);
+  subscribeCalls[1]?.cb(specimens);
+  subscribeCalls[2]?.cb([]);
 }
 
 /**
@@ -112,6 +115,7 @@ function emitReturnedResults(
     confirmedAt?: string | null;
     syncedAt?: string | null;
     createdAt?: number;
+    returnReason?: string | null;
   }>,
 ) {
   subscribeCalls[2]?.cb(results.map((r) => ({ status: 'RETURNED_FOR_CORRECTION', ...r })));
@@ -119,12 +123,14 @@ function emitReturnedResults(
 
 function buildDbChain() {
   subscribeCalls.length = 0;
-  const mockSubscribe = jest.fn().mockImplementation((cb: (rows: unknown[]) => void) => {
-    subscribeCalls.push({ cb });
-    return { unsubscribe: mockUnsubscribe };
-  });
+  const mockSubscribe = jest
+    .fn()
+    .mockImplementation((cb: (rows: unknown[]) => void, onError: (error: Error) => void) => {
+      subscribeCalls.push({ cb, onError });
+      return { unsubscribe: mockUnsubscribe };
+    });
   const mockObserve = jest.fn(() => ({ subscribe: mockSubscribe }));
-  const mockQuery = jest.fn(() => ({ observe: mockObserve }));
+  const mockQuery = jest.fn(() => ({ observe: mockObserve, observeWithColumns: mockObserve }));
   const mockGet = jest.fn(() => ({ query: mockQuery }));
   return { mockGet, mockQuery, mockObserve, mockSubscribe };
 }
@@ -136,6 +142,126 @@ beforeEach(() => {
   (database.get as jest.Mock).mockImplementation(mockGet);
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
   (synchronize as jest.Mock).mockResolvedValue(undefined);
+});
+
+afterEach(async (): Promise<void> => {
+  await act(async (): Promise<void> => {
+    await Promise.resolve();
+  });
+  cleanup();
+});
+
+describe('queue paging and failure recovery', () => {
+  it('pages offline while keeping totals for the complete queue', async (): Promise<void> => {
+    (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
+    const specimens = Array.from(
+      { length: 45 },
+      (_, index): ReturnType<typeof makeSpecimen> => makeSpecimen({ id: `page-${index}` }),
+    );
+    const { result } = renderHook(() => useQueue());
+    await act(async (): Promise<void> => {
+      emitItems(specimens);
+    });
+    expect(result.current.items).toHaveLength(20);
+    expect(result.current.allItems).toHaveLength(45);
+    expect(result.current.totalItems).toBe(45);
+    expect(result.current.pageCount).toBe(3);
+    act((): void => result.current.nextPage());
+    expect(result.current.page).toBe(2);
+    act((): void => result.current.nextPage());
+    expect(result.current.items).toHaveLength(5);
+    act((): void => result.current.nextPage());
+    expect(result.current.page).toBe(3);
+    act((): void => result.current.previousPage());
+    expect(result.current.page).toBe(2);
+    act((): void => result.current.setFilter('ASSIGNED'));
+    expect(result.current.page).toBe(1);
+    expect(synchronize).not.toHaveBeenCalled();
+  });
+
+  it('keeps the current page valid when live work disappears and new work arrives', async (): Promise<void> => {
+    const specimens = Array.from(
+      { length: 45 },
+      (_, index): ReturnType<typeof makeSpecimen> => makeSpecimen({ id: `live-${index}` }),
+    );
+    const { result } = renderHook(() => useQueue());
+    await act(async (): Promise<void> => {
+      emitItems(specimens);
+    });
+    act((): void => result.current.nextPage());
+    act((): void => result.current.nextPage());
+    await act(async (): Promise<void> => {
+      emitItems(specimens.slice(0, 2));
+    });
+    expect(result.current.page).toBe(1);
+    expect(result.current.items).toHaveLength(2);
+    await act(async (): Promise<void> => {
+      emitItems(specimens);
+    });
+    expect(result.current.page).toBe(1);
+  });
+
+  it('surfaces sync failures while retaining cached specimens and permits retry', async (): Promise<void> => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation((): void => {});
+    const failure = new Error('Sync failed');
+    (synchronize as jest.Mock).mockRejectedValueOnce(failure);
+    const { result } = renderHook(() => useQueue());
+    await act(async (): Promise<void> => {
+      emitItems([makeSpecimen()]);
+    });
+    expect(result.current.error).toBe(failure);
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.isRefreshing).toBe(false);
+    await act(async (): Promise<void> => {
+      await result.current.refresh();
+    });
+    expect(result.current.error).toBeNull();
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    consoleError.mockRestore();
+  });
+
+  it('surfaces local query errors and resubscribes on an offline refresh', async (): Promise<void> => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation((): void => {});
+    (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
+    const { result } = renderHook(() => useQueue());
+    await act(async (): Promise<void> => {
+      subscribeCalls[0].onError(new Error('Local read failed'));
+    });
+    expect(result.current.error?.message).toBe('Local read failed');
+    expect(result.current.isLoading).toBe(false);
+    await act(async (): Promise<void> => {
+      await result.current.refresh();
+    });
+    expect(subscribeCalls).toHaveLength(6);
+    await act(async (): Promise<void> => {
+      subscribeCalls[3].cb([]);
+      subscribeCalls[4].cb([]);
+      subscribeCalls[5].cb([]);
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.isLoading).toBe(false);
+    expect(synchronize).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('updates a supervisor reason even when the returned status and specimen set stay the same', async (): Promise<void> => {
+    const { result } = renderHook(() => useQueue());
+    await act(async (): Promise<void> => {
+      emitReturnedResults([{ specimenId: 'srv-returned', returnReason: 'Check RBC count' }]);
+    });
+    await act(async (): Promise<void> => {
+      subscribeCalls[subscribeCalls.length - 2].cb([
+        makeSpecimen({ id: 'returned', serverId: 'srv-returned' }),
+      ]);
+    });
+    expect(result.current.items[0].returnReason).toBe('Check RBC count');
+    const subscriptionCount = subscribeCalls.length;
+    await act(async (): Promise<void> => {
+      emitReturnedResults([{ specimenId: 'srv-returned', returnReason: 'Check WBC count' }]);
+    });
+    expect(result.current.items[0].returnReason).toBe('Check WBC count');
+    expect(subscribeCalls).toHaveLength(subscriptionCount);
+  });
 });
 
 /** Returns the clauses array passed to the most recent .query(...clauses) call
@@ -161,9 +287,9 @@ describe('useQueue', () => {
       expect(result.current.filter).toBe('ALL');
     });
 
-    it('starts with isRefreshing false', () => {
+    it('shows refreshing while the startup sync is running', () => {
       const { result } = renderHook(() => useQueue());
-      expect(result.current.isRefreshing).toBe(false);
+      expect(result.current.isRefreshing).toBe(true);
     });
   });
 

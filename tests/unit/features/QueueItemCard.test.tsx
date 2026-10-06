@@ -32,6 +32,23 @@ function badgesShown(): string[] {
 beforeEach(() => jest.clearAllMocks());
 
 describe('QueueItemCard status badge', () => {
+  it('shows the supervisor reason only for returned work', (): void => {
+    const view = render(
+      <QueueItemCard
+        item={{ ...baseItem, isReturnedForCorrection: true, returnReason: 'Review the RBC count.' }}
+        onPress={onPress}
+      />,
+    );
+    expect(view.getByText('Returned for correction')).toBeTruthy();
+    expect(view.getByText('Reason: Review the RBC count.')).toBeTruthy();
+    view.rerender(
+      <QueueItemCard
+        item={{ ...baseItem, returnReason: 'Review the RBC count.' }}
+        onPress={onPress}
+      />,
+    );
+    expect(view.queryByText('Reason: Review the RBC count.')).toBeNull();
+  });
   it('shows an ASSIGNED badge on an assigned sample', () => {
     render(<QueueItemCard item={baseItem} onPress={onPress} />);
     expect(badgesShown()).toEqual(['ASSIGNED']);

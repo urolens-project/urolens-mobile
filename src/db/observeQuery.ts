@@ -20,12 +20,12 @@ interface ObserveQueryOptions {
  * database is being reset") instead of queuing in that narrow window, which otherwise
  * crashes any screen whose queries happen to (re-)subscribe at that moment. Any other
  * error is logged, not retried — this is only meant to paper over that one specific race.
- * @param query - Reactive WatermelonDB query to observe.
+ * @param query - Reactive query or a factory so query construction errors can also be surfaced.
  * @param onData - Called with the current rows on every emission.
- * @param options - Columns to watch for in-place updates and a terminal error handler.
+ * @param options - Columns to watch for edits and a callback for unrecoverable errors.
  */
 export function observeQuery<T extends Model>(
-  query: Query<T>,
+  query: Query<T> | (() => Query<T>),
   onData: (rows: T[]) => void,
   options: ObserveQueryOptions = {},
 ): Unsubscribable {
@@ -34,10 +34,7 @@ export function observeQuery<T extends Model>(
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   function start(): void {
-    const observable = options.columns
-      ? query.observeWithColumns(options.columns)
-      : query.observe();
-    inner = observable.subscribe(onData, (err: unknown): void => {
+    const handleError = (err: unknown): void => {
       if (cancelled) return;
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes(RESET_ERROR_SNIPPET)) {
@@ -46,7 +43,16 @@ export function observeQuery<T extends Model>(
       }
       console.error('[observeQuery] subscription error:', err);
       options.onError?.(err instanceof Error ? err : new Error(message));
-    });
+    };
+    try {
+      const resolvedQuery = typeof query === 'function' ? query() : query;
+      const observable = options.columns
+        ? resolvedQuery.observeWithColumns(options.columns)
+        : resolvedQuery.observe();
+      inner = observable.subscribe(onData, handleError);
+    } catch (error: unknown) {
+      handleError(error);
+    }
   }
 
   start();
