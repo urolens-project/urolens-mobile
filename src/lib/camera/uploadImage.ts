@@ -21,6 +21,7 @@ export interface UploadImageResponse {
   aiFindings: Record<string, number> | null;
   flaggedAnomalies: Record<string, unknown> | null;
   smartDiagnosis: Record<string, unknown> | null;
+  smartDiagnosisUnavailable: boolean;
 }
 
 const HTTP_PAYLOAD_TOO_LARGE = 413;
