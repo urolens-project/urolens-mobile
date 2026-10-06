@@ -5,6 +5,7 @@ on:
     branches:
       - develop
       - main
+      - v1.1.0
       - phase-1
       - 'refactor/**'
       - 'fix/**'
@@ -13,7 +14,7 @@ on:
       - 'docs/**'
       - 'test/**'
   pull_request:
-    branches: [develop, main]
+    branches: [develop, main, v1.1.0]
 
 jobs:
   ci:

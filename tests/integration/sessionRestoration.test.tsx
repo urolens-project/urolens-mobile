@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
+import { database } from '@db/database';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
@@ -12,7 +13,12 @@ import { SESSION_TIMEOUT_MS } from '@features/auth/constants/sessionTimeout.cons
 import { useAuth } from '@features/auth/hooks/useAuth';
 
 jest.mock('@abraham/reflection', (): object => ({}));
-jest.mock('@db/database', (): object => ({ database: {} }));
+jest.mock('@db/database', (): object => ({
+  database: {
+    write: jest.fn(async (operation: () => Promise<void>): Promise<void> => operation()),
+    unsafeResetDatabase: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 jest.mock('@nozbe/watermelondb/DatabaseProvider', (): object => ({
   DatabaseProvider: 'DatabaseProvider',
 }));
@@ -34,9 +40,13 @@ const CURRENT_TIME = SESSION_TIMEOUT_MS * 3;
 const mockPersistedValues = new Map<string, string>();
 let RootLayout: () => React.JSX.Element;
 
+interface NativeTestGlobals {
+  __DEV__: boolean;
+}
+
 beforeAll((): void => {
   // The native development menu is unrelated to restoring a persisted session.
-  jest.replaceProperty(global, '__DEV__', false);
+  jest.replaceProperty(global as typeof global & NativeTestGlobals, '__DEV__', false);
   RootLayout = jest.requireActual<{ default: () => React.JSX.Element }>(
     '../../app/_layout',
   ).default;
@@ -133,10 +143,12 @@ describe('session restoration', (): void => {
         await result.current.login('medtech02', 'password', keepLoggedIn);
       });
 
+      expect(result.current.error).toBeNull();
+      expect(database.write).toHaveBeenCalledTimes(1);
+      expect(database.unsafeResetDatabase).toHaveBeenCalledTimes(1);
       expect(await tokenStorage.getLastActiveAt()).toBeNull();
       expect(await tokenStorage.getToken()).toBe('new-token');
       expect(useAuthStore.getState().userId).toBe('user-2');
-      expect(result.current.error).toBeNull();
       jest.mocked(router.replace).mockClear();
       await act(async (): Promise<void> => {
         unmount();
