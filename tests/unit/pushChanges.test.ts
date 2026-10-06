@@ -130,6 +130,62 @@ describe('pushChanges', () => {
     });
   });
 
+  // The caller uses this count to re-pull everything (see syncManager.test.ts).
+  describe('reports how many changes it gave up on', () => {
+    it.each([
+      ['a specimen now assigned to someone else', { code: 'SPECIMEN_NOT_ASSIGNED', status: 403 }],
+      ['a result that can no longer be edited', { code: 'RESULT_NOT_EDITABLE', status: 409 }],
+      ['a patient who refused consent', { code: 'CONSENT_REFUSED', status: 409 }],
+    ])('%s is refused for good, not retried', async (_label, error) => {
+      const item = makeItem();
+      setDb([item]);
+      post.mockRejectedValue({ ...error, message: 'refused' });
+
+      await expect(pushChanges()).resolves.toEqual({ refusedCount: 1 });
+      expect(item.status).toBe(PendingSyncStatus.FAILED);
+    });
+
+    it('counts each refused change, and only those', async () => {
+      const accepted = makeItem({ entityId: 'srv-1' });
+      const refused = makeItem({ entityId: 'srv-2' });
+      const alsoRefused = makeItem({ entityId: 'srv-3' });
+      setDb([accepted, refused, alsoRefused]);
+      post
+        .mockResolvedValueOnce({})
+        .mockRejectedValueOnce({ code: 'RESULT_NOT_EDITABLE', message: 'no', status: 409 })
+        .mockRejectedValueOnce({ code: 'CONSENT_REFUSED', message: 'no', status: 409 });
+
+      await expect(pushChanges()).resolves.toEqual({ refusedCount: 2 });
+    });
+
+    it('does not count a change the server had already applied', async () => {
+      setDb([makeItem()]);
+      post.mockRejectedValue({ code: 'RESULT_ALREADY_CONFIRMED', message: 'done', status: 409 });
+
+      await expect(pushChanges()).resolves.toEqual({ refusedCount: 0 });
+    });
+
+    it('does not count a change that will be retried', async () => {
+      setDb([makeItem()]);
+      post.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'offline' });
+
+      await expect(pushChanges()).resolves.toEqual({ refusedCount: 0 });
+    });
+
+    it('counts a change given up on after a week of retries', async () => {
+      setDb([makeItem({ createdAt: Date.now() - 8 * DAY })]);
+      post.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'offline' });
+
+      await expect(pushChanges()).resolves.toEqual({ refusedCount: 1 });
+    });
+
+    it('reports none when there was nothing to send', async () => {
+      setDb([]);
+
+      await expect(pushChanges()).resolves.toEqual({ refusedCount: 0 });
+    });
+  });
+
   describe('changes the server refuses are marked FAILED, not retried', () => {
     it.each([
       ['validation', { code: 'VALIDATION_ERROR', message: 'bad', status: 422 }],

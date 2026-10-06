@@ -2,161 +2,86 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { database } from '@db/database';
 import { observeQuery } from '@db/observeQuery';
-import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
-import Specimen from '@db/models/Specimen';
-import AnalysisResult from '@db/models/AnalysisResult';
-import type { ResultStatus } from '@db/models/AnalysisResult';
+import type Specimen from '@db/models/Specimen';
+import type AnalysisResult from '@db/models/AnalysisResult';
 import { synchronize } from '@db/sync/syncManager';
 import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 import {
-  REPORT_CATEGORY_ORDER,
-  REPORT_CATEGORY_TITLES,
-  type ReportCategory,
-  type ReportItem,
-  type ReportSection,
-} from '../types';
-
-function resultStatusToCategory(status: ResultStatus): ReportCategory | null {
-  switch (status) {
-    case 'PENDING_SUPERVISOR_APPROVAL':
-      return 'PENDING_APPROVAL';
-    case 'APPROVED':
-      return 'APPROVED';
-    case 'RELEASED':
-      return 'RELEASED';
-    default:
-      return null;
-  }
-}
-
-function buildItems(specimens: Specimen[], results: AnalysisResult[]): ReportItem[] {
-  const specimenByServerId = new Map(
-    specimens.filter((s) => s.serverId).map((s) => [s.serverId as string, s]),
-  );
-
-  const items: ReportItem[] = [];
-
-  for (const s of specimens) {
-    if (s.status !== 'REJECTED') continue;
-    items.push({
-      id: s.id,
-      sampleUid: s.sampleUid,
-      patientUid: s.patientUid,
-      testType: s.testType,
-      priorityLevel: s.priorityLevel as ReportItem['priorityLevel'],
-      receivedAt: s.receivedAt,
-      category: 'REJECTED',
-      finalizedAt: s.rejectedAt ?? s.receivedAt,
-      rejectionReason: s.rejectionReason,
-    });
-  }
-
-  // The backend enforces one analysis_results row per specimen (retakes
-  // update it in place), but a past local sync bug could still leave a
-  // stale duplicate copy behind — latestAnalysisResultsBySpecimen is the
-  // defense against that. Only the latest result should ever determine
-  // which category (if any) a specimen belongs in, or a superseded
-  // duplicate "Pending Approval" copy could keep showing a specimen that
-  // has since moved on to Approved or Released.
-  const latestResults = latestAnalysisResultsBySpecimen(results);
-  for (const r of latestResults.values()) {
-    const category = resultStatusToCategory(r.status);
-    if (!category) continue;
-    const specimen = specimenByServerId.get(r.specimenId);
-    if (!specimen) continue;
-    items.push({
-      id: specimen.id,
-      sampleUid: specimen.sampleUid,
-      patientUid: specimen.patientUid,
-      testType: specimen.testType,
-      priorityLevel: specimen.priorityLevel as ReportItem['priorityLevel'],
-      receivedAt: specimen.receivedAt,
-      category,
-      finalizedAt: r.confirmedAt ?? specimen.receivedAt,
-      rejectionReason: null,
-    });
-  }
-
-  return items;
-}
-
-function buildSections(items: ReportItem[]): ReportSection[] {
-  // Always all 4 categories, in fixed order — even when empty. The Reports
-  // screen shows one card per category (with its count) before drilling into
-  // any single category's list, so callers need the full set to render.
-  return REPORT_CATEGORY_ORDER.map((category) => ({
-    category,
-    title: REPORT_CATEGORY_TITLES[category],
-    data: items
-      .filter((i) => i.category === category)
-      .sort((a, b) => new Date(b.finalizedAt).getTime() - new Date(a.finalizedAt).getTime()),
-  }));
-}
+  REPORT_RESULT_COLUMNS,
+  REPORT_SPECIMEN_COLUMNS,
+} from '../constants/reportHistory.constant';
+import { mapReportsToUi } from '../mappers/report.mapper';
+import type { ReportSection } from '../types';
 
 export interface UseReportsResult {
   sections: ReportSection[];
   isLoading: boolean;
+  error: Error | null;
   totalCount: number;
   refresh: () => Promise<void>;
   isRefreshing: boolean;
 }
 
 /**
- * @description Builds the four Reports sections (pending, approved, released, rejected)
- * from the on-device specimens/results tables, and exposes a manual sync refresh.
+ * @description Observes current and historical reports cached on the device,
+ * including status changes to existing rows, and exposes a manual sync refresh.
  */
 export function useReports(): UseReportsResult {
   const { isOnline } = useNetworkStatus();
 
-  const [specimens, setSpecimens] = useState<Specimen[]>([]);
-  const [results, setResults] = useState<AnalysisResult[]>([]);
-  const [isLoadingSpecimens, setIsLoadingSpecimens] = useState(true);
-  const [isLoadingResults, setIsLoadingResults] = useState(true);
+  const [specimens, setSpecimens] = useState<Specimen[] | null>(null);
+  const [results, setResults] = useState<AnalysisResult[] | null>(null);
+  const [specimenError, setSpecimenError] = useState<Error | null>(null);
+  const [resultError, setResultError] = useState<Error | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  useEffect(() => {
-    const subscription = observeQuery(database.get<Specimen>('specimens').query(), (rows) => {
-      setSpecimens(rows);
-      setIsLoadingSpecimens(false);
-    });
-
-    return () => subscription.unsubscribe();
+  const syncReports = useCallback(async (): Promise<void> => {
+    await synchronize();
   }, []);
+  const {
+    run: runSync,
+    isLoading: isRefreshing,
+    error: syncError,
+  } = useAsyncAction('Reports', syncReports);
+  const sections = mapReportsToUi(specimens ?? [], results ?? []);
 
-  // Fetches every result, not pre-filtered by status: a specimen can have
-  // more than one analysis_results row, and only its latest one should
-  // count (see buildItems / latestAnalysisResultsBySpecimen).
-  useEffect(() => {
+  useEffect((): (() => void) => {
+    const subscription = observeQuery(
+      database.get<Specimen>('specimens').query(),
+      (rows): void => {
+        setSpecimens([...rows]);
+        setSpecimenError(null);
+      },
+      { columns: REPORT_SPECIMEN_COLUMNS, onError: setSpecimenError },
+    );
+    return (): void => subscription.unsubscribe();
+  }, [reloadKey]);
+
+  useEffect((): (() => void) => {
     const subscription = observeQuery(
       database.get<AnalysisResult>('analysis_results').query(),
-      (rows) => {
-        setResults(rows);
-        setIsLoadingResults(false);
+      (rows): void => {
+        setResults([...rows]);
+        setResultError(null);
       },
+      { columns: REPORT_RESULT_COLUMNS, onError: setResultError },
     );
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const { run: runSync, isLoading: isRefreshing } = useAsyncAction(
-    'Reports',
-    async (): Promise<void> => {
-      await synchronize();
-    },
-  );
+    return (): void => subscription.unsubscribe();
+  }, [reloadKey]);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (specimenError || resultError) setReloadKey((key): number => key + 1);
     if (!isOnline) return;
     await runSync();
-  }, [isOnline, runSync]);
-
-  const items = buildItems(specimens, results);
+  }, [isOnline, runSync, specimenError, resultError]);
 
   return {
-    sections: buildSections(items),
-    isLoading: isLoadingSpecimens || isLoadingResults,
-    totalCount: items.length,
+    sections,
+    isLoading: (!specimens && !specimenError) || (!results && !resultError),
+    error: specimenError ?? resultError ?? syncError,
+    totalCount: sections.reduce((count, section): number => count + section.data.length, 0),
     refresh,
     isRefreshing,
   };

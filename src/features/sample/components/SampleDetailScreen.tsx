@@ -40,15 +40,18 @@ import { SpecimenSummaryCard } from './SpecimenSummaryCard';
 export interface SampleDetailScreenProps {
   specimenId: string;
   resultId?: string;
+  isReadOnly?: boolean;
 }
 
 /**
  * @description Sample detail: specimen info, analysis result review, and the actions
  * available at the specimen's current stage (begin analysis, retake, reject).
+ * @param props - Sample identifiers and the read-only mode used by Reports.
  */
 export function SampleDetailScreen({
   specimenId,
   resultId,
+  isReadOnly = false,
 }: SampleDetailScreenProps): React.JSX.Element {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
@@ -57,14 +60,15 @@ export function SampleDetailScreen({
   const { confirmResult: confirmAction, isConfirming } = useConfirmAction();
 
   const handleConfirmResult = useCallback(async (): Promise<void> => {
-    if (!analysisResult) return;
+    if (isReadOnly || !analysisResult) return;
     const outcome = await confirmAction(analysisResult);
     if (outcome.status === 'failed') {
       Alert.alert('Confirmation Failed', outcome.message);
     }
-  }, [analysisResult, confirmAction]);
+  }, [isReadOnly, analysisResult, confirmAction]);
 
   const handleBeginAnalysis = useCallback(async (): Promise<void> => {
+    if (isReadOnly) return;
     if (!specimen?.serverId) {
       Alert.alert(
         'Not Synced',
@@ -99,16 +103,17 @@ export function SampleDetailScreen({
       pathname: '/(medtech)/capture',
       params: { specimenId: specimen.serverId, localSpecimenId: specimenId },
     });
-  }, [specimen, specimenId, isOnline, router]);
+  }, [isReadOnly, specimen, specimenId, isOnline, router]);
 
   const handleRetakeImage = useCallback((): void => {
+    if (isReadOnly) return;
     if (!specimen?.serverId) {
       Alert.alert('Not Synced', 'Specimen has not synced yet. Please wait.');
       return;
     }
     const serverId = specimen.serverId;
 
-    confirmRetake(Object.keys(overrides).length > 0, () => {
+    confirmRetake(Object.keys(overrides).length > 0, (): void => {
       router.push({
         pathname: '/(medtech)/capture',
         params: {
@@ -118,11 +123,12 @@ export function SampleDetailScreen({
         },
       });
     });
-  }, [specimen, specimenId, overrides, analysisResult, router]);
+  }, [isReadOnly, specimen, specimenId, overrides, analysisResult, router]);
 
   const handleRejectSpecimen = useCallback((): void => {
+    if (isReadOnly) return;
     router.push(`/(medtech)/sample/reject/${specimenId}`);
-  }, [router, specimenId]);
+  }, [isReadOnly, router, specimenId]);
 
   const handleBack = useCallback((): void => router.back(), [router]);
 
@@ -198,6 +204,7 @@ export function SampleDetailScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {isReadOnly && <Text style={styles.emptyResultText}>Read-only report</Text>}
         <SpecimenSummaryCard specimen={specimen} resultStatus={resultStatus} />
 
         {isRejected && <RejectionDetailsCard specimen={specimen} />}
@@ -262,13 +269,15 @@ export function SampleDetailScreen({
               />
             )}
 
-            <SampleResultActions
-              canConfirm={actions.canConfirm}
-              canRetake={actions.canRetake}
-              isConfirming={isConfirming}
-              onConfirm={handleConfirmResult}
-              onRetake={handleRetakeImage}
-            />
+            {!isReadOnly && (
+              <SampleResultActions
+                canConfirm={actions.canConfirm}
+                canRetake={actions.canRetake}
+                isConfirming={isConfirming}
+                onConfirm={handleConfirmResult}
+                onRetake={handleRetakeImage}
+              />
+            )}
 
             {isPendingApproval && (
               <ResultStatusBanner variant="pending" title="Awaiting supervisor review." />
@@ -292,13 +301,15 @@ export function SampleDetailScreen({
           </View>
         )}
 
-        <SampleActionBar
-          canBeginAnalysis={actions.canBeginAnalysis}
-          canReject={actions.canReject}
-          isProcessing={specimen.status === 'PROCESSING'}
-          onBeginAnalysis={handleBeginAnalysis}
-          onReject={handleRejectSpecimen}
-        />
+        {!isReadOnly && (
+          <SampleActionBar
+            canBeginAnalysis={actions.canBeginAnalysis}
+            canReject={actions.canReject}
+            isProcessing={specimen.status === 'PROCESSING'}
+            onBeginAnalysis={handleBeginAnalysis}
+            onReject={handleRejectSpecimen}
+          />
+        )}
       </ScrollView>
     </SafeAreaView>
   );

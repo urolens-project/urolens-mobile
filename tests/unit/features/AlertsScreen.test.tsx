@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import AlertsScreen from '../../../app/(medtech)/alerts';
 import apiClient from '@lib/apiClient';
+import { useAuthStore } from '@lib/auth/authStore';
+import { UserRole } from '@app-types/enums';
 import { router } from 'expo-router';
 import { navigateToSpecimenByServerId } from '@lib/notifications/notificationHandler';
 
@@ -38,9 +40,9 @@ type ApiNotification = ReturnType<typeof notification>;
 async function renderAlerts(data: ApiNotification[]) {
   get.mockResolvedValue({ data });
   render(<AlertsScreen />);
-  // FlatList is a stub in the jest setup and never renders its rows, so pull its props
-  // off and build the rows the way the list would.
-  return waitFor(() => screen.UNSAFE_root.findByType('FlatList' as never));
+  // SectionList is a stub in the jest setup and never renders its rows, so pull its
+  // props off and build the rows the way the list would.
+  return waitFor(() => screen.UNSAFE_root.findByType('SectionList' as never));
 }
 
 async function tapAlert(n: ApiNotification) {
@@ -49,7 +51,11 @@ async function tapAlert(n: ApiNotification) {
   fireEvent.press(card.getByText(n.message as string));
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach((): void => {
+  jest.clearAllMocks();
+  useAuthStore.getState().clearAuth();
+  useAuthStore.getState().setAuthenticated('medtech-1', UserRole.MEDTECH, 'medtech01');
+});
 
 describe('the alert list', () => {
   // The React warning "Each child in a list should have a unique key prop".
@@ -80,6 +86,60 @@ describe('the alert list', () => {
     const card = render(list.props.renderItem({ item: notification() }));
     expect(card.getByText('just now')).toBeTruthy();
     expect(card.queryByText(/NaN/)).toBeNull();
+  });
+
+  it('groups alerts under a "Today" section for same-day notifications', async () => {
+    const list = await renderAlerts([
+      notification({ notificationId: 'n-1' }),
+      notification({ notificationId: 'n-2' }),
+    ]);
+    expect(list.props.sections).toEqual([
+      { title: 'Today', data: expect.arrayContaining([expect.any(Object)]) },
+    ]);
+    expect(list.props.sections[0].data).toHaveLength(2);
+  });
+});
+
+describe('filtering to unread only', () => {
+  it('hides already-read alerts once the filter chip is pressed', async () => {
+    await renderAlerts([
+      notification({ notificationId: 'n-1', isRead: false }),
+      notification({ notificationId: 'n-2', isRead: true }),
+    ]);
+
+    fireEvent.press(screen.getByText('Unread only'));
+
+    const list = await waitFor(() => screen.UNSAFE_root.findByType('SectionList' as never));
+    const allItems = list.props.sections.flatMap((s: { data: ApiNotification[] }) => s.data);
+    expect(allItems).toHaveLength(1);
+    expect(allItems[0].notificationId).toBe('n-1');
+  });
+
+  it('says so clearly instead of showing a blank list when nothing unread matches', async () => {
+    await renderAlerts([notification({ notificationId: 'n-1', isRead: true })]);
+
+    fireEvent.press(screen.getByText('Unread only'));
+
+    // SectionList is a stub in the jest setup — it never mounts ListEmptyComponent
+    // itself, so render the prop directly the way the real list would.
+    const list = await waitFor(() => screen.UNSAFE_root.findByType('SectionList' as never));
+    const empty = render(list.props.ListEmptyComponent);
+    expect(empty.getByText("You're all caught up")).toBeTruthy();
+  });
+});
+
+describe('marking all as read', () => {
+  it('calls the mark-all-read endpoint and clears the unread badge', async () => {
+    await renderAlerts([
+      notification({ notificationId: 'n-1', isRead: false }),
+      notification({ notificationId: 'n-2', isRead: false }),
+    ]);
+    await screen.findByText('2');
+
+    fireEvent.press(screen.getByText('Mark all as read'));
+
+    expect(patch).toHaveBeenCalledWith('/notifications/read-all');
+    await waitFor(() => expect(screen.queryByText('Mark all as read')).toBeNull());
   });
 });
 
@@ -121,5 +181,24 @@ describe('tapping an alert', () => {
     );
     expect(push).toHaveBeenCalledWith('/(medtech)/queue');
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // Previously fell through the navigation switch's default case: marked read but never
+  // navigated anywhere, so a MedTech tapping one of these two types went nowhere.
+  it('a ready-for-review alert resolves the local sample', async () => {
+    await tapAlert(
+      notification({ notificationType: 'RESULT_READY_FOR_REVIEW', entityId: 'server-result-1' }),
+    );
+    expect(navigate).toHaveBeenCalledWith('server-result-1');
+  });
+
+  it('a smart-diagnosis-unavailable alert resolves the local sample', async () => {
+    await tapAlert(
+      notification({
+        notificationType: 'SMART_DIAGNOSIS_UNAVAILABLE',
+        entityId: 'server-result-2',
+      }),
+    );
+    expect(navigate).toHaveBeenCalledWith('server-result-2');
   });
 });
