@@ -39,6 +39,37 @@ function makeFakeQuery() {
 }
 
 describe('observeQuery', () => {
+  it('watches requested columns and forwards terminal errors to the caller', (): void => {
+    const fake = makeFakeQuery();
+    const observeWithColumns = jest.fn(fake.observe);
+    const onError = jest.fn();
+    const query = { ...fake.query, observeWithColumns };
+    const logSpy = jest.spyOn(console, 'error').mockImplementation((): void => {});
+    try {
+      observeQuery(query as any, jest.fn(), { columns: ['status'], onError });
+      expect(observeWithColumns).toHaveBeenCalledWith(['status']);
+      const error = new Error('Storage unavailable');
+      fake.triggerError(error);
+      expect(onError).toHaveBeenCalledWith(error);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('retries watched-column queries during reset without surfacing a terminal error', (): void => {
+    const fake = makeFakeQuery();
+    const observeWithColumns = jest.fn(fake.observe);
+    const onError = jest.fn();
+    observeQuery({ ...fake.query, observeWithColumns } as any, jest.fn(), {
+      columns: ['status'],
+      onError,
+    });
+    fake.triggerError(new Error('database is being reset'));
+    jest.runAllTimers();
+    expect(observeWithColumns).toHaveBeenCalledTimes(2);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   let consoleErrorSpy: jest.SpyInstance;
 
   beforeEach(() => {

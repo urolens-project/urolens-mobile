@@ -1,32 +1,45 @@
+import { useCallback } from 'react';
 import { View, FlatList, Text, RefreshControl, StyleSheet } from 'react-native';
+import type { ListRenderItemInfo } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, spacing, typography } from '@src/theme';
+import { colors, radius, spacing, typography } from '@src/theme';
 
 import { DropReveal } from '@components/DropReveal';
 
 import { CategoryHeader } from './CategoryHeader';
 import { ReportItemCard } from './ReportItemCard';
 import { ReportIllustration } from './ReportIllustration';
+import { ReportFilters } from './ReportFilters';
+import { ReportDataNotice } from './ReportDataNotice';
 import { REPORT_CATEGORY_STYLES } from '../constants';
-import type { ReportCategory, ReportSection } from '../types';
-
-// Number of list items that get the drop-in entrance; anything further down
-// is just shown, so scrolling a long list never re-triggers animation.
-const ANIMATED_ITEMS = 8;
-const ITEM_STAGGER_MS = 90;
+import { REPORT_ANIMATED_ITEMS, REPORT_ITEM_STAGGER_MS } from '../constants/reportHistory.constant';
+import { useReportFilters } from '../hooks/useReportFilters';
+import type { ReportCategory, ReportItem, ReportSection } from '../types';
 
 interface EmptyCategoryStateProps {
   category: ReportCategory;
   isOnline: boolean;
   reduceMotion: boolean;
+  hasFilters: boolean;
 }
 
 function EmptyCategoryState({
   category,
   isOnline,
   reduceMotion,
+  hasFilters,
 }: EmptyCategoryStateProps): React.JSX.Element {
+  if (hasFilters) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyTitle}>No matching samples</Text>
+        <Text style={styles.emptySub}>
+          Try another search or clear the filters to view all dates.
+        </Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.empty}>
       <View style={styles.emptyArt}>
@@ -59,6 +72,7 @@ export interface CategoryDrilldownViewProps {
   reduceMotion: boolean;
   isOnline: boolean;
   isLoading: boolean;
+  hasError: boolean;
   isRefreshing: boolean;
   onRefresh: () => Promise<void>;
   onBack: () => void;
@@ -74,6 +88,7 @@ export interface CategoryDrilldownViewProps {
  * @param reduceMotion - Disables entrance/illustration animation.
  * @param isOnline - Gates pull-to-refresh.
  * @param isLoading - Suppresses the empty state while the initial load is in flight.
+ * @param hasError - Surfaces a loading or sync failure without hiding cached records.
  * @param isRefreshing - Drives the pull-to-refresh spinner.
  * @param onRefresh - Triggers a manual sync.
  * @param onBack - Returns to the category landing grid.
@@ -87,15 +102,53 @@ export function CategoryDrilldownView({
   reduceMotion,
   isOnline,
   isLoading,
+  hasError,
   isRefreshing,
   onRefresh,
   onBack,
   onItemPress,
 }: CategoryDrilldownViewProps): React.JSX.Element {
+  const {
+    searchQuery,
+    period,
+    filteredItems,
+    hasFilters,
+    changeSearch,
+    changePeriod,
+    resetFilters,
+  } = useReportFilters(section.data);
   const style = REPORT_CATEGORY_STYLES[category];
+  const isEmpty = filteredItems.length === 0;
+  const handleKeyExtractor = useCallback((item: ReportItem): string => item.id, []);
+  const handleRenderItem = useCallback(
+    ({ item, index }: ListRenderItemInfo<ReportItem>): React.JSX.Element => (
+      <DropReveal
+        index={index}
+        playKey={playKey}
+        reduceMotion={reduceMotion || index >= REPORT_ANIMATED_ITEMS}
+        accent={style.color}
+        radius={radius.xl}
+        staggerMs={REPORT_ITEM_STAGGER_MS}
+      >
+        <ReportItemCard item={item} onPress={onItemPress} />
+      </DropReveal>
+    ),
+    [playKey, reduceMotion, style.color, onItemPress],
+  );
+  let emptyState: React.JSX.Element | null = null;
+  if (!isLoading && !hasError) {
+    emptyState = (
+      <EmptyCategoryState
+        category={category}
+        isOnline={isOnline}
+        reduceMotion={reduceMotion}
+        hasFilters={hasFilters}
+      />
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <CategoryHeader
         category={category}
         title={section.title}
@@ -107,20 +160,24 @@ export function CategoryDrilldownView({
       />
 
       <FlatList
-        data={section.data}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <DropReveal
-            index={index}
-            playKey={playKey}
-            reduceMotion={reduceMotion || index >= ANIMATED_ITEMS}
-            accent={style.color}
-            radius={18}
-            staggerMs={ITEM_STAGGER_MS}
-          >
-            <ReportItemCard item={item} onPress={onItemPress} />
-          </DropReveal>
-        )}
+        data={filteredItems}
+        keyExtractor={handleKeyExtractor}
+        renderItem={handleRenderItem}
+        ListHeaderComponent={
+          <>
+            <ReportDataNotice isLoading={isLoading} hasError={hasError} />
+            <ReportFilters
+              searchQuery={searchQuery}
+              period={period}
+              visibleCount={filteredItems.length}
+              totalCount={section.data.length}
+              hasFilters={hasFilters}
+              onChangeSearch={changeSearch}
+              onChangePeriod={changePeriod}
+              onReset={resetFilters}
+            />
+          </>
+        }
         ItemSeparatorComponent={ItemSeparator}
         refreshControl={
           <RefreshControl
@@ -130,12 +187,10 @@ export function CategoryDrilldownView({
             enabled={isOnline}
           />
         }
-        contentContainerStyle={[styles.list, section.data.length === 0 && styles.listEmpty]}
-        ListEmptyComponent={
-          isLoading ? null : (
-            <EmptyCategoryState category={category} isOnline={isOnline} reduceMotion={reduceMotion} />
-          )
-        }
+        contentContainerStyle={[styles.list, isEmpty && styles.listEmpty]}
+        ListEmptyComponent={emptyState}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
@@ -143,7 +198,7 @@ export function CategoryDrilldownView({
 }
 
 const styles = StyleSheet.create({
-  safe: {
+  container: {
     flex: 1,
     backgroundColor: colors.gray100,
   },
