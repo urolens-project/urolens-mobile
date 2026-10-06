@@ -1,10 +1,24 @@
 import { useCallback, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 
-import { colors, spacing } from '@src/theme';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { colors, spacing, typography } from '@src/theme';
+
+import { OfflineBanner } from '@components/OfflineBanner';
 
 import { useManualOverride } from '../hooks/useManualOverride';
+import { useOverrideContext } from '../hooks/useOverrideContext';
+import { getOverrideValidationError, parseOverrideCount } from '../lib/overrideValidation';
 import { OverrideFormTitleBar } from './OverrideFormTitleBar';
 import { OverrideFormFields } from './OverrideFormFields';
 import { OverrideFormActions } from './OverrideFormActions';
@@ -13,104 +27,146 @@ export interface OverrideEntryFormProps {
   resultId: string;
   specimenId: string;
   parameter: string;
-  originalAiValue: number;
 }
 
 /**
- * @description Form for a medtech to manually correct one AI-reported parameter value,
- * preserving the original AI value and requiring a rationale for the correction.
- * @param resultId - Server id of the analysis result being corrected.
- * @param specimenId - Local specimen id, used to navigate back to the sample detail screen.
- * @param parameter - Machine name of the parameter being overridden (e.g. "RBC").
- * @param originalAiValue - The AI-reported value, shown read-only for reference.
+ * @description Corrects one particle count while preserving the stored AI finding and returning to the result only after saving.
+ * @param props - Server result, local specimen and original AI parameter identifiers.
  */
 export function OverrideEntryForm({
   resultId,
   specimenId,
   parameter,
-  originalAiValue,
 }: OverrideEntryFormProps): React.JSX.Element {
-  // 1. Store / service hooks
+  const { isOnline } = useNetworkStatus();
   const { isSubmitting, error, submitOverride } = useManualOverride();
-
-  // 3. State & derived
+  const { context, isLoading, error: contextError } = useOverrideContext(resultId, parameter);
   const [correctedValue, setCorrectedValue] = useState('');
   const [rationale, setRationale] = useState('');
-  const correctedNum = parseFloat(correctedValue);
-  const isValid =
-    correctedValue.trim().length > 0 &&
-    !isNaN(correctedNum) &&
-    correctedNum >= 0 &&
-    rationale.trim().length > 0;
+  const correctedNum = parseOverrideCount(correctedValue);
+  const validationError = getOverrideValidationError(correctedNum, rationale, context.currentValue);
+  const isValid = !validationError && context.canEdit && !!specimenId;
+  const isDirty = correctedValue.length > 0 || rationale.length > 0;
+  const isEditable = context.canEdit && !isSubmitting && !contextError;
+  const originalAiValue = context.originalAiValue;
 
-  // 6. Handlers
+  const returnToResult = useCallback((): void => {
+    if (!specimenId) {
+      router.replace('/(medtech)/queue');
+      return;
+    }
+    router.replace({ pathname: '/(medtech)/sample/[id]', params: { id: specimenId, resultId } });
+  }, [specimenId, resultId]);
   const handleSubmit = useCallback(async (): Promise<void> => {
-    if (!isValid || isSubmitting) return;
+    if (!isValid || isSubmitting || correctedNum === null || originalAiValue === null) return;
     const success = await submitOverride(resultId, {
       parameter,
       originalAiValue,
       correctedValue: correctedNum,
       rationale: rationale.trim(),
     });
-    if (success) {
-      router.replace({
-        pathname: '/(medtech)/sample/[id]',
-        params: { id: specimenId, resultId },
-      });
-    }
-  }, [isValid, isSubmitting, submitOverride, resultId, parameter, originalAiValue, correctedNum, rationale, specimenId]);
-
+    if (!success) return;
+    if (!isOnline)
+      Alert.alert(
+        'Override queued',
+        'Your correction is saved on this device and will be submitted when it syncs.',
+      );
+    returnToResult();
+  }, [
+    isValid,
+    isSubmitting,
+    correctedNum,
+    originalAiValue,
+    resultId,
+    parameter,
+    rationale,
+    submitOverride,
+    isOnline,
+    returnToResult,
+  ]);
   const handleCancel = useCallback((): void => {
-    router.replace({
-      pathname: '/(medtech)/sample/[id]',
-      params: { id: specimenId, resultId },
-    });
-  }, [specimenId, resultId]);
+    if (isSubmitting) return;
+    if (!isDirty) {
+      returnToResult();
+      return;
+    }
+    Alert.alert('Unsaved correction', 'Leave without saving this correction?', [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard changes', style: 'destructive', onPress: returnToResult },
+    ]);
+  }, [isSubmitting, isDirty, returnToResult]);
+
+  let blockedMessage = contextError;
+  if (!blockedMessage && !isLoading && originalAiValue === null)
+    blockedMessage = 'The original AI finding is unavailable. Return to the result and retry.';
+  if (!blockedMessage && !specimenId)
+    blockedMessage = 'The sample identifier is missing. Return to the queue and reopen the result.';
 
   return (
-    <View style={styles.flex}>
-      <OverrideFormTitleBar parameter={parameter} onBack={handleCancel} />
-
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+    <View style={styles.container}>
+      {!isOnline && <OfflineBanner />}
+      <OverrideFormTitleBar
+        parameter={parameter}
+        onBack={handleCancel}
+        isSubmitting={isSubmitting}
+      />
+      {isLoading && (
+        <ActivityIndicator accessibilityLabel="Loading original AI finding" color={colors.teal} />
+      )}
+      {blockedMessage && (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {blockedMessage}
+        </Text>
+      )}
+      {!isLoading && !blockedMessage && originalAiValue !== null && (
+        <KeyboardAvoidingView
+          style={styles.content}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <OverrideFormFields
-            originalAiValue={originalAiValue}
-            correctedValue={correctedValue}
-            onCorrectedValueChange={setCorrectedValue}
-            rationale={rationale}
-            onRationaleChange={setRationale}
-          />
-          <OverrideFormActions
-            originalAiValue={originalAiValue}
-            error={error}
-            isValid={isValid}
-            isSubmitting={isSubmitting}
-            onSubmit={handleSubmit}
-            onCancel={handleCancel}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <ScrollView
+            contentContainerStyle={styles.fields}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {!context.canEdit && (
+              <Text accessibilityRole="alert" style={styles.error}>
+                This result is no longer editable. Return to the result to see its current status.
+              </Text>
+            )}
+            <OverrideFormFields
+              originalAiValue={originalAiValue}
+              currentValue={context.currentValue}
+              correctedValue={correctedValue}
+              onCorrectedValueChange={setCorrectedValue}
+              rationale={rationale}
+              onRationaleChange={setRationale}
+              isEditable={isEditable}
+            />
+            <OverrideFormActions
+              originalAiValue={originalAiValue}
+              error={error}
+              validationError={isDirty && context.canEdit ? validationError : null}
+              isValid={isValid && !contextError}
+              isSubmitting={isSubmitting}
+              isOnline={isOnline}
+              onSubmit={handleSubmit}
+              onCancel={handleCancel}
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.cream,
-  },
-  content: {
+  container: { flex: 1, backgroundColor: colors.cream },
+  content: { flex: 1 },
+  fields: {
     padding: spacing.lg,
     paddingTop: spacing.xxl,
     gap: spacing.lg,
     paddingBottom: spacing.jumbo,
   },
+  error: { ...typography.body, color: colors.red700, padding: spacing.lg },
 });

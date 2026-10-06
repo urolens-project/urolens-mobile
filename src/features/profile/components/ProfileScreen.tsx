@@ -44,7 +44,7 @@ export function ProfileScreen(): React.JSX.Element {
 
         <TouchableOpacity
           style={styles.logoutBtn}
-          onPress={logout}
+          onPress={() => void logout()}
           accessibilityLabel="Log out"
           accessibilityRole="button"
         >

@@ -1,80 +1,67 @@
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { colors, radius, spacing } from '@src/theme';
+import { colors, radius, spacing, typography } from '@src/theme';
 
 export interface ResultReviewActionBarProps {
   bottomInset: number;
   isOnline: boolean;
   isConfirmed: boolean;
   isConfirming: boolean;
+  isReturned?: boolean;
   onRetake: () => void;
   onConfirm: () => void;
   onContinue: () => void;
 }
 
 /**
- * @description Result review's floating bottom bar: Retake plus either Continue (once
- * confirmed) or Confirm/Queue Confirmation (while awaiting confirmation).
- * @param bottomInset - Safe-area bottom inset added to the bar's bottom padding.
- * @param isOnline - Swaps the confirm label between "Confirm Result" and "Queue Confirmation".
- * @param isConfirmed - Shows Continue instead of the confirm action once true.
- * @param isConfirming - Disables the confirm button and shows its running-diagnosis state.
- * @param onRetake - Starts the retake-image flow.
- * @param onConfirm - Confirms the result (or queues the confirmation while offline).
- * @param onContinue - Navigates back to sample detail once confirmed.
+ * @description Offers review actions only while editable, and distinguishes resubmission from first confirmation.
+ * @param props - Connectivity, result stage and guarded action handlers.
  */
 export function ResultReviewActionBar({
   bottomInset,
   isOnline,
   isConfirmed,
   isConfirming,
+  isReturned = false,
   onRetake,
   onConfirm,
   onContinue,
 }: ResultReviewActionBarProps): React.JSX.Element {
+  let confirmLabel = isOnline ? 'Confirm Result' : 'Queue Confirmation';
+  if (isReturned) confirmLabel = 'Re-confirm & Submit';
+  if (isConfirming) confirmLabel = 'Saving & submitting…';
   return (
-    <View style={[styles.actionBar, { paddingBottom: bottomInset + spacing.lg }]}>
-      <TouchableOpacity
-        style={styles.retakeButton}
-        onPress={onRetake}
-        accessible={true}
-        accessibilityLabel="Retake image"
-        accessibilityRole="button"
-      >
-        <Text style={styles.retakeButtonText}>Retake Image</Text>
-      </TouchableOpacity>
-
+    <View style={[styles.container, { paddingBottom: bottomInset + spacing.lg }]}>
+      {!isConfirmed && (
+        <TouchableOpacity
+          style={styles.retakeButton}
+          onPress={onRetake}
+          disabled={isConfirming}
+          accessibilityLabel="Retake image"
+          accessibilityRole="button"
+        >
+          <Text style={styles.retakeText}>Retake Image</Text>
+        </TouchableOpacity>
+      )}
       {isConfirmed ? (
         <TouchableOpacity
           style={styles.confirmButton}
           onPress={onContinue}
-          accessible={true}
-          accessibilityLabel="Continue to sample detail"
+          accessibilityLabel="Back to Confirmation Queue"
           accessibilityRole="button"
         >
-          <Text style={styles.confirmButtonText}>Continue</Text>
+          <Text style={styles.confirmText}>Continue</Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
           style={[styles.confirmButton, isConfirming && styles.confirmButtonBusy]}
           onPress={onConfirm}
           disabled={isConfirming}
-          accessible={true}
-          accessibilityLabel={
-            isConfirming ? 'Running diagnosis' : isOnline ? 'Confirm Result' : 'Queue Confirmation'
-          }
+          accessibilityLabel={confirmLabel}
           accessibilityRole="button"
         >
-          {isConfirming ? (
-            <View style={styles.confirmingRow}>
-              <ActivityIndicator size="small" color={colors.white} />
-              <Text style={styles.confirmButtonText}>Running diagnosis...</Text>
-            </View>
-          ) : (
-            <Text style={styles.confirmButtonText}>
-              {isOnline ? 'Confirm Result' : 'Queue Confirmation'}
-            </Text>
-          )}
+          {isConfirming && <ActivityIndicator size="small" color={colors.white} />}
+          <Text style={styles.confirmText}>{confirmLabel}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -82,52 +69,33 @@ export function ResultReviewActionBar({
 }
 
 const styles = StyleSheet.create({
-  actionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  container: {
     flexDirection: 'row',
     gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    padding: spacing.lg,
     backgroundColor: colors.white,
-    borderTopWidth: 0.5,
-    // TODO(theme): near-black hairline at 0.1 alpha not in palette.
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.gray200,
   },
   retakeButton: {
     flex: 1,
-    paddingVertical: spacing.mlg,
+    padding: spacing.mlg,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.gray300,
     alignItems: 'center',
-    backgroundColor: colors.white,
   },
-  retakeButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: colors.gray700,
-  },
+  retakeText: { ...typography.subtitle, color: colors.gray700 },
   confirmButton: {
     flex: 2,
-    paddingVertical: spacing.mlg,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.mlg,
     borderRadius: radius.lg,
+    justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.teal,
   },
-  confirmButtonBusy: {
-    opacity: 0.75,
-  },
-  confirmingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  confirmButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.white,
-  },
+  confirmButtonBusy: { opacity: 0.75 },
+  confirmText: { ...typography.label, color: colors.white },
 });

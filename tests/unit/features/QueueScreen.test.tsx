@@ -1,14 +1,17 @@
 import React from 'react';
 import { Animated } from 'react-native';
-import { render, fireEvent, within } from '@testing-library/react-native';
+import { useRouter } from 'expo-router';
+import { act, render, fireEvent, within } from '@testing-library/react-native';
 import QueueScreen from '../../../app/(medtech)/queue';
 import { useQueue } from '@features/queue/hooks/useQueue';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { useFailedActionCount } from '@hooks/useFailedActionCount';
 import { useSyncStatus } from '@hooks/useSyncStatus';
 import type { QueueItem } from '@features/queue/types';
 
+const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: jest.fn(),
   useFocusEffect: jest.fn(),
 }));
 jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
@@ -19,8 +22,9 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('@features/queue/hooks/useQueue', () => ({ useQueue: jest.fn() }));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
 jest.mock('@hooks/useSyncStatus', () => ({ useSyncStatus: jest.fn() }));
+jest.mock('@hooks/useFailedActionCount', () => ({ useFailedActionCount: jest.fn(() => 0) }));
 jest.mock('@lib/auth/authStore', () => ({
-  useAuthStore: jest.fn(() => ({ username: 'medtech' })),
+  useUsername: jest.fn(() => 'medtech'),
 }));
 
 const item = (id: string, overrides: Partial<QueueItem> = {}): QueueItem => ({
@@ -53,6 +57,12 @@ function setQueue(items: QueueItem[], allItems: QueueItem[] = items) {
     refresh: jest.fn(),
     isRefreshing: false,
     lastSyncAt: 1,
+    error: null,
+    page: 1,
+    pageCount: 1,
+    totalItems: items.length,
+    nextPage: jest.fn(),
+    previousPage: jest.fn(),
   });
 }
 
@@ -62,14 +72,15 @@ function setQueue(items: QueueItem[], allItems: QueueItem[] = items) {
 type Screen = ReturnType<typeof render>;
 const listOf = (view: Screen) => view.UNSAFE_root.findByType('FlatList' as never);
 
-// The card is rendered in its own tree, so query the screen through its own handle.
-function tapCard(view: Screen, target: QueueItem) {
-  const card = render(listOf(view).props.renderItem({ item: target }));
-  fireEvent.press(card.getByRole('button'));
+// FlatList is a host stub; invoke the row's public selection callback in this screen's tree.
+function tapCard(view: Screen, target: QueueItem): void {
+  const row = listOf(view).props.renderItem({ item: target, index: 0 });
+  act((): void => row.props.onPress(target.id));
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (useRouter as jest.Mock).mockReturnValue({ push: mockPush });
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
   (useSyncStatus as jest.Mock).mockReturnValue({ state: 'succeeded', lastSuccessAt: 1 });
 });
@@ -95,6 +106,23 @@ describe('the preview bar shown when a sample is selected', () => {
 });
 
 describe('the Proceed / Continue button', () => {
+  it.each(['ASSIGNED', 'PROCESSING', 'RETURNED'] as const)(
+    'opens details for %s work',
+    (status): void => {
+      const sample = item('A', {
+        status: status === 'RETURNED' ? 'ASSIGNED' : status,
+        isReturnedForCorrection: status === 'RETURNED',
+      });
+      setQueue([sample]);
+      const view = render(<QueueScreen />);
+      tapCard(view, sample);
+      fireEvent.press(view.getByText(status === 'ASSIGNED' ? 'Proceed to Analysis' : 'Continue'));
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/(medtech)/sample/[id]',
+        params: { id: 'A' },
+      });
+    },
+  );
   it('says "Proceed to Analysis" for an assigned sample', () => {
     const sample = item('A', { status: 'ASSIGNED' });
     setQueue([sample]);
@@ -179,6 +207,22 @@ describe('the fixed header of the Queue', () => {
 });
 
 describe('the list header of the Queue', () => {
+  it('shows an error instead of a clear queue after a background sync failure', (): void => {
+    setQueue([]);
+    (useSyncStatus as jest.Mock).mockReturnValue({ state: 'failed', lastSuccessAt: null });
+    const view = render(<QueueScreen />);
+    const empty = render(listOf(view).props.ListEmptyComponent);
+    expect(empty.getByText('Couldn’t load queue')).toBeTruthy();
+    expect(empty.queryByText('You’re all caught up')).toBeNull();
+  });
+
+  it('shows loading while a background sync is still populating an empty cache', (): void => {
+    setQueue([]);
+    (useSyncStatus as jest.Mock).mockReturnValue({ state: 'syncing', lastSuccessAt: null });
+    const view = render(<QueueScreen />);
+    const empty = render(listOf(view).props.ListEmptyComponent);
+    expect(empty.getByText('Loading your queue…')).toBeTruthy();
+  });
   // The list header (stats, status pill) is a prop of the FlatList stub; render it directly.
   const headerOf = (view: Screen) => render(listOf(view).props.ListHeaderComponent);
   const statValue = (header: Screen, label: string) =>
@@ -234,6 +278,24 @@ describe('the list header of the Queue', () => {
     (useSyncStatus as jest.Mock).mockReturnValue(sync);
     setQueue([item('A')]);
     expect(headerOf(render(<QueueScreen />)).getByText(text)).toBeTruthy();
+  });
+});
+
+describe('changes the server refused (UROLENS-220)', () => {
+  const headerOf = (view: Screen) => render(listOf(view).props.ListHeaderComponent);
+
+  afterEach(() => {
+    (useFailedActionCount as jest.Mock).mockReturnValue(0);
+  });
+
+  it('warns on the status pill and points to Profile', () => {
+    (useFailedActionCount as jest.Mock).mockReturnValue(2);
+    setQueue([item('A')]);
+
+    const header = headerOf(render(<QueueScreen />));
+
+    expect(header.getByText("2 changes couldn't be sent • See Profile")).toBeTruthy();
+    expect(header.queryByText('Online • Queue Synchronized')).toBeNull();
   });
 });
 

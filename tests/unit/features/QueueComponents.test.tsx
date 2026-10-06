@@ -131,8 +131,8 @@ describe('QueueEmptyState', () => {
 
   it('says the queue is clear when there is nothing at all', () => {
     const view = render(<QueueEmptyState isOnline filter="ALL" reduceMotion />);
-    expect(view.getByText('Queue is clear')).toBeTruthy();
-    expect(view.getByText('No samples are currently assigned to you.')).toBeTruthy();
+    expect(view.getByText('You’re all caught up')).toBeTruthy();
+    expect(view.getByText('No samples are currently waiting on you.')).toBeTruthy();
   });
 });
 

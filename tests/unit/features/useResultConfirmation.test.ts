@@ -30,9 +30,9 @@ jest.mock('@db/sync/syncManager', () => ({
 }));
 
 const mockObserve = jest.fn();
-const mockQuery   = jest.fn(() => ({ observe: mockObserve }));
-const mockCreate  = jest.fn();
-const mockUpdate  = jest.fn();
+const mockQuery = jest.fn(() => ({ observeWithColumns: mockObserve }));
+const mockCreate = jest.fn();
+const mockUpdate = jest.fn();
 
 const mockResult = {
   serverId: 'result-123',
@@ -41,7 +41,9 @@ const mockResult = {
   smartDiagnosisJson: null,
   smartDiagnosisUnavailable: false,
   isConfirmed: false,
-  get aiFindings() { return JSON.parse(this.aiFindingsJson); },
+  get aiFindings() {
+    return JSON.parse(this.aiFindingsJson);
+  },
   update: mockUpdate,
 };
 
@@ -49,12 +51,19 @@ const mockPendingSyncTable = { create: mockCreate };
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockResult.status = 'PENDING_CONFIRM';
+  mockResult.aiFindingsJson = JSON.stringify({ rbc: 3, wbc: 12, bacteria: 1 });
   (database.get as jest.Mock).mockImplementation((table: string) => {
     if (table === 'analysis_results') return { query: mockQuery };
-    if (table === 'pending_sync')    return mockPendingSyncTable;
+    if (table === 'pending_sync') return mockPendingSyncTable;
     return {};
   });
-  mockObserve.mockReturnValue({ subscribe: (cb: Function) => { cb([mockResult]); return { unsubscribe: jest.fn() }; } });
+  mockObserve.mockReturnValue({
+    subscribe: (cb: Function) => {
+      cb([mockResult]);
+      return { unsubscribe: jest.fn() };
+    },
+  });
   mockUpdate.mockImplementation(async (fn: Function) => fn(mockResult));
 });
 
@@ -71,36 +80,68 @@ describe('useResultConfirmation', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
+    it('re-renders when sync mutates the same model instance', () => {
+      let emit!: (rows: (typeof mockResult)[]) => void;
+      mockObserve.mockReturnValue({
+        subscribe: (callback: typeof emit) => {
+          emit = callback;
+          callback([mockResult]);
+          return { unsubscribe: jest.fn() };
+        },
+      });
+      const { result } = renderHook(() => useResultConfirmation('result-123'));
+      act(() => {
+        mockResult.status = 'RETURNED_FOR_CORRECTION';
+        mockResult.aiFindingsJson = JSON.stringify({ wbc: 8 });
+        emit([mockResult]);
+      });
+      expect(result.current.result?.status).toBe('RETURNED_FOR_CORRECTION');
+      expect(result.current.aiFindings).toEqual([
+        { parameter: 'wbc', count: 8, isAnomalous: true },
+      ]);
+      expect(mockObserve).toHaveBeenCalledWith(
+        expect.arrayContaining(['status', 'ai_findings_json']),
+      );
+    });
+
     it('derives aiFindings correctly with anomaly flags', () => {
       const { result } = renderHook(() => useResultConfirmation('result-123'));
       const findings = result.current.aiFindings;
       expect(findings).toHaveLength(3);
-      expect(findings.find(f => f.parameter === 'wbc')?.isAnomalous).toBe(true);
-      expect(findings.find(f => f.parameter === 'rbc')?.isAnomalous).toBe(false);
+      expect(findings.find((f) => f.parameter === 'wbc')?.isAnomalous).toBe(true);
+      expect(findings.find((f) => f.parameter === 'rbc')?.isAnomalous).toBe(false);
     });
 
     it('calls POST /results/{id}/confirm when online', async () => {
       const { result } = renderHook(() => useResultConfirmation('result-123'));
-      await act(async () => { await result.current.confirmResult(); });
+      await act(async () => {
+        await result.current.confirmResult();
+      });
       expect(apiClient.post).toHaveBeenCalledWith('/results/result-123/confirm', {});
     });
 
     it('updates local status optimistically after confirm', async () => {
       const { result } = renderHook(() => useResultConfirmation('result-123'));
-      await act(async () => { await result.current.confirmResult(); });
+      await act(async () => {
+        await result.current.confirmResult();
+      });
       expect(mockUpdate).toHaveBeenCalled();
     });
 
     it('does not create a pending_sync row when online', async () => {
       const { result } = renderHook(() => useResultConfirmation('result-123'));
-      await act(async () => { await result.current.confirmResult(); });
+      await act(async () => {
+        await result.current.confirmResult();
+      });
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
     it('sets error state when API call fails', async () => {
       (apiClient.post as jest.Mock).mockRejectedValue(new Error('Network error'));
       const { result } = renderHook(() => useResultConfirmation('result-123'));
-      await act(async () => { await result.current.confirmResult(); });
+      await act(async () => {
+        await result.current.confirmResult();
+      });
       expect(result.current.error).toBe('Network error');
     });
   });
@@ -112,13 +153,17 @@ describe('useResultConfirmation', () => {
 
     it('does not call the API when offline', async () => {
       const { result } = renderHook(() => useResultConfirmation('result-123'));
-      await act(async () => { await result.current.confirmResult(); });
+      await act(async () => {
+        await result.current.confirmResult();
+      });
       expect(apiClient.post).not.toHaveBeenCalled();
     });
 
     it('creates a pending_sync row with CONFIRM_RESULT action', async () => {
       const { result } = renderHook(() => useResultConfirmation('result-123'));
-      await act(async () => { await result.current.confirmResult(); });
+      await act(async () => {
+        await result.current.confirmResult();
+      });
 
       expect(mockCreate).toHaveBeenCalledTimes(1);
       const createFn = mockCreate.mock.calls[0][0];
@@ -131,7 +176,9 @@ describe('useResultConfirmation', () => {
 
     it('still updates local status optimistically when offline', async () => {
       const { result } = renderHook(() => useResultConfirmation('result-123'));
-      await act(async () => { await result.current.confirmResult(); });
+      await act(async () => {
+        await result.current.confirmResult();
+      });
       expect(mockUpdate).toHaveBeenCalled();
     });
 
