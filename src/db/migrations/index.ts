@@ -114,7 +114,35 @@ export default schemaMigrations({
         // The server always sends patient_name as "" now (RA 10173 data minimization —
         // the app shows only the patient code) — see sync_service.py's pull(). Nothing
         // reads this column locally; drop it rather than keep storing an always-empty field.
-        unsafeExecuteSql('ALTER TABLE specimens DROP COLUMN patient_name;'),
+        //
+        // Can't use `ALTER TABLE ... DROP COLUMN` here — that syntax needs SQLite
+        // 3.35+, and Android's bundled SQLite on many devices is older, so it fails
+        // with "near DROP: syntax error" and WatermelonDB refuses to open the DB.
+        // Rebuild the table instead (rename → recreate → copy → drop), the
+        // long-standing SQLite-safe way to drop a column.
+        unsafeExecuteSql('ALTER TABLE specimens RENAME TO _specimens_old;'),
+        unsafeExecuteSql(
+          `CREATE TABLE specimens ("id" primary key, "_changed", "_status",
+            "server_id", "sample_uid", "patient_uid", "test_type", "status",
+            "priority_level", "received_at", "assigned_at", "completed_at",
+            "medtech_id", "rejection_reason", "rejection_note", "rejected_at",
+            "synced_at");`,
+        ),
+        unsafeExecuteSql(
+          `INSERT INTO specimens ("id", "_changed", "_status", "server_id",
+            "sample_uid", "patient_uid", "test_type", "status", "priority_level",
+            "received_at", "assigned_at", "completed_at", "medtech_id",
+            "rejection_reason", "rejection_note", "rejected_at", "synced_at")
+          SELECT "id", "_changed", "_status", "server_id", "sample_uid",
+            "patient_uid", "test_type", "status", "priority_level", "received_at",
+            "assigned_at", "completed_at", "medtech_id", "rejection_reason",
+            "rejection_note", "rejected_at", "synced_at"
+          FROM _specimens_old;`,
+        ),
+        unsafeExecuteSql('DROP TABLE _specimens_old;'),
+        unsafeExecuteSql(
+          'create index if not exists "specimens__status" on "specimens" ("_status");',
+        ),
       ],
     },
   ],
