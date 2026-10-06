@@ -39,10 +39,13 @@ export const authApi = {
   },
 
   /**
-   * @description Invalidates the current session on the backend.
+   * @description Invalidates the current session on the backend. Recorded as a timeout
+   * rather than a manual logout when `reason` is given — a manual logout also stops
+   * pushes to this device, an inactivity sign-out doesn't.
+   * @param reason - `"INACTIVITY"` when the app is signing the medtech out for being idle.
    * @param signal - Aborts the request if the caller no longer needs the result.
    */
-  async logout(signal?: AbortSignal): Promise<void> {
-    await apiClient.post('/auth/logout', undefined, { signal });
+  async logout(reason?: 'INACTIVITY', signal?: AbortSignal): Promise<void> {
+    await apiClient.post('/auth/logout', reason ? { reason } : undefined, { signal });
   },
 };

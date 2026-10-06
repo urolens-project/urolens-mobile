@@ -16,9 +16,11 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { alertsApi } from '../api/alertsApi';
+import { DEFAULT_NOTIFICATIONS_PAGE_SIZE } from '../constants/alerts.constant';
 import { useOpenNotification } from '../hooks/useOpenNotification';
 import { groupNotificationsByDate } from '../lib/groupByDate';
 import {
+  loadMoreNotifications,
   loadNotifications,
   useNotificationsActions,
   useNotificationsList,
@@ -39,7 +41,19 @@ export function AlertsScreen(): React.JSX.Element {
   const hasLoadedOnce = useNotificationsLoaded();
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
-  const { run: refetch, isLoading, error } = useAsyncAction('Alerts', loadNotifications);
+  const fetchPage = useCallback(
+    (signal: AbortSignal): Promise<void> =>
+      loadNotifications(signal, showUnreadOnly ? { unreadOnly: true } : undefined),
+    [showUnreadOnly],
+  );
+  const { run: refetch, isLoading, error } = useAsyncAction('Alerts', fetchPage);
+  const { run: fetchMore, isLoading: isLoadingMore } = useAsyncAction(
+    'Alerts',
+    useCallback(
+      (_signal: AbortSignal, beforeId: string) => loadMoreNotifications(beforeId, showUnreadOnly),
+      [showUnreadOnly],
+    ),
+  );
 
   useEffect(() => {
     void refetch();
@@ -48,6 +62,11 @@ export function AlertsScreen(): React.JSX.Element {
   const handleRefresh = useCallback((): void => {
     void refetch();
   }, [refetch]);
+
+  const handleLoadMore = useCallback((): void => {
+    const oldestId = notifications[notifications.length - 1]?.notificationId;
+    if (oldestId) void fetchMore(oldestId);
+  }, [notifications, fetchMore]);
 
   const handleToggleUnreadOnly = useCallback((): void => {
     setShowUnreadOnly((prev) => !prev);
@@ -65,6 +84,10 @@ export function AlertsScreen(): React.JSX.Element {
     ? notifications.filter((n) => !n.isRead)
     : notifications;
   const sections = groupNotificationsByDate(visibleNotifications);
+  // A full page might mean there's another one; the loaded count only ever grows by whole
+  // pages (loadMore appends, never trims), so this stays accurate across "load more" taps.
+  const hasMore =
+    notifications.length > 0 && notifications.length % DEFAULT_NOTIFICATIONS_PAGE_SIZE === 0;
 
   if (isLoading && !hasLoadedOnce) {
     return (
@@ -111,6 +134,21 @@ export function AlertsScreen(): React.JSX.Element {
           }
           contentContainerStyle={
             visibleNotifications.length === 0 ? styles.emptyContainer : styles.listContent
+          }
+          ListFooterComponent={
+            hasMore ? (
+              <Pressable
+                style={styles.loadMoreBtn}
+                onPress={handleLoadMore}
+                disabled={isLoadingMore}
+              >
+                {isLoadingMore ? (
+                  <ActivityIndicator color={colors.teal} />
+                ) : (
+                  <Text style={styles.loadMoreText}>Load more</Text>
+                )}
+              </Pressable>
+            ) : null
           }
           ListEmptyComponent={
             <View style={styles.centered}>
@@ -161,4 +199,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.teal,
   },
   retryText: { ...typography.bodyLg, color: colors.white, fontWeight: fontWeight.semibold },
+  loadMoreBtn: {
+    marginVertical: spacing.lg,
+    marginHorizontal: spacing.xl,
+    paddingVertical: spacing.mlg,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+  },
+  loadMoreText: { ...typography.bodyLg, color: colors.teal, fontWeight: fontWeight.semibold },
 });

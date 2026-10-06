@@ -1,12 +1,21 @@
-import { useCallback } from 'react';
-import { View, FlatList, Text, RefreshControl, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  FlatList,
+  Text,
+  RefreshControl,
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+} from 'react-native';
 import type { ListRenderItemInfo } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, radius, spacing, typography } from '@src/theme';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { DropReveal } from '@components/DropReveal';
 
+import { reportsApi } from '../api/reportsApi';
 import { CategoryHeader } from './CategoryHeader';
 import { ReportItemCard } from './ReportItemCard';
 import { ReportIllustration } from './ReportIllustration';
@@ -15,7 +24,13 @@ import { ReportDataNotice } from './ReportDataNotice';
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import { REPORT_ANIMATED_ITEMS, REPORT_ITEM_STAGGER_MS } from '../constants/reportHistory.constant';
 import { useReportFilters } from '../hooks/useReportFilters';
-import type { ReportCategory, ReportItem, ReportSection } from '../types';
+import { mapHistoryItemToReportItem } from '../mappers/reportHistory.mapper';
+import type { HistoryReportCategory, ReportCategory, ReportItem, ReportSection } from '../types';
+
+/** GET /results/medtech/history has no ESCALATED category — see HistoryReportCategory. */
+function isHistoryEligible(category: ReportCategory): category is HistoryReportCategory {
+  return category !== 'ESCALATED';
+}
 
 interface EmptyCategoryStateProps {
   category: ReportCategory;
@@ -108,6 +123,37 @@ export function CategoryDrilldownView({
   onBack,
   onItemPress,
 }: CategoryDrilldownViewProps): React.JSX.Element {
+  const [historyItems, setHistoryItems] = useState<ReportItem[]>([]);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyTotal, setHistoryTotal] = useState<number | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Reset paged-in history when the category changes (a fresh mount, since ReportsScreen
+  // keys this component by category) or the local section is replaced by a sync.
+  useEffect(() => {
+    setHistoryItems([]);
+    setHistoryPage(0);
+    setHistoryTotal(null);
+  }, [category]);
+
+  const handleLoadOlder = useCallback((): void => {
+    if (!isHistoryEligible(category) || isLoadingHistory) return;
+    setIsLoadingHistory(true);
+    const nextPage = historyPage + 1;
+    reportsApi
+      .getHistory(category, nextPage)
+      .then((response) => {
+        setHistoryItems((prev) => [...prev, ...response.items.map(mapHistoryItemToReportItem)]);
+        setHistoryTotal(response.total);
+        setHistoryPage(nextPage);
+      })
+      .catch((err: unknown) => console.error('[Reports] failed to load older history', err))
+      .finally(() => setIsLoadingHistory(false));
+  }, [category, historyPage, isLoadingHistory]);
+
+  const allItems = historyItems.length > 0 ? [...section.data, ...historyItems] : section.data;
+  const hasMoreHistory =
+    isHistoryEligible(category) && (historyTotal === null || historyItems.length < historyTotal);
   const {
     searchQuery,
     period,
@@ -116,7 +162,7 @@ export function CategoryDrilldownView({
     changeSearch,
     changePeriod,
     resetFilters,
-  } = useReportFilters(section.data);
+  } = useReportFilters(allItems);
   const style = REPORT_CATEGORY_STYLES[category];
   const isEmpty = filteredItems.length === 0;
   const handleKeyExtractor = useCallback((item: ReportItem): string => item.id, []);
@@ -179,6 +225,23 @@ export function CategoryDrilldownView({
           </>
         }
         ItemSeparatorComponent={ItemSeparator}
+        ListFooterComponent={
+          isOnline && hasMoreHistory && !isEmpty ? (
+            <Pressable
+              style={styles.loadOlderBtn}
+              onPress={handleLoadOlder}
+              disabled={isLoadingHistory}
+            >
+              {isLoadingHistory ? (
+                <ActivityIndicator color={style.color} />
+              ) : (
+                <Text style={[styles.loadOlderText, { color: style.color }]}>
+                  Load older samples
+                </Text>
+              )}
+            </Pressable>
+          ) : null
+        }
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -231,5 +294,18 @@ const styles = StyleSheet.create({
     ...typography.bodyLg,
     color: colors.gray400,
     textAlign: 'center',
+  },
+  loadOlderBtn: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+    paddingVertical: spacing.mlg,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+  },
+  loadOlderText: {
+    ...typography.bodyLg,
+    fontWeight: fontWeight.semibold,
   },
 });

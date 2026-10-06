@@ -14,7 +14,7 @@ import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
 import { colors } from '@src/theme';
 
-import { SESSION_TIMEOUT_MS } from '@features/auth/constants/sessionTimeout.constant';
+import { getSessionTiming } from '@features/auth/lib/sessionTiming';
 
 // DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
 if (__DEV__ && Platform.OS !== 'web') {
@@ -51,20 +51,20 @@ export default function RootLayout(): React.JSX.Element {
 
     const bootstrapAuth = async (): Promise<void> => {
       try {
-        const [token, userId, role, username, lastActiveAt] = await Promise.all([
+        const [token, userId, role, username, lastActiveAt, { timeoutMs }] = await Promise.all([
           tokenStorage.getToken(),
           tokenStorage.getUserId(),
           tokenStorage.getUserRole(),
           tokenStorage.getUsername(),
           tokenStorage.getLastActiveAt(),
+          getSessionTiming(),
         ]);
 
         if (!isCurrent) return;
 
         // The medtech closed (or was backgrounded past the timeout on) the app and is
         // only now reopening it — sign them out instead of silently restoring the session.
-        const wasAwayTooLong =
-          lastActiveAt !== null && Date.now() - lastActiveAt >= SESSION_TIMEOUT_MS;
+        const wasAwayTooLong = lastActiveAt !== null && Date.now() - lastActiveAt >= timeoutMs;
 
         if (token && userId && role && !wasAwayTooLong) {
           await tokenStorage.removeLastActiveAt();

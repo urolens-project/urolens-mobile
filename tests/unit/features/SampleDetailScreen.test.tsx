@@ -47,7 +47,6 @@ const makeSpecimen = (over: Row = {}): Row => ({
   id: 'spec-1',
   serverId: 'srv-spec-1',
   sampleUid: 'SMP-1',
-  patientName: 'x',
   patientUid: 'PT-1',
   testType: 'URINALYSIS_-_ROUTINE',
   status: 'ASSIGNED',

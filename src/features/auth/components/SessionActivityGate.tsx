@@ -16,7 +16,7 @@ export interface SessionActivityGateProps {
  * @param children - The authenticated app content to observe taps within.
  */
 export function SessionActivityGate({ children }: SessionActivityGateProps): React.JSX.Element {
-  const { isWarningVisible, notifyActivity } = useSessionIdleTimer();
+  const { isWarningVisible, notifyActivity, warningMinutes } = useSessionIdleTimer();
 
   return (
     <View
@@ -30,7 +30,11 @@ export function SessionActivityGate({ children }: SessionActivityGateProps): Rea
       }}
     >
       {children}
-      <SessionExpiryWarningModal visible={isWarningVisible} onStaySignedIn={notifyActivity} />
+      <SessionExpiryWarningModal
+        visible={isWarningVisible}
+        onStaySignedIn={notifyActivity}
+        warningMinutes={warningMinutes}
+      />
     </View>
   );
 }

@@ -65,7 +65,6 @@ function makeSpecimen(overrides: Partial<Record<string, unknown>> = {}) {
     id,
     serverId: `srv-${id}`,
     sampleUid: 'SAMPLE-001',
-    patientName: 'Juan Dela Cruz',
     patientUid: 'PT-001',
     testType: 'Urinalysis',
     status: 'ASSIGNED',
@@ -313,7 +312,6 @@ describe('useQueue', () => {
           makeSpecimen({
             id: 'spec-42',
             sampleUid: 'SAMPLE-042',
-            patientName: 'Maria Santos',
             status: 'IN_QUEUE',
             priorityLevel: 'NORMAL',
           }),
@@ -323,7 +321,6 @@ describe('useQueue', () => {
       const item = result.current.items[0];
       expect(item.id).toBe('spec-42');
       expect(item.sampleUid).toBe('SAMPLE-042');
-      expect(item.patientName).toBe('Maria Santos');
       expect(item.status).toBe('IN_QUEUE');
       expect(item.priorityLevel).toBe('NORMAL');
     });

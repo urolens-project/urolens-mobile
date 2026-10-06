@@ -65,5 +65,57 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 5,
+      steps: [
+        // ── specimens/analysis_results: fields needed to map and sort Reports
+        //    by their actual approve/release dates instead of confirmedAt ────
+        addColumns({
+          table: 'specimens',
+          columns: [{ name: 'completed_at', type: 'string', isOptional: true }],
+        }),
+        addColumns({
+          table: 'analysis_results',
+          columns: [
+            { name: 'approved_at', type: 'string', isOptional: true },
+            { name: 'released_at', type: 'string', isOptional: true },
+            { name: 'particle_classes_json', type: 'string', isOptional: true },
+          ],
+        }),
+
+        // One-time purge (UROLENS-235): before this version, pullChanges never
+        // processed the server's deleted list, so a finished sample that aged
+        // out of the 30-day history window could linger on the phone
+        // indefinitely. Drop anything already past that window, plus the
+        // rows that reference it — new installs never accumulate this, and
+        // going forward pullChanges removes aged-out rows as they happen.
+        unsafeExecuteSql(`
+          DELETE FROM specimens
+          WHERE status IN ('COMPLETED', 'REJECTED')
+            AND COALESCE(completed_at, rejected_at, received_at) < datetime('now', '-30 days');
+        `),
+        unsafeExecuteSql(`
+          DELETE FROM queue_assignments
+          WHERE specimen_id NOT IN (SELECT server_id FROM specimens WHERE server_id IS NOT NULL);
+        `),
+        unsafeExecuteSql(`
+          DELETE FROM analysis_results
+          WHERE specimen_id NOT IN (SELECT server_id FROM specimens WHERE server_id IS NOT NULL);
+        `),
+        unsafeExecuteSql(`
+          DELETE FROM manual_overrides
+          WHERE result_id NOT IN (SELECT server_id FROM analysis_results WHERE server_id IS NOT NULL);
+        `),
+      ],
+    },
+    {
+      toVersion: 6,
+      steps: [
+        // The server always sends patient_name as "" now (RA 10173 data minimization —
+        // the app shows only the patient code) — see sync_service.py's pull(). Nothing
+        // reads this column locally; drop it rather than keep storing an always-empty field.
+        unsafeExecuteSql('ALTER TABLE specimens DROP COLUMN patient_name;'),
+      ],
+    },
   ],
 });

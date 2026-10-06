@@ -13,9 +13,19 @@ import type { UploadImageResponse } from '@lib/camera/uploadImage';
  * @param specimenId - Local specimen id the result belongs to.
  * @param data - Response from the image upload endpoint.
  */
-export async function saveUploadedResult(specimenId: string, data: UploadImageResponse): Promise<void> {
+export async function saveUploadedResult(
+  specimenId: string,
+  data: UploadImageResponse,
+): Promise<void> {
   // Backend: both `id` and `resultId` equal the analysis result UUID; `imageId` is the image UUID.
-  const { id: serverResultId, imageId: uploadedImageId, status, aiFindings, smartDiagnosis } = data;
+  const {
+    id: serverResultId,
+    imageId: uploadedImageId,
+    status,
+    aiFindings,
+    smartDiagnosis,
+    smartDiagnosisUnavailable,
+  } = data;
 
   await database.write(async () => {
     const collection = database.get<AnalysisResult>('analysis_results');
@@ -39,7 +49,7 @@ export async function saveUploadedResult(specimenId: string, data: UploadImageRe
         r.status = status;
         r.aiFindingsJson = findings;
         r.smartDiagnosisJson = diagnosisJson;
-        r.smartDiagnosisUnavailable = false;
+        r.smartDiagnosisUnavailable = smartDiagnosisUnavailable;
         r.isSynced = false;
         r.syncedAt = new Date().toISOString();
       });
@@ -51,7 +61,7 @@ export async function saveUploadedResult(specimenId: string, data: UploadImageRe
         r.status = status;
         r.aiFindingsJson = findings;
         r.smartDiagnosisJson = diagnosisJson;
-        r.smartDiagnosisUnavailable = false;
+        r.smartDiagnosisUnavailable = smartDiagnosisUnavailable;
         r.isSynced = false;
         r.createdAt = Date.now();
         r.syncedAt = new Date().toISOString();

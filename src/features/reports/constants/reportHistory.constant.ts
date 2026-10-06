@@ -22,6 +22,8 @@ export const REPORT_RESULT_COLUMNS = [
   'specimen_id',
   'status',
   'confirmed_at',
+  'approved_at',
+  'released_at',
   'synced_at',
   'created_at',
 ];

@@ -12,7 +12,6 @@ export function toQueueItem(s: Specimen): QueueItem {
     id: s.id,
     serverId: s.serverId,
     sampleUid: s.sampleUid,
-    patientName: s.patientName,
     patientUid: s.patientUid,
     testType: s.testType,
     status: s.status as QueueItem['status'],

@@ -26,6 +26,12 @@ export const REPORT_CATEGORY_STYLES: Record<ReportCategory, CategoryStyle> = {
     wash: colors.amberTint3,
     blob: colors.amberTint4,
   },
+  ESCALATED: {
+    color: colors.red700,
+    tint: colors.red100,
+    wash: colors.redTint4,
+    blob: colors.red200,
+  },
   APPROVED: {
     color: colors.emerald600,
     tint: colors.emerald50,
