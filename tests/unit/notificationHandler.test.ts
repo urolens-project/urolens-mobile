@@ -31,6 +31,10 @@ jest.mock('@db/database', () => ({
   database: { get: jest.fn() },
 }));
 
+jest.mock('@features/alerts/store/notificationsStore', () => ({
+  refreshNotifications: jest.fn(() => Promise.resolve()),
+}));
+
 // Platform is already mocked in setup.ts — override per test via direct assignment
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -38,6 +42,7 @@ import { router } from 'expo-router';
 import apiClient from '@lib/apiClient';
 import { synchronize } from '@db/sync/syncManager';
 import { database } from '@db/database';
+import { refreshNotifications } from '@features/alerts/store/notificationsStore';
 
 import {
   registerForPushNotifications,
@@ -57,6 +62,7 @@ const mockApiPost = (apiClient as unknown as { post: jest.Mock }).post;
 const mockRouterPush = router.push as jest.Mock;
 const mockSynchronize = synchronize as jest.Mock;
 const mockDbGet = database.get as jest.Mock;
+const mockRefreshNotifications = refreshNotifications as jest.Mock;
 
 // Flush the microtask queue so async work inside the (un-awaited) response
 // listener callback — the specimen lookup — resolves before assertions run.
@@ -73,6 +79,7 @@ beforeEach(() => {
   mockAddNotificationResponseReceivedListener.mockReturnValue({ remove: jest.fn() });
   mockApiPost.mockResolvedValue(undefined);
   mockSynchronize.mockResolvedValue(undefined);
+  mockRefreshNotifications.mockResolvedValue(undefined);
   mockDbGet.mockReturnValue({
     query: jest.fn(() => ({ fetch: jest.fn().mockResolvedValue([]) })),
   });
@@ -171,6 +178,15 @@ describe('registerNotificationListeners', () => {
     expect(mockSynchronize).toHaveBeenCalledTimes(1);
   });
 
+  // The Alerts tab badge must update even while the app is already open and in the
+  // foreground, not just on the next app-foreground/reconnect cycle.
+  it('refreshes the notifications store when a notification is received', () => {
+    registerNotificationListeners();
+    const receivedCb = mockAddNotificationReceivedListener.mock.calls[0][0];
+    receivedCb({});
+    expect(mockRefreshNotifications).toHaveBeenCalledTimes(1);
+  });
+
   it('navigates to queue and syncs on SAMPLE_ASSIGNED tap', () => {
     registerNotificationListeners();
     const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
@@ -248,6 +264,49 @@ describe('registerNotificationListeners', () => {
 
     expect(mockDbGet).toHaveBeenCalledWith('analysis_results');
     expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-9');
+  });
+
+  // Previously fell through to the "unknown type" default (→ /alerts) because only
+  // SAMPLE_ASSIGNED and RESULT_RETURNED were switched on, so tapping one of these two
+  // push notifications never resolved to the specimen it was about.
+  it('resolves the local specimen for a RESULT_READY_FOR_REVIEW tap', async () => {
+    const mockFetch = jest.fn().mockResolvedValue([{ id: 'local-55' }]);
+    mockDbGet.mockReturnValue({ query: jest.fn(() => ({ fetch: mockFetch })) });
+
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: {
+            data: { notification_type: 'RESULT_READY_FOR_REVIEW', entity_id: 'server-xyz' },
+          },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-55');
+  });
+
+  it('resolves the local specimen for a SMART_DIAGNOSIS_UNAVAILABLE tap', async () => {
+    const mockFetch = jest.fn().mockResolvedValue([{ id: 'local-56' }]);
+    mockDbGet.mockReturnValue({ query: jest.fn(() => ({ fetch: mockFetch })) });
+
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: {
+            data: { notification_type: 'SMART_DIAGNOSIS_UNAVAILABLE', entity_id: 'server-abc' },
+          },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-56');
   });
 
   it('navigates to queue on RESULT_RETURNED tap without entity_id', async () => {

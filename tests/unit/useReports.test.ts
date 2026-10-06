@@ -34,6 +34,7 @@ import { renderHook, act } from '@testing-library/react-native';
 import { useReports } from '../../src/features/reports/hooks/useReports';
 import { database } from '../../src/db/database';
 import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
+import { synchronize } from '@db/sync/syncManager';
 import type { ReportCategory, ReportSection } from '../../src/features/reports/types';
 
 function findSection(sections: ReportSection[], category: ReportCategory): ReportSection {
@@ -75,18 +76,33 @@ function makeResult(overrides: Partial<Record<string, unknown>> = {}) {
 // fixed order, with no re-subscriptions (both effects have empty deps).
 let emitSpecimens: (rows: ReturnType<typeof makeSpecimen>[]) => void;
 let emitResults: (rows: ReturnType<typeof makeResult>[]) => void;
+let failSpecimens: (error: Error) => void;
+let failResults: (error: Error) => void;
 const mockUnsubscribe = jest.fn();
+const mockObserveWithColumns = jest.fn();
 
 function buildDbChain() {
   let subscribeCallCount = 0;
-  const mockSubscribe = jest.fn().mockImplementation((cb: (rows: unknown[]) => void) => {
-    subscribeCallCount += 1;
-    if (subscribeCallCount === 1) emitSpecimens = cb;
-    if (subscribeCallCount === 2) emitResults = cb;
-    return { unsubscribe: mockUnsubscribe };
-  });
+  const mockSubscribe = jest
+    .fn()
+    .mockImplementation((cb: (rows: unknown[]) => void, onError: (error: Error) => void) => {
+      subscribeCallCount += 1;
+      if (subscribeCallCount % 2 === 1) {
+        emitSpecimens = cb;
+        failSpecimens = onError;
+      }
+      if (subscribeCallCount % 2 === 0) {
+        emitResults = cb;
+        failResults = onError;
+      }
+      return { unsubscribe: mockUnsubscribe };
+    });
   const mockObserve = jest.fn(() => ({ subscribe: mockSubscribe }));
-  const mockQuery = jest.fn(() => ({ observe: mockObserve }));
+  mockObserveWithColumns.mockImplementation(mockObserve);
+  const mockQuery = jest.fn(() => ({
+    observe: mockObserve,
+    observeWithColumns: mockObserveWithColumns,
+  }));
   const mockGet = jest.fn(() => ({ query: mockQuery }));
   return { mockGet };
 }
@@ -96,11 +112,126 @@ beforeEach(() => {
   const { mockGet } = buildDbChain();
   (database.get as jest.Mock).mockImplementation(mockGet);
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
+  (synchronize as jest.Mock).mockResolvedValue(undefined);
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('useReports', () => {
+  it('watches status updates on existing specimens and results', (): void => {
+    renderHook(() => useReports());
+    expect(mockObserveWithColumns).toHaveBeenCalledTimes(2);
+    expect(mockObserveWithColumns).toHaveBeenNthCalledWith(
+      1,
+      expect.arrayContaining(['status', 'rejected_at']),
+    );
+    expect(mockObserveWithColumns).toHaveBeenNthCalledWith(
+      2,
+      expect.arrayContaining(['status', 'confirmed_at']),
+    );
+  });
+
+  it('keeps a rejected sample only in Rejected even when its result was released', async (): Promise<void> => {
+    const { result } = renderHook(() => useReports());
+    await act(async (): Promise<void> => {
+      emitSpecimens([makeSpecimen({ status: 'REJECTED' })]);
+      emitResults([makeResult({ status: 'RELEASED' })]);
+    });
+    expect(findSection(result.current.sections, 'REJECTED').data).toHaveLength(1);
+    expect(findSection(result.current.sections, 'RELEASED').data).toHaveLength(0);
+    expect(result.current.totalCount).toBe(1);
+  });
+
+  it('moves the same result row from pending to released and then out of reports when returned', async (): Promise<void> => {
+    const { result } = renderHook(() => useReports());
+    const row = makeResult();
+    const rows = [row];
+    await act(async (): Promise<void> => {
+      emitSpecimens([makeSpecimen()]);
+      emitResults(rows);
+    });
+    expect(findSection(result.current.sections, 'PENDING_APPROVAL').data).toHaveLength(1);
+    row.status = 'RELEASED';
+    await act(async (): Promise<void> => {
+      emitResults(rows);
+    });
+    expect(findSection(result.current.sections, 'RELEASED').data).toHaveLength(1);
+    expect(findSection(result.current.sections, 'PENDING_APPROVAL').data).toHaveLength(0);
+    row.status = 'RETURNED_FOR_CORRECTION';
+    await act(async (): Promise<void> => {
+      emitResults(rows);
+    });
+    expect(result.current.totalCount).toBe(0);
+  });
+
+  it('retains reports from previous years', async (): Promise<void> => {
+    const { result } = renderHook(() => useReports());
+    await act(async (): Promise<void> => {
+      emitSpecimens([makeSpecimen({ status: 'COMPLETED', receivedAt: '2024-01-01T00:00:00Z' })]);
+      emitResults([makeResult({ status: 'RELEASED', confirmedAt: '2024-01-01T01:00:00Z' })]);
+    });
+    expect(findSection(result.current.sections, 'RELEASED').data).toHaveLength(1);
+  });
+
+  it('exposes subscription failures and retries observers on refresh', async (): Promise<void> => {
+    const logSpy = jest.spyOn(console, 'error').mockImplementation((): void => {});
+    try {
+      const { result } = renderHook(() => useReports());
+      const error = new Error('Local database unavailable');
+      await act(async (): Promise<void> => {
+        failSpecimens(error);
+        failResults(error);
+      });
+      expect(result.current.error).toBe(error);
+      expect(result.current.isLoading).toBe(false);
+      await act(async (): Promise<void> => {
+        await result.current.refresh();
+      });
+      expect(mockObserveWithColumns).toHaveBeenCalledTimes(4);
+      await act(async (): Promise<void> => {
+        emitSpecimens([]);
+        emitResults([]);
+      });
+      expect(result.current.error).toBeNull();
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('exposes sync errors without discarding cached reports and clears them after retry', async (): Promise<void> => {
+    const logSpy = jest.spyOn(console, 'error').mockImplementation((): void => {});
+    try {
+      const { result } = renderHook(() => useReports());
+      await act(async (): Promise<void> => {
+        emitSpecimens([makeSpecimen({ status: 'REJECTED' })]);
+        emitResults([]);
+      });
+      const error = new Error('Network unavailable');
+      (synchronize as jest.Mock).mockRejectedValueOnce(error);
+      await act(async (): Promise<void> => {
+        await result.current.refresh();
+      });
+      expect(result.current.error).toBe(error);
+      expect(result.current.totalCount).toBe(1);
+      expect(result.current.isRefreshing).toBe(false);
+      await act(async (): Promise<void> => {
+        await result.current.refresh();
+      });
+      expect(result.current.error).toBeNull();
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('does not sync when offline', async (): Promise<void> => {
+    (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
+    const { result } = renderHook(() => useReports());
+    await act(async (): Promise<void> => {
+      await result.current.refresh();
+    });
+    expect(synchronize).not.toHaveBeenCalled();
+  });
+
   it('starts with isLoading true and all 4 (empty) category sections', () => {
     const { result } = renderHook(() => useReports());
     expect(result.current.isLoading).toBe(true);

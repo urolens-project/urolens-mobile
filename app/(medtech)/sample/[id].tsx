@@ -7,11 +7,23 @@ import { SampleDetailScreen } from '@features/sample/components/SampleDetailScre
  * samples while this tab stays mounted always remounts fresh state.
  */
 export default function SampleDetailRoute(): React.JSX.Element {
-  const { id, resultId } = useLocalSearchParams<{ id: string; resultId?: string }>();
+  const { id, resultId, readOnly } = useLocalSearchParams<{
+    id: string;
+    resultId?: string;
+    readOnly?: string;
+  }>();
+  const isReadOnly = readOnly === 'true';
 
   // The (medtech) tabs keep this screen mounted while another tab is showing, so
   // opening a different sample re-uses this same instance. Keying it on the specimen
   // remounts it instead — nothing from the previous sample (its patient, its result,
   // a "not found" state) can carry over into the next one.
-  return <SampleDetailScreen key={id} specimenId={id} resultId={resultId} />;
+  return (
+    <SampleDetailScreen
+      key={`${id}:${isReadOnly}`}
+      specimenId={id}
+      resultId={resultId}
+      isReadOnly={isReadOnly}
+    />
+  );
 }

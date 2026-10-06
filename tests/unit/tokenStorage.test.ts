@@ -69,14 +69,15 @@ describe('tokenStorage', () => {
   });
 
   describe('clearAll', () => {
-    it('deletes all four SecureStore keys', async () => {
+    it('deletes all five SecureStore keys', async () => {
       mockSecureStore.deleteItemAsync.mockResolvedValue(undefined);
       await tokenStorage.clearAll();
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_access_token');
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_user_id');
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_user_role');
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_username');
-      expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledTimes(4);
+      expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_last_active_at');
+      expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledTimes(5);
     });
   });
 
