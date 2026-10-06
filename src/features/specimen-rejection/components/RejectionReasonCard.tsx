@@ -8,6 +8,7 @@ export interface RejectionReasonCardProps {
   reason: RejectionReasonOption;
   isSelected: boolean;
   onSelect: () => void;
+  isDisabled?: boolean;
 }
 
 /**
@@ -16,19 +17,27 @@ export interface RejectionReasonCardProps {
  * @param reason - The reason this card represents.
  * @param isSelected - Whether this is the currently selected reason.
  * @param onSelect - Called when the card is tapped.
+ * @param isDisabled - Prevents changing the reason while saving.
  */
 export function RejectionReasonCard({
   reason,
   isSelected,
   onSelect,
+  isDisabled = false,
 }: RejectionReasonCardProps): React.JSX.Element {
+  const handleSelect = (): void => {
+    if (!isDisabled) onSelect();
+  };
+
   return (
     <TouchableOpacity
-      style={[styles.reasonCard, isSelected && styles.reasonCardSelected]}
-      onPress={onSelect}
+      style={[styles.container, isSelected && styles.containerSelected]}
+      onPress={handleSelect}
+      disabled={isDisabled}
       activeOpacity={0.7}
       accessibilityRole="radio"
-      accessibilityState={{ checked: isSelected }}
+      accessibilityLabel={reason.label}
+      accessibilityState={{ checked: isSelected, disabled: isDisabled }}
     >
       <View style={styles.reasonCardInner}>
         <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
@@ -46,14 +55,14 @@ export function RejectionReasonCard({
 }
 
 const styles = StyleSheet.create({
-  reasonCard: {
+  container: {
     backgroundColor: colors.white,
     borderRadius: radius.lg,
     borderWidth: 1.5,
     borderColor: colors.gray200,
     padding: spacing.mlg,
   },
-  reasonCardSelected: {
+  containerSelected: {
     borderColor: colors.teal,
     backgroundColor: colors.tealTint4,
   },
@@ -63,28 +72,28 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10, // Half of width/height above — computed circle radius.
+    width: spacing.xl,
+    height: spacing.xl,
+    borderRadius: radius.pill,
     borderWidth: 2,
     borderColor: colors.gray300,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 1, // TODO(theme): below spacing.xxs(2); left exact.
+    marginTop: spacing.xxs,
     flexShrink: 0,
   },
   radioOuterSelected: {
     borderColor: colors.teal,
   },
   radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5, // Half of width/height above — computed circle radius.
+    width: spacing.smd,
+    height: spacing.smd,
+    borderRadius: radius.pill,
     backgroundColor: colors.teal,
   },
   reasonText: {
     flex: 1,
-    gap: 2, // TODO(theme): below spacing.xxs(2)... exact (already the smallest step, left explicit).
+    gap: spacing.xxs,
   },
   reasonLabel: {
     ...typography.subtitle,
@@ -97,6 +106,6 @@ const styles = StyleSheet.create({
   reasonDesc: {
     ...typography.body,
     color: colors.gray500,
-    lineHeight: 18,
+    lineHeight: spacing.xl,
   },
 });

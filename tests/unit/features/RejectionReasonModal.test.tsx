@@ -6,11 +6,11 @@ import { RejectionReason } from '@/types/enums';
 
 const defaultProps = {
   selectedReason: null,
-  onSelectReason:  jest.fn(),
-  note:            '',
-  onNoteChange:    jest.fn(),
-  onConfirm:       jest.fn(),
-  isLoading:       false,
+  onSelectReason: jest.fn(),
+  note: '',
+  onNoteChange: jest.fn(),
+  onConfirm: jest.fn(),
+  isLoading: false,
 };
 
 beforeEach(() => jest.clearAllMocks());
@@ -50,25 +50,19 @@ describe('RejectionReasonModal', () => {
     it('calls onSelectReason with the correct value when a reason is tapped', () => {
       render(<RejectionReasonModal {...defaultProps} />);
       fireEvent.press(screen.getByText('Insufficient Volume'));
-      expect(defaultProps.onSelectReason).toHaveBeenCalledWith(
-        RejectionReason.INSUFFICIENT_VOLUME,
-      );
+      expect(defaultProps.onSelectReason).toHaveBeenCalledWith(RejectionReason.INSUFFICIENT_VOLUME);
     });
 
     it('calls onSelectReason for Wrong Container', () => {
       render(<RejectionReasonModal {...defaultProps} />);
       fireEvent.press(screen.getByText('Wrong Container'));
-      expect(defaultProps.onSelectReason).toHaveBeenCalledWith(
-        RejectionReason.WRONG_CONTAINER,
-      );
+      expect(defaultProps.onSelectReason).toHaveBeenCalledWith(RejectionReason.WRONG_CONTAINER);
     });
 
     it('calls onSelectReason for Unlabeled Specimen', () => {
       render(<RejectionReasonModal {...defaultProps} />);
       fireEvent.press(screen.getByText('Unlabeled Specimen'));
-      expect(defaultProps.onSelectReason).toHaveBeenCalledWith(
-        RejectionReason.UNLABELED,
-      );
+      expect(defaultProps.onSelectReason).toHaveBeenCalledWith(RejectionReason.UNLABELED);
     });
 
     it('calls onSelectReason for Other', () => {
@@ -79,10 +73,7 @@ describe('RejectionReasonModal', () => {
 
     it('marks selected reason with checked accessibility state', () => {
       render(
-        <RejectionReasonModal
-          {...defaultProps}
-          selectedReason={RejectionReason.WRONG_CONTAINER}
-        />,
+        <RejectionReasonModal {...defaultProps} selectedReason={RejectionReason.WRONG_CONTAINER} />,
       );
       const wrongContainerOption = screen.getByRole('radio', { name: 'Wrong Container' });
       expect(wrongContainerOption.props.accessibilityState?.checked).toBe(true);
@@ -90,10 +81,7 @@ describe('RejectionReasonModal', () => {
 
     it('marks unselected reasons with unchecked accessibility state', () => {
       render(
-        <RejectionReasonModal
-          {...defaultProps}
-          selectedReason={RejectionReason.WRONG_CONTAINER}
-        />,
+        <RejectionReasonModal {...defaultProps} selectedReason={RejectionReason.WRONG_CONTAINER} />,
       );
       const otherOption = screen.getByRole('radio', { name: 'Other' });
       expect(otherOption.props.accessibilityState?.checked).toBe(false);
@@ -108,12 +96,7 @@ describe('RejectionReasonModal', () => {
     });
 
     it('is enabled when a reason is selected', () => {
-      render(
-        <RejectionReasonModal
-          {...defaultProps}
-          selectedReason={RejectionReason.UNLABELED}
-        />,
-      );
+      render(<RejectionReasonModal {...defaultProps} selectedReason={RejectionReason.UNLABELED} />);
       const btn = screen.getByRole('button', { name: 'Confirm rejection' });
       expect(btn.props.accessibilityState?.disabled).toBe(false);
     });
@@ -144,6 +127,25 @@ describe('RejectionReasonModal', () => {
   });
 
   describe('notes input', () => {
+    it('locks reasons and notes while submitting', () => {
+      render(<RejectionReasonModal {...defaultProps} isLoading />);
+      fireEvent.press(screen.getByText('Wrong Container'));
+      expect(defaultProps.onSelectReason).not.toHaveBeenCalled();
+      expect(screen.getByLabelText('Additional notes').props.editable).toBe(false);
+    });
+
+    it('allows retrying a local save while keeping accepted values read-only', () => {
+      render(
+        <RejectionReasonModal
+          {...defaultProps}
+          selectedReason={RejectionReason.UNLABELED}
+          isReadOnly
+        />,
+      );
+      expect(screen.getByLabelText('Additional notes').props.editable).toBe(false);
+      fireEvent.press(screen.getByRole('button', { name: 'Retry saving rejection' }));
+      expect(defaultProps.onConfirm).toHaveBeenCalledTimes(1);
+    });
     it('calls onNoteChange when text is entered', () => {
       render(<RejectionReasonModal {...defaultProps} />);
       fireEvent.changeText(

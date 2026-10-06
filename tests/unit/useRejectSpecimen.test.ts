@@ -1,299 +1,299 @@
-/**
- * Unit tests for useRejectSpecimen hook (TASK-MOB-04)
- *
- * Covers:
- *  - Initial state (isLoading false)
- *  - Online path: calls API and updates local specimen status to REJECTED
- *  - Offline path: writes to pending_sync and updates local status (no API call)
- *  - Fails (with the message) when specimen has no serverId
- *  - Returns the server's own message from a plain { code, message } API error
- *  - isLoading is true during reject and resets to false on success
- *  - isLoading resets to false even when API throws
- */
+import { act, renderHook } from '@testing-library/react-native';
 
-// ─── Mocks (hoisted before imports) ─────────────────────────────────────────
-
-jest.mock('@nozbe/watermelondb', () => ({ Model: class {} }));
-jest.mock('@db/database', () => ({ database: { get: jest.fn(), write: jest.fn() } }));
-jest.mock('@lib/apiClient', () => ({ __esModule: true, default: { post: jest.fn() } }));
-jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
-jest.mock('@app-types/enums', () => ({
-  RejectionReason: {
-    INSUFFICIENT_VOLUME: 'INSUFFICIENT_VOLUME',
-    WRONG_CONTAINER: 'WRONG_CONTAINER',
-    UNLABELED: 'UNLABELED',
-    OTHER: 'OTHER',
-  },
-  PendingSyncAction: { REJECT_SPECIMEN: 'REJECT_SPECIMEN' },
-  PendingSyncStatus: { PENDING: 'PENDING' },
-}));
-
-// ─── Imports ─────────────────────────────────────────────────────────────────
-
-import { renderHook, act } from '@testing-library/react-native';
+import { database } from '@db/database';
+import { apiClient } from '@lib/apiClient';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { authStoreApi } from '@lib/auth/authStore';
+import { RejectionReason } from '@app-types/enums';
 import {
   useRejectSpecimen,
   type RejectResult,
-} from '../../src/features/specimen-rejection/hooks/useRejectSpecimen';
-import { database } from '../../src/db/database';
-import apiClient from '../../src/lib/apiClient';
-import { useNetworkStatus } from '../../src/hooks/useNetworkStatus';
-import { RejectionReason } from '../../src/types/enums';
+} from '@features/specimen-rejection/hooks/useRejectSpecimen';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+jest.mock('@nozbe/watermelondb', () => ({ Model: class {}, Q: { where: jest.fn() } }));
+jest.mock('@db/database', () => ({
+  database: { get: jest.fn(), write: jest.fn(), batch: jest.fn() },
+}));
+jest.mock('@lib/apiClient', () => ({ apiClient: { post: jest.fn() } }));
+jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
+jest.mock('@lib/auth/authStore', () => ({ authStoreApi: { getUserId: jest.fn() } }));
 
-function makeSpecimen(overrides: Partial<Record<string, unknown>> = {}) {
-  return {
+const receipt = { specimenId: 'srv-1', status: 'REJECTED', rejectedAt: '2026-10-06T02:00:00Z' };
+
+function setupDb(overrides: Record<string, unknown> = {}, resultStatus: string | null = null) {
+  const raw: Record<string, unknown> = {
+    status: 'ASSIGNED',
+    rejectionReason: null,
+    rejectionNote: null,
+    rejectedAt: null,
+  };
+  const specimen = {
     id: 'local-1',
     serverId: 'srv-1',
-    sampleUid: 'SAMPLE-001',
-    patientName: 'Juan Dela Cruz',
-    status: 'ASSIGNED',
-    update: jest.fn().mockImplementation(async (cb: (s: Record<string, unknown>) => void) => {
-      cb({} as Record<string, unknown>);
-    }),
+    medtechId: 'medtech-1',
+    _raw: raw,
+    _preparedState: null,
     ...overrides,
+    prepareUpdate: jest.fn(),
   };
-}
-
-function buildPendingSyncCreate() {
-  return jest.fn().mockImplementation((cb: (r: Record<string, unknown>) => void) => {
-    cb({} as Record<string, unknown>);
+  for (const key of Object.keys(raw)) {
+    Object.defineProperty(specimen, key, {
+      get: () => specimen._raw[key],
+      set: (value: unknown) => {
+        specimen._raw[key] = value;
+      },
+    });
+  }
+  specimen.prepareUpdate.mockImplementation((callback) => {
+    callback(specimen);
+    return specimen;
   });
-}
-
-function setupDb(specimen: ReturnType<typeof makeSpecimen>) {
-  const pendingSyncCreate = buildPendingSyncCreate();
-
+  const prepareCreate = jest.fn((callback) => {
+    const pending = {};
+    callback(pending);
+    return pending;
+  });
+  const fetch = jest.fn().mockResolvedValue(
+    resultStatus
+      ? [
+          {
+            specimenId: 'srv-1',
+            status: resultStatus,
+            createdAt: 1,
+          },
+        ]
+      : [],
+  );
   (database.get as jest.Mock).mockImplementation((table: string) => {
-    if (table === 'specimens') {
-      return { find: jest.fn().mockResolvedValue(specimen) };
-    }
-    if (table === 'pending_sync') {
-      return { create: pendingSyncCreate };
-    }
-    return {};
+    if (table === 'specimens') return { find: jest.fn().mockResolvedValue(specimen) };
+    if (table === 'analysis_results') return { query: () => ({ fetch }) };
+    return { prepareCreate };
   });
-
-  (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<void>) => fn());
-
-  return { pendingSyncCreate };
+  (database.write as jest.Mock).mockImplementation((callback) => callback());
+  return { specimen, prepareCreate, fetch };
 }
-
-// ─── Test setup ──────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
+  (authStoreApi.getUserId as jest.Mock).mockReturnValue('medtech-1');
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
-  (apiClient.post as jest.Mock).mockResolvedValue({ data: {} });
+  (apiClient.post as jest.Mock).mockResolvedValue({ data: receipt });
 });
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+async function reject(reason = RejectionReason.UNLABELED, note?: string): Promise<RejectResult> {
+  const { result } = renderHook(() => useRejectSpecimen('local-1'));
+  let outcome: RejectResult;
+  await act(async () => {
+    outcome = await result.current.reject(reason, note);
+  });
+  expect(result.current.isLoading).toBe(false);
+  return outcome!;
+}
 
-describe('useRejectSpecimen', () => {
-  describe('initial state', () => {
-    it('starts with isLoading false', () => {
-      setupDb(makeSpecimen());
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-      expect(result.current.isLoading).toBe(false);
+describe('assigned specimen rejection', () => {
+  it('sends a typed request with trimmed notes and saves the server timestamp', async () => {
+    const { specimen, prepareCreate } = setupDb();
+    expect(await reject(RejectionReason.OTHER, '  Cracked tube  ')).toEqual({
+      status: 'rejected',
+      isQueued: false,
     });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/specimens/srv-1/reject',
+      { reasonCode: 'OTHER', freeTextNote: 'Cracked tube' },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(specimen._raw).toMatchObject({
+      status: 'REJECTED',
+      rejectionReason: 'OTHER',
+      rejectionNote: 'Cracked tube',
+      rejectedAt: receipt.rejectedAt,
+    });
+    expect(prepareCreate).not.toHaveBeenCalled();
+    expect(database.batch).toHaveBeenCalledWith(specimen, null);
   });
 
-  describe('online path', () => {
-    it('calls the API and updates local specimen status', async () => {
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      await act(async () => {
-        await result.current.reject(RejectionReason.INSUFFICIENT_VOLUME);
-      });
-
-      expect(apiClient.post).toHaveBeenCalledWith('/specimens/srv-1/reject', {
-        reasonCode: 'INSUFFICIENT_VOLUME',
-      });
-      expect(specimen.update).toHaveBeenCalledTimes(1);
-    });
-
-    it('includes freeTextNote in the API payload when note is provided', async () => {
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      await act(async () => {
-        await result.current.reject(RejectionReason.OTHER, 'Cracked tube');
-      });
-
-      expect(apiClient.post).toHaveBeenCalledWith('/specimens/srv-1/reject', {
-        reasonCode: 'OTHER',
-        freeTextNote: 'Cracked tube',
-      });
-    });
-
-    it('omits freeTextNote when note is blank whitespace', async () => {
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      await act(async () => {
-        await result.current.reject(RejectionReason.UNLABELED, '   ');
-      });
-
-      expect(apiClient.post).toHaveBeenCalledWith('/specimens/srv-1/reject', {
-        reasonCode: 'UNLABELED',
-      });
-    });
-
-    it('does NOT write to pending_sync when online', async () => {
-      const specimen = makeSpecimen();
-      const { pendingSyncCreate } = setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      await act(async () => {
-        await result.current.reject(RejectionReason.WRONG_CONTAINER);
-      });
-
-      expect(pendingSyncCreate).not.toHaveBeenCalled();
-    });
+  it('omits blank optional notes', async () => {
+    setupDb();
+    await reject(RejectionReason.UNLABELED, '  ');
+    expect(apiClient.post).toHaveBeenCalledWith(
+      expect.any(String),
+      { reasonCode: 'UNLABELED' },
+      expect.any(Object),
+    );
   });
 
-  describe('offline path', () => {
-    beforeEach(() => {
-      (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
+  it('queues offline rejection together with its local update in one batch', async () => {
+    const { specimen, prepareCreate } = setupDb();
+    (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
+    expect(await reject(RejectionReason.WRONG_CONTAINER, 'EDTA tube')).toEqual({
+      status: 'rejected',
+      isQueued: true,
     });
-
-    it('does NOT call the API when offline', async () => {
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      await act(async () => {
-        await result.current.reject(RejectionReason.INSUFFICIENT_VOLUME);
-      });
-
-      expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(prepareCreate).toHaveBeenCalledTimes(1);
+    const pending = prepareCreate.mock.results[0].value;
+    expect(pending).toMatchObject({
+      entity: 'specimens',
+      entityId: 'srv-1',
+      action: 'REJECT_SPECIMEN',
+      status: 'PENDING',
     });
-
-    it('writes to pending_sync with correct fields when offline', async () => {
-      const specimen = makeSpecimen();
-      const { pendingSyncCreate } = setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      await act(async () => {
-        await result.current.reject(RejectionReason.WRONG_CONTAINER, 'EDTA tube used');
-      });
-
-      expect(pendingSyncCreate).toHaveBeenCalledTimes(1);
-      const createCb = pendingSyncCreate.mock.calls[0][0];
-      const record: Record<string, unknown> = {};
-      createCb(record);
-      expect(record.entity).toBe('specimens');
-      expect(record.entityId).toBe('srv-1');
-      expect(record.action).toBe('REJECT_SPECIMEN');
-      expect(record.status).toBe('PENDING');
-      expect(JSON.parse(record.payloadJson as string)).toEqual({
-        reasonCode: 'WRONG_CONTAINER',
-        freeTextNote: 'EDTA tube used',
-      });
-      expect(typeof record.createdAt).toBe('number');
+    expect(JSON.parse(pending.payloadJson)).toEqual({
+      reasonCode: 'WRONG_CONTAINER',
+      freeTextNote: 'EDTA tube',
     });
-
-    it('still updates local specimen status when offline', async () => {
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      await act(async () => {
-        await result.current.reject(RejectionReason.UNLABELED);
-      });
-
-      expect(specimen.update).toHaveBeenCalledTimes(1);
-    });
+    expect(database.batch).toHaveBeenCalledWith(specimen, pending);
+    expect(specimen._raw.rejectedAt).toMatch(/Z$/);
   });
 
-  describe('error cases', () => {
-    it('resolves failed and sets error when specimen has no serverId', async () => {
-      const specimen = makeSpecimen({ serverId: null });
-      setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      let outcome: RejectResult | undefined;
-      await act(async () => {
-        outcome = await result.current.reject(RejectionReason.OTHER);
-      });
-
-      expect(outcome).toEqual({
+  it.each([null, 'another-medtech'])(
+    'blocks specimens not assigned to the signed-in user (%s)',
+    async (medtechId) => {
+      setupDb({ medtechId });
+      expect(await reject()).toEqual({
         status: 'failed',
-        message: 'Specimen has not been synced to the server yet.',
+        message: 'You can only reject a specimen assigned to you.',
       });
-      expect(result.current.error).toMatch(/Specimen has not been synced/);
-    });
+      expect(apiClient.post).not.toHaveBeenCalled();
+      expect(database.write).not.toHaveBeenCalled();
+    },
+  );
 
-    it('resolves failed and resets isLoading to false when API throws', async () => {
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      (apiClient.post as jest.Mock).mockRejectedValue(new Error('network'));
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      let outcome: RejectResult | undefined;
-      await act(async () => {
-        outcome = await result.current.reject(RejectionReason.OTHER);
-      });
-
-      expect(outcome).toEqual({ status: 'failed', message: 'network' });
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    it("returns the server's own message when the API rejects with a plain error object", async () => {
-      // apiClient rejects with { code, message, status }, not an Error — so the message
-      // must come back from the call itself; the caller can't rely on reading `error`
-      // after awaiting, which is a stale value from the render that made its handler.
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      const serverMessage =
-        "This specimen's result has already been submitted for supervisor review.";
-      (apiClient.post as jest.Mock).mockRejectedValue({
-        code: 'RESULT_ALREADY_SUBMITTED',
-        message: serverMessage,
-        status: 409,
-      });
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      let outcome: RejectResult | undefined;
-      await act(async () => {
-        outcome = await result.current.reject(RejectionReason.OTHER);
-      });
-
-      expect(outcome).toEqual({ status: 'failed', message: serverMessage });
-      expect(result.current.error).toBe(serverMessage);
-      expect(specimen.update).not.toHaveBeenCalled();
-    });
-
-    it('resolves rejected on success', async () => {
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      let outcome: RejectResult | undefined;
-      await act(async () => {
-        outcome = await result.current.reject(RejectionReason.OTHER);
-      });
-
-      expect(outcome).toEqual({ status: 'rejected' });
-    });
+  it('blocks rejection after sign-out', async () => {
+    setupDb();
+    (authStoreApi.getUserId as jest.Mock).mockReturnValue(null);
+    expect(await reject()).toMatchObject({ status: 'failed' });
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 
-  describe('isLoading', () => {
-    it('is false after a successful reject', async () => {
-      const specimen = makeSpecimen();
-      setupDb(specimen);
-      const { result } = renderHook(() => useRejectSpecimen('local-1'));
-
-      await act(async () => {
-        await result.current.reject(RejectionReason.INSUFFICIENT_VOLUME);
-      });
-
-      expect(result.current.isLoading).toBe(false);
+  it('requires a synced specimen', async () => {
+    setupDb({ serverId: null });
+    expect(await reject()).toEqual({
+      status: 'failed',
+      message: 'Specimen has not been synced to the server yet.',
     });
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it.each(['PENDING_SUPERVISOR_APPROVAL', 'CRITICAL_ESCALATED', 'APPROVED', 'RELEASED'])(
+    'rechecks the latest result before rejecting (%s)',
+    async (status) => {
+      setupDb({}, status);
+      expect(await reject()).toMatchObject({
+        status: 'failed',
+        message: expect.stringMatching(/submitted for supervisor review/),
+      });
+      expect(apiClient.post).not.toHaveBeenCalled();
+      expect(database.write).not.toHaveBeenCalled();
+    },
+  );
+
+  it('permits rejection after return for correction', async () => {
+    setupDb({}, 'RETURNED_FOR_CORRECTION');
+    expect(await reject()).toMatchObject({ status: 'rejected' });
+  });
+
+  it('rejects invalid reasons and oversized notes without sending them', async () => {
+    setupDb();
+    expect(await reject('INVALID' as RejectionReason)).toMatchObject({ status: 'failed' });
+    expect(await reject(RejectionReason.OTHER, 'x'.repeat(501))).toMatchObject({
+      status: 'failed',
+    });
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it('returns the actual server error and leaves the specimen untouched for retry', async () => {
+    const { specimen } = setupDb();
+    (apiClient.post as jest.Mock).mockRejectedValue({
+      code: 'CONFLICT',
+      message: 'Specimen was reassigned.',
+    });
+    expect(await reject()).toEqual({ status: 'failed', message: 'Specimen was reassigned.' });
+    expect(specimen.prepareUpdate).not.toHaveBeenCalled();
+  });
+
+  it('prevents a second in-flight submission', async () => {
+    setupDb();
+    let resolveRequest: (value: unknown) => void = () => {};
+    (apiClient.post as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useRejectSpecimen('local-1'));
+    let first: Promise<RejectResult>;
+    await act(async () => {
+      first = result.current.reject(RejectionReason.UNLABELED);
+      expect(await result.current.reject(RejectionReason.OTHER)).toEqual({ status: 'busy' });
+    });
+    expect(result.current.isLoading).toBe(true);
+    await act(async () => {
+      resolveRequest({ data: receipt });
+      await first;
+    });
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('retries a failed local save without submitting an accepted rejection again', async () => {
+    const { specimen } = setupDb();
+    (database.batch as jest.Mock)
+      .mockRejectedValueOnce(new Error('Disk full'))
+      .mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => useRejectSpecimen('local-1'));
+    await act(async () => {
+      expect(await result.current.reject(RejectionReason.UNLABELED, 'Original note')).toMatchObject(
+        {
+          status: 'failed',
+          message: expect.stringMatching(/server accepted/),
+        },
+      );
+    });
+    expect(result.current.hasAcceptedRejection).toBe(true);
+    expect(specimen._raw.status).toBe('ASSIGNED');
+    await act(async () => {
+      expect(await result.current.reject(RejectionReason.OTHER, 'Changed note')).toEqual({
+        status: 'rejected',
+        isQueued: false,
+      });
+    });
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(specimen._raw).toMatchObject({
+      rejectionReason: 'UNLABELED',
+      rejectionNote: 'Original note',
+    });
+    expect(result.current.hasAcceptedRejection).toBe(false);
+  });
+
+  it('restores the local specimen if the offline batch fails, allowing a fresh retry', async () => {
+    const { specimen } = setupDb();
+    (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
+    (database.batch as jest.Mock).mockRejectedValueOnce(new Error('Disk full'));
+    const { result } = renderHook(() => useRejectSpecimen('local-1'));
+    await act(async () => {
+      expect(await result.current.reject(RejectionReason.UNLABELED)).toEqual({
+        status: 'failed',
+        message: 'Disk full',
+      });
+    });
+    expect(specimen._raw.status).toBe('ASSIGNED');
+    await act(async () => {
+      expect(await result.current.reject(RejectionReason.UNLABELED)).toEqual({
+        status: 'rejected',
+        isQueued: true,
+      });
+    });
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it('blocks an offline write if the result changes before the writer runs', async () => {
+    const { specimen, fetch } = setupDb();
+    (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
+    fetch
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ specimenId: 'srv-1', status: 'APPROVED', createdAt: 1 }]);
+    expect(await reject()).toMatchObject({ status: 'failed' });
+    expect(specimen.prepareUpdate).not.toHaveBeenCalled();
+    expect(database.batch).not.toHaveBeenCalled();
   });
 });
