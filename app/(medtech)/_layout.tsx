@@ -115,7 +115,7 @@ export default function MedTechLayout(): React.JSX.Element {
   }
 
   return (
-    <>
+    <SessionActivityGate>
       <SessionTimeoutHandler />
       <Tabs
         // Detail screens (sample/[id], capture, reject, override) are hidden

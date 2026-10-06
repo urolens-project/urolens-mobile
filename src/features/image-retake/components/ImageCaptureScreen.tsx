@@ -29,6 +29,7 @@ import {
 import type { ProcessedImage } from '@lib/camera/imageUtils';
 import { uploadImageViaXhr } from '@lib/camera/uploadImage';
 import apiClient from '@lib/apiClient';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { colors } from '@src/theme';
 
 import { CameraPermissionRequest } from './CameraPermissionRequest';
@@ -58,6 +59,8 @@ export function ImageCaptureScreen({
   localSpecimenId,
   existingImageId,
 }: ImageCaptureScreenProps): React.JSX.Element {
+  const { isOnline } = useNetworkStatus();
+
   // ── State ─────────────────────────────────────────────────────────────────
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<ScreenPhase>('idle');
@@ -97,7 +100,10 @@ export function ImageCaptureScreen({
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Photo library access is needed to upload images.');
+        Alert.alert(
+          'Gallery Access Denied',
+          'UroLens could not access your photo library. Allow Photos access in Settings, or take a photo instead.',
+        );
         return;
       }
 
@@ -134,6 +140,11 @@ export function ImageCaptureScreen({
       return;
     }
 
+    if (!isOnline) {
+      setValidationError('A connection is required to upload this image. Connect and try again.');
+      return;
+    }
+
     setPhase('uploading');
     setUploadProgress(0);
 
@@ -151,15 +162,13 @@ export function ImageCaptureScreen({
         pathname: '/(medtech)/sample/[id]',
         params: { id: localSpecimenId, resultId: data.id },
       });
-    } catch (err: any) {
-      // apiClient interceptor rejects with a plain ApiError { code, message },
-      // not an Axios error, so read .message directly.
-      const msg = err?.message ?? 'Upload failed. Please check your connection and try again.';
+    } catch (err: unknown) {
+      const msg = getUploadErrorMessage(err);
       Alert.alert('Upload Failed', msg);
       setValidationError(msg);
       setPhase('previewing');
     }
-  }, [processed, specimenId, localSpecimenId]);
+  }, [isOnline, localSpecimenId, processed, specimenId]);
 
   // ── Retake ────────────────────────────────────────────────────────────────
   const handleRetapTap = useCallback((): void => {
@@ -213,15 +222,17 @@ export function ImageCaptureScreen({
   if (!permission.granted) {
     return (
       <CameraPermissionRequest
+        validationError={validationError}
         onRequestPermission={requestPermission}
         onGalleryPick={handleGalleryPick}
+        onGoBack={handleGoBack}
       />
     );
   }
 
   // ── Preview phase ─────────────────────────────────────────────────────────
-  if (phase === 'previewing' && processed) {
-    const isCurrentlyDiscarding = (phase as ScreenPhase) === 'discarding';
+  if ((phase === 'previewing' || phase === 'discarding') && processed) {
+    const isCurrentlyDiscarding = phase === 'discarding';
 
     return (
       <ImagePreviewPanel
@@ -229,6 +240,7 @@ export function ImageCaptureScreen({
         validationError={validationError}
         showDiscardModal={showDiscardModal}
         isDiscarding={isCurrentlyDiscarding}
+        onGoBack={handleGoBack}
         onRetake={handleRetapTap}
         onUseImage={handleUseImage}
         onDiscardConfirm={handleDiscardConfirm}
@@ -244,7 +256,14 @@ export function ImageCaptureScreen({
 
   // ── Camera hardware failed to initialize ─────────────────────────────────
   if (cameraError) {
-    return <CameraUnavailableView message={cameraError} onGalleryPick={handleGalleryPick} />;
+    return (
+      <CameraUnavailableView
+        message={cameraError}
+        validationError={validationError}
+        onGalleryPick={handleGalleryPick}
+        onGoBack={handleGoBack}
+      />
+    );
   }
 
   // ── Idle — live camera ────────────────────────────────────────────────────
@@ -258,6 +277,15 @@ export function ImageCaptureScreen({
       onCapture={handleCapture}
     />
   );
+}
+
+function getUploadErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === 'string' && message) return message;
+  }
+  return 'Upload failed. Please check your connection and try again.';
 }
 
 const styles = StyleSheet.create({

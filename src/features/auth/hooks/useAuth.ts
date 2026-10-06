@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { router } from 'expo-router';
 
+import { claimLocalDataFor } from '@db/sync/claimLocalData';
 import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
@@ -8,10 +9,11 @@ import type { ApiError } from '@app-types/domain';
 import type { UserRole } from '@app-types/enums';
 
 import { authApi } from '../api/authApi';
+import type { LogoutReason } from '../types';
 
 export interface UseAuthResult {
   login: (username: string, password: string, keepLoggedIn?: boolean) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (reason?: LogoutReason) => Promise<void>;
   isSubmitting: boolean;
   error: string | null;
 }
@@ -21,6 +23,10 @@ export interface UseAuthResult {
  * @param apiError - Error rejected by the auth API client.
  */
 function describeLoginError(apiError: ApiError): string {
+  if (apiError.status !== undefined && apiError.status >= 500) {
+    return 'The server could not complete login. Please try again later.';
+  }
+
   switch (apiError.code) {
     case 'ACCOUNT_LOCKED':
       return 'Your account is locked. Contact an administrator.';
@@ -57,6 +63,9 @@ export function useAuth(): UseAuthResult {
       }
       try {
         const data = await authApi.login(username, password);
+        // Before anything is saved or shown: never let this user see or send another
+        // user's local data.
+        await claimLocalDataFor(data.userId);
         // Drop any session left over from a previous login, then choose where this one lives.
         await tokenStorage.clearAll();
         tokenStorage.setSessionOnly(!keepLoggedIn);
@@ -79,17 +88,22 @@ export function useAuth(): UseAuthResult {
     [runLogin],
   );
 
-  const logout = useCallback(async (): Promise<void> => {
-    try {
-      await authApi.logout();
-    } catch {
-      // Continue logout even if the server call fails.
-    } finally {
-      await tokenStorage.clearAll();
-      clearAuth();
-      router.replace('/(auth)/login');
-    }
-  }, [clearAuth]);
+  const logout = useCallback(
+    async (reason?: LogoutReason): Promise<void> => {
+      try {
+        await authApi.logout();
+      } catch {
+        // Continue logout even if the server call fails.
+      } finally {
+        await tokenStorage.clearAll();
+        clearAuth();
+        router.replace(
+          reason ? { pathname: '/(auth)/login', params: { reason } } : '/(auth)/login',
+        );
+      }
+    },
+    [clearAuth],
+  );
 
   return { login, logout, isSubmitting, error: error?.message ?? null };
 }
