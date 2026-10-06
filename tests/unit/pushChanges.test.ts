@@ -16,7 +16,7 @@ jest.mock('@nozbe/watermelondb', () => ({
   },
 }));
 jest.mock('@db/database', () => ({ database: { get: jest.fn(), write: jest.fn() } }));
-jest.mock('@lib/apiClient', () => ({ __esModule: true, default: { post: jest.fn() } }));
+jest.mock('@lib/apiClient', () => ({ apiClient: { post: jest.fn() } }));
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
@@ -30,7 +30,7 @@ import {
   requeueLegacyFailedActions,
 } from '../../src/db/sync/pushChanges';
 import { database } from '../../src/db/database';
-import apiClient from '../../src/lib/apiClient';
+import { apiClient } from '../../src/lib/apiClient';
 import { PendingSyncAction, PendingSyncStatus } from '../../src/types/enums';
 
 const post = apiClient.post as jest.Mock;
@@ -90,7 +90,9 @@ describe('pushChanges', () => {
     setDb([item]);
     post.mockResolvedValue({});
     await pushChanges();
-    expect(post).toHaveBeenCalledWith('/specimens/srv-1/start-analysis');
+    expect(post).toHaveBeenCalledWith('/specimens/srv-1/start-analysis', undefined, {
+      signal: undefined,
+    });
     expect(item.status).toBe(PendingSyncStatus.SYNCED);
   });
 
@@ -246,6 +248,49 @@ describe('pushChanges', () => {
     expect(first.status).toBe(PendingSyncStatus.PENDING);
     expect(second.status).toBe(PendingSyncStatus.SYNCED);
   });
+
+  it.each(['accepted', 'failed'] as const)(
+    'leaves cancelled work pending when the old request %s, without sending another action',
+    async (outcome): Promise<void> => {
+      const controller = new AbortController();
+      const first = makeItem({ entityId: 'srv-a' });
+      const second = makeItem({ entityId: 'srv-b' });
+      setDb([first, second]);
+      post.mockImplementationOnce(async (): Promise<object> => {
+        controller.abort();
+        if (outcome === 'failed') throw { code: 'FORBIDDEN', status: 403 };
+        return {};
+      });
+
+      await expect(pushChanges(controller.signal)).rejects.toThrow('Sync cancelled');
+
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(post).toHaveBeenCalledWith('/specimens/srv-a/start-analysis', undefined, {
+        signal: controller.signal,
+      });
+      expect(first.update).not.toHaveBeenCalled();
+      expect(first.status).toBe(PendingSyncStatus.PENDING);
+      expect(second.status).toBe(PendingSyncStatus.PENDING);
+    },
+  );
+
+  it('does not update a pending action when its database writer runs after cancellation', async (): Promise<void> => {
+    const controller = new AbortController();
+    const item = makeItem();
+    setDb([item]);
+    post.mockResolvedValue({});
+    (database.write as jest.Mock).mockImplementation(
+      async (write: () => Promise<void>): Promise<void> => {
+        controller.abort();
+        await write();
+      },
+    );
+
+    await expect(pushChanges(controller.signal)).rejects.toThrow('Sync cancelled');
+
+    expect(item.update).not.toHaveBeenCalled();
+    expect(item.status).toBe(PendingSyncStatus.PENDING);
+  });
 });
 
 describe('hasPendingActions', () => {
@@ -293,6 +338,25 @@ describe('requeueLegacyFailedActions', () => {
     await requeueLegacyFailedActions();
 
     expect(failed.status).toBe(PendingSyncStatus.FAILED);
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it('does not requeue or save retry metadata after cancellation while waiting for the writer', async (): Promise<void> => {
+    const controller = new AbortController();
+    const failed = makeItem({ status: PendingSyncStatus.FAILED });
+    getItem.mockResolvedValue(null);
+    setDb([], [failed]);
+    (database.write as jest.Mock).mockImplementation(
+      async (write: () => Promise<void>): Promise<void> => {
+        controller.abort();
+        await write();
+      },
+    );
+
+    await expect(requeueLegacyFailedActions(controller.signal)).rejects.toThrow('Sync cancelled');
+
+    expect(failed.status).toBe(PendingSyncStatus.FAILED);
+    expect(failed.update).not.toHaveBeenCalled();
     expect(setItem).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { tokenStorage } from '@lib/auth/tokenStorage';
+
 import { database } from '../database';
-import { adoptUnownedLocalData } from './localDataOwner';
+import { adoptUnownedLocalData, getLocalDataOwner } from './localDataOwner';
 import { pullChanges } from './pullChanges';
 import { hasPendingActions, pushChanges, requeueLegacyFailedActions } from './pushChanges';
+import { throwIfSyncCancelled } from './syncCancellation';
 
 export const LAST_SYNC_KEY = 'urolens_last_sync_at';
 
@@ -44,35 +46,71 @@ export function subscribeSyncStatus(listener: () => void): () => void {
   };
 }
 
-// Guard against concurrent syncs
-let isSyncing = false;
+interface ActiveSync {
+  controller: AbortController;
+  completion: Promise<void>;
+}
+
+let activeSync: ActiveSync | null = null;
+let syncPauseCount = 0;
+let localDataChangeTail = Promise.resolve();
 
 /**
  * @description Runs one full sync cycle: push local changes, then pull the server's
- * state down. A no-op if a sync is already in progress.
+ * state down. A no-op during another cycle or an account change, or when the
+ * stored session does not own the local database.
  */
-export async function synchronize(): Promise<void> {
-  if (isSyncing) {
-    return;
+export function synchronize(): Promise<void> {
+  if (activeSync || syncPauseCount > 0) {
+    return Promise.resolve();
   }
 
-  isSyncing = true;
-  setSyncStatus({ state: 'syncing' });
+  const cycle: ActiveSync = {
+    controller: new AbortController(),
+    completion: Promise.resolve(),
+  };
+  activeSync = cycle;
+  // Register completion before work can notify listeners that request an account change.
+  cycle.completion = Promise.resolve().then((): Promise<void> => runSync(cycle));
+  return cycle.completion;
+}
+
+async function runSync(cycle: ActiveSync): Promise<void> {
+  const { signal } = cycle.controller;
   try {
-    await adoptUnownedLocalData(await tokenStorage.getUserId());
+    throwIfSyncCancelled(signal);
+    const userId = await tokenStorage.getUserId();
+    throwIfSyncCancelled(signal);
+    if (!userId) return;
+    await adoptUnownedLocalData(userId);
+    throwIfSyncCancelled(signal);
+    const owner = await getLocalDataOwner();
+    throwIfSyncCancelled(signal);
+    // A login claims the database before saving its session. During that interval,
+    // background triggers must not send the previous user's token against the new data.
+    if (owner !== userId) return;
+    setSyncStatus({ state: 'syncing' });
     const lastSyncedAt = await AsyncStorage.getItem(LAST_SYNC_KEY);
+    throwIfSyncCancelled(signal);
 
     // 1. Push FIRST — Send upstream local modifications so the server can run conflict checks
-    await requeueLegacyFailedActions();
-    const { refusedCount } = await pushChanges();
+    await requeueLegacyFailedActions(signal);
+    throwIfSyncCancelled(signal);
+    const { refusedCount } = await pushChanges(signal);
+    throwIfSyncCancelled(signal);
     if (refusedCount > 0) await AsyncStorage.setItem(FULL_PULL_NEEDED_KEY, '1');
+    throwIfSyncCancelled(signal);
 
     // 2. On full sync, reset local DB so records deleted on the server don't persist locally.
     //    Never while changes are still waiting to be sent — the reset would erase them.
-    if (!lastSyncedAt && !(await hasPendingActions())) {
-      await database.write(async () => {
+    const canReset = !lastSyncedAt && !(await hasPendingActions());
+    throwIfSyncCancelled(signal);
+    if (canReset) {
+      await database.write(async (): Promise<void> => {
+        throwIfSyncCancelled(signal);
         await database.unsafeResetDatabase();
       });
+      throwIfSyncCancelled(signal);
     }
 
     // 3. Pull SECOND — Fetch the absolute, source-of-truth state down from the server.
@@ -80,27 +118,61 @@ export async function synchronize(): Promise<void> {
     //    nothing is waiting to be sent, or the pull would undo changes still on their way.
     const isFullPullDue =
       (await AsyncStorage.getItem(FULL_PULL_NEEDED_KEY)) !== null && !(await hasPendingActions());
-    const newTimestamp = await pullChanges(isFullPullDue ? null : lastSyncedAt);
+    throwIfSyncCancelled(signal);
+    const newTimestamp = await pullChanges(isFullPullDue ? null : lastSyncedAt, signal);
+    throwIfSyncCancelled(signal);
 
     // 4. Persist Timestamp ONLY after both steps succeed cleanly
     if (newTimestamp) {
       await AsyncStorage.setItem(LAST_SYNC_KEY, newTimestamp);
+      throwIfSyncCancelled(signal);
     }
     if (isFullPullDue) await AsyncStorage.removeItem(FULL_PULL_NEEDED_KEY);
+    throwIfSyncCancelled(signal);
     setSyncStatus({ state: 'succeeded', lastSuccessAt: Date.now() });
   } catch (err) {
+    // Account changes cancel a cycle intentionally; it must not overwrite the next
+    // account's status or surface as a network failure to a background caller.
+    if (signal.aborted) return;
     setSyncStatus({ state: 'failed' });
     // If pushing or pulling throws a Network Error, code execution drops out here safely
     console.error('[SyncManager] Sync cycle aborted due to error:', err);
     throw err; // Propagate up so UI indicators can display a "Sync Failed" warning
   } finally {
-    isSyncing = false;
+    if (activeSync === cycle) activeSync = null;
   }
 }
 
 /** @description Whether a sync cycle is currently running. */
 export function getIsSyncing(): boolean {
-  return isSyncing;
+  return activeSync !== null;
+}
+
+/**
+ * @description Cancels and drains the active cycle, then serializes local account
+ * changes while blocking new syncs. Draining also covers database and storage writes
+ * that have already started and cannot be aborted.
+ * @param changeLocalData - Account change to perform after the old cycle has stopped.
+ */
+export async function withSyncPaused(changeLocalData: () => Promise<void>): Promise<void> {
+  syncPauseCount += 1;
+  const running = activeSync;
+  if (running) {
+    running.controller.abort();
+    resetSyncStatus();
+  }
+  const drained = running?.completion.catch((): void => {}) ?? Promise.resolve();
+  const change = localDataChangeTail.then(async (): Promise<void> => {
+    await drained;
+    await changeLocalData();
+  });
+  // A failed wipe must not block later attempts; the caller still receives the error.
+  localDataChangeTail = change.catch((): void => {});
+  try {
+    await change;
+  } finally {
+    syncPauseCount -= 1;
+  }
 }
 
 /**

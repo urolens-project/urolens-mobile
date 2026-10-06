@@ -26,7 +26,9 @@ jest.mock('@db/database', () => ({
 }));
 jest.mock('@db/sync/syncManager', () => ({
   LAST_SYNC_KEY: 'urolens_last_sync_at',
+  FULL_PULL_NEEDED_KEY: 'urolens_full_pull_needed',
   resetSyncStatus: jest.fn(),
+  withSyncPaused: jest.fn(async (change: () => Promise<void>): Promise<void> => change()),
 }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -113,6 +115,7 @@ describe('claimLocalDataFor', () => {
     expect(order).toEqual([
       'reset',
       `remove:${LAST_SYNC_KEY}`,
+      'remove:urolens_full_pull_needed',
       'resetSyncStatus',
       `set:${LOCAL_DATA_OWNER_KEY}`,
     ]);

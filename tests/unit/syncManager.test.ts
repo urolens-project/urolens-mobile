@@ -28,6 +28,7 @@ jest.mock('@db/sync/pushChanges', () => ({
 
 jest.mock('@db/sync/localDataOwner', () => ({
   adoptUnownedLocalData: jest.fn(),
+  getLocalDataOwner: jest.fn(),
 }));
 
 jest.mock('@lib/auth/tokenStorage', () => ({
@@ -44,6 +45,7 @@ let mockRequeue: jest.Mock;
 let mockReset: jest.Mock;
 let getSyncStatus: () => { state: string; lastSuccessAt: number | null };
 let subscribeSyncStatus: (listener: () => void) => () => void;
+let withSyncPaused: (changeLocalData: () => Promise<void>) => Promise<void>;
 let mockGetItem: jest.Mock;
 let mockSetItem: jest.Mock;
 let mockRemoveItem: jest.Mock;
@@ -62,6 +64,7 @@ beforeEach(() => {
     getIsSyncing,
     getSyncStatus,
     subscribeSyncStatus,
+    withSyncPaused,
   } = require('@db/sync/syncManager'));
   ({ pullChanges: mockPull } = require('@db/sync/pullChanges'));
   ({
@@ -70,6 +73,8 @@ beforeEach(() => {
     requeueLegacyFailedActions: mockRequeue,
   } = require('@db/sync/pushChanges'));
   mockReset = require('@db/database').database.unsafeResetDatabase;
+  jest.requireMock('@lib/auth/tokenStorage').tokenStorage.getUserId.mockResolvedValue('user-1');
+  jest.requireMock('@db/sync/localDataOwner').getLocalDataOwner.mockResolvedValue('user-1');
 
   const as = require('@react-native-async-storage/async-storage');
   mockGetItem = as.getItem;
@@ -112,13 +117,13 @@ describe('synchronize', () => {
 
     await synchronize();
 
-    expect(mockPull).toHaveBeenCalledWith('2026-05-25T08:00:00Z');
+    expect(mockPull).toHaveBeenCalledWith('2026-05-25T08:00:00Z', expect.any(AbortSignal));
   });
 
   it('passes null to pullChanges when AsyncStorage has no timestamp', async () => {
     await synchronize();
 
-    expect(mockPull).toHaveBeenCalledWith(null);
+    expect(mockPull).toHaveBeenCalledWith(null, expect.any(AbortSignal));
   });
 
   it('saves the new timestamp returned by pullChanges', async () => {
@@ -250,7 +255,7 @@ describe('a refused change puts the phone back in step with the server', () => {
 
     await synchronize();
 
-    expect(mockPull).toHaveBeenCalledWith(null);
+    expect(mockPull).toHaveBeenCalledWith(null, expect.any(AbortSignal));
     expect(stored[FULL_PULL_NEEDED_KEY]).toBeUndefined();
     expect(stored[LAST_SYNC_KEY]).toBe('2026-05-26T10:00:00Z');
   });
@@ -266,7 +271,7 @@ describe('a refused change puts the phone back in step with the server', () => {
   it('pulls only what changed when nothing was refused', async () => {
     await synchronize();
 
-    expect(mockPull).toHaveBeenCalledWith('2026-05-25T08:00:00Z');
+    expect(mockPull).toHaveBeenCalledWith('2026-05-25T08:00:00Z', expect.any(AbortSignal));
     expect(mockSetItem).not.toHaveBeenCalledWith(FULL_PULL_NEEDED_KEY, expect.anything());
   });
 
@@ -278,7 +283,7 @@ describe('a refused change puts the phone back in step with the server', () => {
 
     await synchronize();
 
-    expect(mockPull).toHaveBeenLastCalledWith('2026-05-25T08:00:00Z');
+    expect(mockPull).toHaveBeenLastCalledWith('2026-05-25T08:00:00Z', expect.any(AbortSignal));
     expect(stored[FULL_PULL_NEEDED_KEY]).toBe('1');
 
     mockPush.mockResolvedValue(NOTHING_REFUSED);
@@ -286,7 +291,7 @@ describe('a refused change puts the phone back in step with the server', () => {
 
     await synchronize();
 
-    expect(mockPull).toHaveBeenLastCalledWith(null);
+    expect(mockPull).toHaveBeenLastCalledWith(null, expect.any(AbortSignal));
     expect(stored[FULL_PULL_NEEDED_KEY]).toBeUndefined();
   });
 
@@ -304,7 +309,7 @@ describe('a refused change puts the phone back in step with the server', () => {
 
     await synchronize();
 
-    expect(mockPull).toHaveBeenCalledWith(null);
+    expect(mockPull).toHaveBeenCalledWith(null, expect.any(AbortSignal));
   });
 });
 
@@ -322,7 +327,9 @@ describe('sync status (drives the Queue status pill)', () => {
     );
 
     const running = synchronize();
-    await Promise.resolve();
+    await new Promise<void>((resolve): void => {
+      setImmediate(resolve);
+    });
     expect(getSyncStatus().state).toBe('syncing');
 
     unblock!();
@@ -395,12 +402,14 @@ describe('local data with no owner on record', () => {
     expect(order).toEqual(['adopt', 'push']);
   });
 
-  it('passes on "nobody signed in" as null', async () => {
+  it('does not adopt or sync local data when nobody is signed in', async () => {
     mockGetUserId.mockResolvedValue(null);
 
     await synchronize();
 
-    expect(mockAdopt).toHaveBeenCalledWith(null);
+    expect(mockAdopt).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockPull).not.toHaveBeenCalled();
   });
 });
 
@@ -416,5 +425,98 @@ describe('resetSyncStatus', () => {
 
     expect(getSyncStatus()).toEqual({ state: 'idle', lastSuccessAt: null });
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('account changes pause sync', (): void => {
+  it.each(['accepted', 'failed'] as const)(
+    'drains an obsolete push that was %s without pulling, saving metadata or reporting failure',
+    async (outcome): Promise<void> => {
+      let finishPush!: () => void;
+      let oldSignal!: AbortSignal;
+      mockPush.mockImplementation((signal: AbortSignal): Promise<typeof NOTHING_REFUSED> => {
+        oldSignal = signal;
+        return new Promise((resolve, reject): void => {
+          finishPush = (): void => {
+            if (outcome === 'failed') reject(new Error('old account request failed'));
+            else resolve({ refusedCount: 1 });
+          };
+        });
+      });
+      const oldSync = synchronize();
+      await new Promise<void>((resolve): void => {
+        setImmediate(resolve);
+      });
+      const change = jest.fn().mockResolvedValue(undefined);
+      const changingAccount = withSyncPaused(change);
+      await synchronize();
+      expect(oldSignal.aborted).toBe(true);
+      expect(change).not.toHaveBeenCalled();
+
+      finishPush();
+      await Promise.all([oldSync, changingAccount]);
+
+      expect(change).toHaveBeenCalledTimes(1);
+      expect(mockPush).toHaveBeenCalledTimes(1);
+      expect(mockPull).not.toHaveBeenCalled();
+      expect(mockSetItem).not.toHaveBeenCalled();
+      expect(getSyncStatus()).toEqual({ state: 'idle', lastSuccessAt: null });
+    },
+  );
+
+  it('serializes account changes and blocks sync until every queued change finishes', async (): Promise<void> => {
+    let finishFirst!: () => void;
+    let finishSecond!: () => void;
+    const firstChange = jest.fn(
+      (): Promise<void> =>
+        new Promise((resolve): void => {
+          finishFirst = resolve;
+        }),
+    );
+    const secondChange = jest.fn(
+      (): Promise<void> =>
+        new Promise((resolve): void => {
+          finishSecond = resolve;
+        }),
+    );
+    const first = withSyncPaused(firstChange);
+    const second = withSyncPaused(secondChange);
+    await new Promise<void>((resolve): void => {
+      setImmediate(resolve);
+    });
+    await synchronize();
+    expect(firstChange).toHaveBeenCalledTimes(1);
+    expect(secondChange).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+
+    finishFirst();
+    await first;
+    await new Promise<void>((resolve): void => {
+      setImmediate(resolve);
+    });
+    await synchronize();
+    expect(secondChange).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
+
+    finishSecond();
+    await second;
+    await synchronize();
+    expect(mockPush).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a later change and sync after an account reset fails', async (): Promise<void> => {
+    await expect(
+      withSyncPaused(async (): Promise<void> => {
+        throw new Error('reset failed');
+      }),
+    ).rejects.toThrow('reset failed');
+    const retry = jest.fn().mockResolvedValue(undefined);
+
+    await withSyncPaused(retry);
+    await synchronize();
+
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(getSyncStatus().state).toBe('succeeded');
+    expect(getIsSyncing()).toBe(false);
   });
 });

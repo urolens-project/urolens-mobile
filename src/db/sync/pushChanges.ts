@@ -1,9 +1,11 @@
 import { Q } from '@nozbe/watermelondb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { database } from '../database';
-import PendingSync from '../models/PendingSync';
-import apiClient from '@lib/apiClient';
+import { apiClient } from '@lib/apiClient';
 import { PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
+
+import { database } from '../database';
+import type PendingSync from '../models/PendingSync';
+import { throwIfSyncCancelled } from './syncCancellation';
 
 // A change that keeps failing for a transient reason is retried on every sync for
 // this long, then given up on (marked FAILED) so it can't sit in the queue forever.
@@ -59,8 +61,11 @@ async function markItem(
   item: PendingSync,
   status: PendingSyncStatus,
   errorMessage?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  await database.write(async () => {
+  throwIfSyncCancelled(signal);
+  await database.write(async (): Promise<void> => {
+    throwIfSyncCancelled(signal);
     await item.update((record) => {
       const r = record as unknown as PendingSync;
       r.status = status;
@@ -82,26 +87,33 @@ export async function hasPendingActions(): Promise<boolean> {
 /**
  * @description One-time: gives actions that were FAILED under the old never-retry
  * behavior a second chance. Ones that fail again for a permanent reason go back to FAILED.
+ * @param signal - Stops legacy retry bookkeeping when the account changes.
  */
-export async function requeueLegacyFailedActions(): Promise<void> {
-  if (await AsyncStorage.getItem(LEGACY_REQUEUE_KEY)) return;
+export async function requeueLegacyFailedActions(signal?: AbortSignal): Promise<void> {
+  throwIfSyncCancelled(signal);
+  const wasRequeued = await AsyncStorage.getItem(LEGACY_REQUEUE_KEY);
+  throwIfSyncCancelled(signal);
+  if (wasRequeued) return;
 
   const failed = await database
     .get<PendingSync>('pending_sync')
     .query(Q.where('status', PendingSyncStatus.FAILED))
     .fetch();
+  throwIfSyncCancelled(signal);
   const cutoff = Date.now() - MAX_RETRY_AGE_MS;
   const recent = failed.filter((item) => item.createdAt >= cutoff);
 
   if (recent.length > 0) {
-    await database.write(async () => {
+    await database.write(async (): Promise<void> => {
       for (const item of recent) {
+        throwIfSyncCancelled(signal);
         await item.update((record) => {
           (record as unknown as PendingSync).status = PendingSyncStatus.PENDING;
         });
       }
     });
   }
+  throwIfSyncCancelled(signal);
   await AsyncStorage.setItem(LEGACY_REQUEUE_KEY, '1');
 }
 
@@ -110,24 +122,31 @@ export async function requeueLegacyFailedActions(): Promise<void> {
  * retrying transient failures on the next sync and giving up (FAILED) on permanent
  * ones or once MAX_RETRY_AGE_MS has passed. Reports how many it gave up on, so the
  * caller can put the phone back in step with the server (see syncManager).
+ * @param signal - Stops requests and pending-action updates when the account changes.
  */
-export async function pushChanges(): Promise<PushSummary> {
+export async function pushChanges(signal?: AbortSignal): Promise<PushSummary> {
+  throwIfSyncCancelled(signal);
   const collection = database.get<PendingSync>('pending_sync');
   // Oldest first, so changes reach the server in the order they were made
   // (e.g. Begin Analysis before Confirm).
   const pendingItems = await collection
     .query(Q.where('status', PendingSyncStatus.PENDING), Q.sortBy('created_at', Q.asc))
     .fetch();
+  throwIfSyncCancelled(signal);
   let refusedCount = 0;
 
   for (const item of pendingItems) {
+    throwIfSyncCancelled(signal);
     try {
-      await dispatchAction(item);
-      await markItem(item, PendingSyncStatus.SYNCED);
+      await dispatchAction(item, signal);
+      await markItem(item, PendingSyncStatus.SYNCED, undefined, signal);
     } catch (err) {
+      // An intentional cancellation must leave this action pending, rather than
+      // record a permanent failure or send the next action under another session.
+      throwIfSyncCancelled(signal);
       const { code } = (err ?? {}) as PushError;
       if (code && ALREADY_DONE_CODES.has(code)) {
-        await markItem(item, PendingSyncStatus.SYNCED);
+        await markItem(item, PendingSyncStatus.SYNCED, undefined, signal);
         continue;
       }
 
@@ -139,10 +158,10 @@ export async function pushChanges(): Promise<PushSummary> {
         console.warn(
           `[pushChanges] ${item.action} for ${item.entityId} will be retried: ${message}`,
         );
-        await markItem(item, PendingSyncStatus.PENDING, message);
+        await markItem(item, PendingSyncStatus.PENDING, message, signal);
       } else {
         console.error(`[pushChanges] ${item.action} for ${item.entityId} failed: ${message}`);
-        await markItem(item, PendingSyncStatus.FAILED, message);
+        await markItem(item, PendingSyncStatus.FAILED, message, signal);
         refusedCount += 1;
       }
     }
@@ -150,28 +169,28 @@ export async function pushChanges(): Promise<PushSummary> {
   return { refusedCount };
 }
 
-async function dispatchAction(item: PendingSync): Promise<void> {
+async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<void> {
   const payload = item.payload;
 
   switch (item.action as PendingSyncAction) {
     case PendingSyncAction.REJECT_SPECIMEN:
-      await apiClient.post(`/specimens/${item.entityId}/reject`, payload);
+      await apiClient.post(`/specimens/${item.entityId}/reject`, payload, { signal });
       break;
 
     case PendingSyncAction.START_ANALYSIS:
-      await apiClient.post(`/specimens/${item.entityId}/start-analysis`);
+      await apiClient.post(`/specimens/${item.entityId}/start-analysis`, undefined, { signal });
       break;
 
     case PendingSyncAction.CONFIRM_RESULT:
-      await apiClient.post(`/results/${item.entityId}/confirm`, payload);
+      await apiClient.post(`/results/${item.entityId}/confirm`, payload, { signal });
       break;
 
     case PendingSyncAction.OVERRIDE_PARAMETER:
-      await apiClient.post(`/results/${item.entityId}/override`, payload);
+      await apiClient.post(`/results/${item.entityId}/override`, payload, { signal });
       break;
 
     case PendingSyncAction.DISCARD_IMAGE:
-      await apiClient.post(`/images/${item.entityId}/discard`);
+      await apiClient.post(`/images/${item.entityId}/discard`, undefined, { signal });
       break;
 
     default:
