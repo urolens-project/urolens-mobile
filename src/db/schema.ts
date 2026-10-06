@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 4,
+  version: 5,
   tables: [
     tableSchema({
       name: 'specimens',
@@ -15,6 +15,7 @@ export const schema = appSchema({
         { name: 'priority_level', type: 'string', isOptional: true },
         { name: 'received_at', type: 'string' },
         { name: 'assigned_at', type: 'string', isOptional: true },
+        { name: 'completed_at', type: 'string', isOptional: true },
         { name: 'medtech_id', type: 'string', isOptional: true },
         { name: 'rejection_reason', type: 'string', isOptional: true },
         { name: 'rejection_note', type: 'string', isOptional: true },
@@ -45,6 +46,9 @@ export const schema = appSchema({
         { name: 'smart_diagnosis_unavailable', type: 'boolean' },
         { name: 'confirmed_at', type: 'string', isOptional: true },
         { name: 'confirmed_by', type: 'string', isOptional: true },
+        { name: 'approved_at', type: 'string', isOptional: true },
+        { name: 'released_at', type: 'string', isOptional: true },
+        { name: 'particle_classes_json', type: 'string', isOptional: true },
         { name: 'return_reason', type: 'string', isOptional: true },
         { name: 'is_synced', type: 'boolean' },
         { name: 'created_at', type: 'number' },

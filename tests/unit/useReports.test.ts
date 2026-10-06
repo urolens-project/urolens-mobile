@@ -232,11 +232,12 @@ describe('useReports', () => {
     expect(synchronize).not.toHaveBeenCalled();
   });
 
-  it('starts with isLoading true and all 4 (empty) category sections', () => {
+  it('starts with isLoading true and all 5 (empty) category sections', () => {
     const { result } = renderHook(() => useReports());
     expect(result.current.isLoading).toBe(true);
     expect(result.current.sections.map((s) => s.category)).toEqual([
       'PENDING_APPROVAL',
+      'ESCALATED',
       'APPROVED',
       'RELEASED',
       'REJECTED',
@@ -270,7 +271,7 @@ describe('useReports', () => {
     expect(rejected.title).toBe('Rejected');
     expect(rejected.data[0].rejectionReason).toBe('INSUFFICIENT_VOLUME');
     // Every other category stays empty, not omitted
-    expect(result.current.sections).toHaveLength(4);
+    expect(result.current.sections).toHaveLength(5);
   });
 
   // Named after the actual user action, per the "must reflect fast"
@@ -317,6 +318,7 @@ describe('useReports', () => {
 
   it.each([
     ['PENDING_SUPERVISOR_APPROVAL', 'PENDING_APPROVAL', 'Pending Supervisor Approval'],
+    ['CRITICAL_ESCALATED', 'ESCALATED', 'Escalated to Supervisor'],
     ['APPROVED', 'APPROVED', 'Approved by Supervisor'],
     ['RELEASED', 'RELEASED', 'Released'],
   ] as const)(
@@ -382,6 +384,37 @@ describe('useReports', () => {
     expect(findSection(result.current.sections, 'APPROVED').data.map((i) => i.id)).toEqual([
       'spec-b',
       'spec-a',
+    ]);
+  });
+
+  it('sorts Approved by approvedAt and Released by releasedAt, not confirmedAt', async () => {
+    const { result } = renderHook(() => useReports());
+
+    await act(async () => {
+      emitSpecimens([
+        makeSpecimen({ id: 'spec-a', serverId: 'srv-a' }),
+        makeSpecimen({ id: 'spec-b', serverId: 'srv-b' }),
+      ]);
+      emitResults([
+        // Confirmed first (older confirmedAt) but approved later — approvedAt must win.
+        makeResult({
+          specimenId: 'srv-a',
+          status: 'APPROVED',
+          confirmedAt: '2026-05-01T00:00:00Z',
+          approvedAt: '2026-05-25T00:00:00Z',
+        }),
+        makeResult({
+          specimenId: 'srv-b',
+          status: 'APPROVED',
+          confirmedAt: '2026-05-20T00:00:00Z',
+          approvedAt: '2026-05-10T00:00:00Z',
+        }),
+      ]);
+    });
+
+    expect(findSection(result.current.sections, 'APPROVED').data.map((i) => i.id)).toEqual([
+      'spec-a',
+      'spec-b',
     ]);
   });
 
