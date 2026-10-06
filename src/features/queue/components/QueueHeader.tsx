@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 
-import { colors, radius, spacing } from '@src/theme';
+import { colors, spacing } from '@src/theme';
 
 import { HeaderWaves, QUEUE_WAVES } from '@components/HeaderWaves';
 import { Icon } from '@components/Icon';
@@ -30,7 +31,7 @@ export interface QueueHeaderProps {
 }
 
 /**
- * @description Provides a compact queue header with a brief entrance animation,
+ * @description Uses the Reports curved background in a compact queue header,
  * keeping the sample list as the main focus.
  * @param username - Signed-in medtech's display name, if known.
  * @param activeCount - Number of samples currently active in the queue.
@@ -56,8 +57,9 @@ export function QueueHeader({
   onSync,
 }: QueueHeaderProps): React.JSX.Element {
   const { width } = useWindowDimensions();
-  // Bound the curve depth to the strip height, including on wider screens.
-  const waveCurveScale = Math.min(1, (spacing.lg * 4) / width);
+  const [headerHeight, setHeaderHeight] = useState(topInset + QUEUE_HEADER_BODY_HEIGHT);
+  // Keep the curved edge inside the existing bottom padding, including on wider screens.
+  const waveCurveScale = Math.min(1, (spacing.sm * 4) / width);
   const enter = useRef(new Animated.Value(1)).current;
   const waveEnter = useRef(new Animated.Value(1)).current;
 
@@ -77,6 +79,10 @@ export function QueueHeader({
     return (): void => animation.stop();
   }, [playKey, reduceMotion, live, enter]);
 
+  const handleLayout = useCallback((event: LayoutChangeEvent): void => {
+    setHeaderHeight(event.nativeEvent.layout.height);
+  }, []);
+
   const contentStyle = {
     opacity: enter,
     transform: [
@@ -87,18 +93,22 @@ export function QueueHeader({
   };
 
   return (
-    <View style={[styles.container, { minHeight: topInset + QUEUE_HEADER_BODY_HEIGHT }]}>
+    <View
+      style={[styles.container, { minHeight: topInset + QUEUE_HEADER_BODY_HEIGHT }]}
+      onLayout={handleLayout}
+    >
       <View
         style={styles.waves}
         pointerEvents="none"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
+        <View style={[styles.headerFill, { height: Math.max(0, headerHeight - spacing.xxxl) }]} />
         <HeaderWaves
           width={width}
-          height={spacing.lg}
+          height={headerHeight - spacing.sm}
           preset={QUEUE_WAVES}
-          topInset={0}
+          topInset={topInset}
           enter={waveEnter}
           enterBack={waveEnter}
           flow={live && !reduceMotion}
@@ -114,7 +124,7 @@ export function QueueHeader({
       >
         <QueueHeaderDecor
           width={width}
-          height={QUEUE_HEADER_BODY_HEIGHT}
+          height={headerHeight - topInset}
           topInset={0}
           active={false}
           scale={0.5}
@@ -146,18 +156,18 @@ export function QueueHeader({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.teal,
-    borderBottomLeftRadius: radius.xxl,
-    borderBottomRightRadius: radius.xxl,
     overflow: 'hidden',
   },
   waves: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  headerFill: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
-    height: spacing.lg,
-    overflow: 'hidden',
+    backgroundColor: colors.teal,
   },
   decoration: {
     position: 'absolute',
