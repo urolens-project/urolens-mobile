@@ -2,13 +2,19 @@ import { create } from 'zustand';
 
 import { useAuthStore } from '@lib/auth/authStore';
 
-import { alertsApi } from '../api/alertsApi';
+import { alertsApi, type ListNotificationsParams } from '../api/alertsApi';
 import type { NotificationItem } from '../types';
 
 interface NotificationsState {
   items: NotificationItem[];
   hasLoadedOnce: boolean;
+  /** The server's true unread count (GET /notifications/unread-count), not derived from
+   * `items` — `items` is only ever a page, so deriving from it undercounts once there are
+   * more unread notifications than fit on one page. */
+  unreadCount: number;
   setItems: (items: NotificationItem[]) => void;
+  appendItems: (items: NotificationItem[]) => void;
+  setUnreadCount: (count: number) => void;
   markRead: (notificationId: string) => void;
   markAllRead: () => void;
 }
@@ -17,6 +23,7 @@ interface NotificationsState {
 const useNotificationsStore = create<NotificationsState>((set) => ({
   items: [],
   hasLoadedOnce: false,
+  unreadCount: 0,
   setItems: (items): void =>
     set((state): Pick<NotificationsState, 'items' | 'hasLoadedOnce'> => {
       // Read status only moves forward within a session. A refresh can return an
@@ -31,11 +38,26 @@ const useNotificationsStore = create<NotificationsState>((set) => ({
         hasLoadedOnce: true,
       };
     }),
+  appendItems: (items): void =>
+    set((state): Pick<NotificationsState, 'items'> => {
+      const existingIds = new Set(state.items.map((item) => item.notificationId));
+      return {
+        items: [...state.items, ...items.filter((item) => !existingIds.has(item.notificationId))],
+      };
+    }),
+  setUnreadCount: (unreadCount): void => set({ unreadCount }),
   markRead: (notificationId) =>
-    set((s) => ({
-      items: s.items.map((n) => (n.notificationId === notificationId ? { ...n, isRead: true } : n)),
-    })),
-  markAllRead: () => set((s) => ({ items: s.items.map((n) => ({ ...n, isRead: true })) })),
+    set((s) => {
+      const wasUnread = s.items.some((n) => n.notificationId === notificationId && !n.isRead);
+      return {
+        items: s.items.map((n) =>
+          n.notificationId === notificationId ? { ...n, isRead: true } : n,
+        ),
+        unreadCount: wasUnread ? Math.max(0, s.unreadCount - 1) : s.unreadCount,
+      };
+    }),
+  markAllRead: () =>
+    set((s) => ({ items: s.items.map((n) => ({ ...n, isRead: true })), unreadCount: 0 })),
 }));
 
 let notificationsSession = 0;
@@ -48,7 +70,7 @@ useAuthStore.subscribe((state, previousState): void => {
     state.isAuthenticated !== previousState.isAuthenticated
   ) {
     notificationsSession += 1;
-    useNotificationsStore.setState({ items: [], hasLoadedOnce: false });
+    useNotificationsStore.setState({ items: [], hasLoadedOnce: false, unreadCount: 0 });
   }
 });
 
@@ -59,11 +81,10 @@ export const useNotificationsList = (): NotificationItem[] => useNotificationsSt
 export const useNotificationsLoaded = (): boolean => useNotificationsStore((s) => s.hasLoadedOnce);
 
 /**
- * @description Read-only: count of unread notifications. Backs the Alerts tab badge,
+ * @description Read-only: the server's true unread count. Backs the Alerts tab badge,
  * which must be visible from anywhere in the app, not just the Alerts screen itself.
  */
-export const useUnreadNotificationCount = (): number =>
-  useNotificationsStore((s) => s.items.reduce((count, n) => count + (n.isRead ? 0 : 1), 0));
+export const useUnreadNotificationCount = (): number => useNotificationsStore((s) => s.unreadCount);
 
 /** @description Write actions, stable across renders. */
 export const useNotificationsActions = (): Pick<
@@ -75,19 +96,52 @@ export const useNotificationsActions = (): Pick<
 });
 
 /**
- * @description Loads notifications for the current session and ignores responses
- * from an earlier session, so delayed requests cannot restore another user's cache.
+ * @description Loads a page of notifications and the true unread count for the current
+ * session, ignoring responses from an earlier session so delayed requests cannot restore
+ * another user's cache. A notification already known locally read overrides what a
+ * (now-stale) concurrent response says, the same way `setItems` already treats `items`.
  * @param signal - Aborts a screen request when it unmounts or refetches.
+ * @param params - Paging/filter options forwarded to `alertsApi.list`.
  */
-export async function loadNotifications(signal?: AbortSignal): Promise<void> {
+export async function loadNotifications(
+  signal?: AbortSignal,
+  params?: ListNotificationsParams,
+): Promise<void> {
   const { isAuthenticated, userId } = useAuthStore.getState();
   if (!isAuthenticated || userId === null) return;
 
   const requestSession = notificationsSession;
-  const items = await alertsApi.list(signal);
-  if (!signal?.aborted && requestSession === notificationsSession) {
-    useNotificationsStore.getState().setItems(items);
-  }
+  const [items, unreadCount] = await Promise.all([
+    alertsApi.list(params, signal),
+    alertsApi.getUnreadCount(signal),
+  ]);
+  if (signal?.aborted || requestSession !== notificationsSession) return;
+
+  const { items: localItems, setItems, setUnreadCount } = useNotificationsStore.getState();
+  const staleUnread = items.filter(
+    (item) =>
+      !item.isRead &&
+      localItems.some((local) => local.notificationId === item.notificationId && local.isRead),
+  ).length;
+  setItems(items);
+  setUnreadCount(Math.max(0, unreadCount - staleUnread));
+}
+
+/**
+ * @description Fetches an older page before `beforeId` and appends it to the current list,
+ * for a "load more" control at the bottom of the Alerts screen. Doesn't touch the unread
+ * count — paging in older notifications doesn't change how many are unread.
+ * @param beforeId - Id of the oldest currently-loaded notification.
+ * @param unreadOnly - Whether the current view is filtered to unread only.
+ */
+export async function loadMoreNotifications(beforeId: string, unreadOnly = false): Promise<void> {
+  const { isAuthenticated, userId } = useAuthStore.getState();
+  if (!isAuthenticated || userId === null) return;
+
+  const requestSession = notificationsSession;
+  const items = await alertsApi.list({ before: beforeId, unreadOnly });
+  if (requestSession !== notificationsSession) return;
+  useNotificationsStore.getState().appendItems(items);
 }
 
 /**
