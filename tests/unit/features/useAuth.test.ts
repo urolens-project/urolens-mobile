@@ -99,6 +99,21 @@ describe('useAuth.login', () => {
     expect(loginMock).not.toHaveBeenCalled();
   });
 
+  it('locks out the form for retryAfterSeconds on a 429, then releases it', async () => {
+    jest.useFakeTimers();
+    loginMock.mockRejectedValue({
+      code: 'TOO_MANY_LOGIN_ATTEMPTS',
+      message: 'Too many login attempts. Try again in 30 seconds.',
+      details: { retryAfterSeconds: 30 },
+    });
+    const { result } = renderHook(() => useAuth());
+    await act(() => result.current.login('medtech01', 'pw'));
+    expect(result.current.isLocked).toBe(true);
+    act(() => jest.advanceTimersByTime(30_000));
+    expect(result.current.isLocked).toBe(false);
+    jest.useRealTimers();
+  });
+
   it.each([500, 502, 503])(
     'reports HTTP %s as a server failure without saving a session',
     async (status): Promise<void> => {
@@ -120,6 +135,36 @@ describe('useAuth.login', () => {
       expect(result.current.isSubmitting).toBe(false);
     },
   );
+});
+
+describe('useAuth.logout', () => {
+  it('sends no reason to the backend for a manual logout', async () => {
+    const { result } = renderHook(() => useAuth());
+    await act(() => result.current.logout());
+    expect(authApi.logout).toHaveBeenCalledWith(undefined);
+    expect(router.replace).toHaveBeenCalledWith('/(auth)/login');
+  });
+
+  it('sends {"reason": "INACTIVITY"} and routes with the reason on an idle sign-out', async () => {
+    const { result } = renderHook(() => useAuth());
+    await act(() => result.current.logout('inactivity'));
+    expect(authApi.logout).toHaveBeenCalledWith('INACTIVITY');
+    expect(router.replace).toHaveBeenCalledWith({
+      pathname: '/(auth)/login',
+      params: { reason: 'inactivity' },
+    });
+  });
+
+  it('still clears local auth state when the logout request fails', async () => {
+    (authApi.logout as jest.Mock).mockRejectedValue(new Error('network down'));
+    const { result } = renderHook(() => useAuth());
+    await act(() => result.current.logout('inactivity'));
+    expect(tokenStorage.clearAll).toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith({
+      pathname: '/(auth)/login',
+      params: { reason: 'inactivity' },
+    });
+  });
 });
 
 // Logout only clears the session, so on a shared phone the previous MedTech's data is

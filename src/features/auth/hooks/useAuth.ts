@@ -120,7 +120,7 @@ export function useAuth(): UseAuthResult {
   const logout = useCallback(
     async (reason?: LogoutReason): Promise<void> => {
       try {
-        await authApi.logout();
+        await authApi.logout(reason === 'inactivity' ? 'INACTIVITY' : undefined);
       } catch {
         // Continue logout even if the server call fails.
       } finally {
