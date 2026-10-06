@@ -1,5 +1,13 @@
 import { useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -118,11 +126,19 @@ export function SampleDetailScreen({
 
   const handleBack = useCallback((): void => router.back(), [router]);
 
-  // Route variation: resultId present → mount review screen directly. A specimen
+  // Open the shared review once a route or synced specimen has a result. A specimen
   // that has since been rejected must not be reviewed or confirmed, so it falls
   // through to the regular view, which shows the rejection instead.
-  if (resultId && specimen?.status !== 'REJECTED') {
-    return <ResultReviewScreen resultId={resultId} specimenId={specimenId} />;
+  const reviewResultId = resultId ?? analysisResult?.serverId;
+  if (!isLoading && specimen && reviewResultId && specimen.status !== 'REJECTED') {
+    return (
+      <ResultReviewScreen
+        key={reviewResultId}
+        resultId={reviewResultId}
+        specimenId={specimenId}
+        specimen={specimen}
+      />
+    );
   }
 
   if (isLoading) {
@@ -290,7 +306,12 @@ export function SampleDetailScreen({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.cream },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.cream,
+  },
   scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
 
   topBar: {

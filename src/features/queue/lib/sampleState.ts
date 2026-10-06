@@ -75,7 +75,9 @@ export function getSampleActions(
   return {
     canBeginAnalysis: resultStatus === null && BEGINNABLE_STATUSES.includes(specimenStatus),
     canReject: getRejectBlockedReason(specimenStatus, resultStatus) === null,
-    canConfirm: !isRejected && resultStatus === 'PENDING_CONFIRM',
+    canConfirm:
+      !isRejected &&
+      (resultStatus === 'PENDING_CONFIRM' || resultStatus === 'RETURNED_FOR_CORRECTION'),
     canRetake:
       !isRejected &&
       (resultStatus === 'PENDING_CONFIRM' || resultStatus === 'RETURNED_FOR_CORRECTION'),
