@@ -17,6 +17,7 @@ import { Icon } from '@components/Icon';
 import { NotificationBadge } from '@components/NotificationBadge';
 
 import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
+import { SessionActivityGate } from '@features/auth/components/SessionActivityGate';
 import { NotificationsPreview } from '@features/alerts/components/NotificationsPreview';
 import {
   refreshNotifications,
@@ -199,7 +200,7 @@ export default function MedTechLayout(): React.JSX.Element {
         />
       </Tabs>
       <NotificationsPreview visible={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} />
-    </>
+    </SessionActivityGate>
   );
 }
 
