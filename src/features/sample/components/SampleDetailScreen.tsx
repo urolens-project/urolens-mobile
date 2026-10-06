@@ -183,7 +183,7 @@ export function SampleDetailScreen({
         unavailable: analysisResult.smartDiagnosisUnavailable,
         isSynced: analysisResult.isSynced,
       })
-    : 'AFTER_CONFIRMATION';
+    : 'PREVIEW_UNAVAILABLE';
   const findingRows = buildFindingRows(analysisResult?.aiFindings ?? {}, overrides);
 
   return (

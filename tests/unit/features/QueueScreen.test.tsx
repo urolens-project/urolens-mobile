@@ -169,14 +169,13 @@ describe('the Reject button in the preview bar', () => {
 });
 
 describe('the fixed header of the Queue', () => {
-  it('shows the title, the active count, the date, the role and the username', () => {
+  it('shows the title, active count, date and username in the compact header', () => {
     setQueue([item('a1'), item('a2'), item('p1', { status: 'PROCESSING' })]);
     const view = render(<QueueScreen />);
 
     expect(view.getByText('My Sample Queue')).toBeTruthy();
     expect(view.getByText('3 Active Samples')).toBeTruthy();
     expect(view.getByText(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/)).toBeTruthy();
-    expect(view.getByText('Medical Technologist')).toBeTruthy();
     expect(view.getByText('medtech')).toBeTruthy();
   });
 

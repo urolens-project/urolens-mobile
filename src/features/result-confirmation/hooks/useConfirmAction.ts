@@ -19,10 +19,7 @@ export type ConfirmActionResult =
   | { status: 'failed'; message: string };
 
 interface UseConfirmActionReturn {
-  confirmResult: (
-    result: AnalysisResult,
-    beforeConfirm?: (signal: AbortSignal) => Promise<void>,
-  ) => Promise<ConfirmActionResult>;
+  confirmResult: (result: AnalysisResult) => Promise<ConfirmActionResult>;
   isConfirming: boolean;
   error: string | null;
 }
@@ -40,14 +37,9 @@ export function useConfirmAction(): UseConfirmActionReturn {
   const confirmingRef = useRef(false);
 
   const action = useCallback(
-    async (
-      signal: AbortSignal,
-      result: AnalysisResult,
-      beforeConfirm?: (signal: AbortSignal) => Promise<void>,
-    ): Promise<ConfirmActionResult> => {
+    async (signal: AbortSignal, result: AnalysisResult): Promise<ConfirmActionResult> => {
       setError(null);
       try {
-        await beforeConfirm?.(signal);
         if (signal.aborted) return { status: 'busy' };
         await confirmResultCore({ result, isOnline });
         if (signal.aborted) return { status: 'busy' };
@@ -64,14 +56,11 @@ export function useConfirmAction(): UseConfirmActionReturn {
   const { run, isLoading: isConfirming } = useAsyncAction('ResultConfirmation', action);
 
   const confirmResult = useCallback(
-    async (
-      result: AnalysisResult,
-      beforeConfirm?: (signal: AbortSignal) => Promise<void>,
-    ): Promise<ConfirmActionResult> => {
+    async (result: AnalysisResult): Promise<ConfirmActionResult> => {
       if (confirmingRef.current) return { status: 'busy' };
       confirmingRef.current = true;
       try {
-        return (await run(result, beforeConfirm)) ?? { status: 'busy' };
+        return (await run(result)) ?? { status: 'busy' };
       } finally {
         confirmingRef.current = false;
       }

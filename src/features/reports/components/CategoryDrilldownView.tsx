@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
@@ -126,6 +126,11 @@ export function CategoryDrilldownView({
   const [historyItems, setHistoryItems] = useState<ReportItem[]>([]);
   const [historyPage, setHistoryPage] = useState(0);
   const [historyTotal, setHistoryTotal] = useState<number | null>(null);
+  // Raw count of rows the server has returned so far, including ones filtered out below
+  // as already-synced duplicates — "hasMoreHistory" must track against this, not against
+  // historyItems.length, or an overlap-heavy category would never reach historyTotal and
+  // "Load older samples" would keep showing after every page had been fetched.
+  const [rawHistoryFetched, setRawHistoryFetched] = useState(0);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Reset paged-in history when the category changes (a fresh mount, since ReportsScreen
@@ -134,7 +139,21 @@ export function CategoryDrilldownView({
     setHistoryItems([]);
     setHistoryPage(0);
     setHistoryTotal(null);
+    setRawHistoryFetched(0);
   }, [category]);
+
+  // The server history endpoint has no notion of what's already synced to this phone, so
+  // its newest-first pages re-list samples already shown in `section.data`. Skip those so
+  // "Load older samples" doesn't duplicate the current view.
+  const localSpecimenIds = useMemo(
+    (): Set<string> =>
+      new Set(
+        section.data
+          .map((item): string | null | undefined => item.specimenId)
+          .filter((specimenId): specimenId is string => Boolean(specimenId)),
+      ),
+    [section.data],
+  );
 
   const handleLoadOlder = useCallback((): void => {
     if (!isHistoryEligible(category) || isLoadingHistory) return;
@@ -143,17 +162,21 @@ export function CategoryDrilldownView({
     reportsApi
       .getHistory(category, nextPage)
       .then((response) => {
-        setHistoryItems((prev) => [...prev, ...response.items.map(mapHistoryItemToReportItem)]);
+        const newItems = response.items
+          .filter((item) => !localSpecimenIds.has(item.specimenId))
+          .map(mapHistoryItemToReportItem);
+        setHistoryItems((prev) => [...prev, ...newItems]);
         setHistoryTotal(response.total);
+        setRawHistoryFetched((prev) => prev + response.items.length);
         setHistoryPage(nextPage);
       })
       .catch((err: unknown) => console.error('[Reports] failed to load older history', err))
       .finally(() => setIsLoadingHistory(false));
-  }, [category, historyPage, isLoadingHistory]);
+  }, [category, historyPage, isLoadingHistory, localSpecimenIds]);
 
   const allItems = historyItems.length > 0 ? [...section.data, ...historyItems] : section.data;
   const hasMoreHistory =
-    isHistoryEligible(category) && (historyTotal === null || historyItems.length < historyTotal);
+    isHistoryEligible(category) && (historyTotal === null || rawHistoryFetched < historyTotal);
   const {
     searchQuery,
     period,

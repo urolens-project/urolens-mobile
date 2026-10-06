@@ -42,21 +42,21 @@ describe('QueueHeader', () => {
     onSync: jest.fn(),
   };
 
-  it('shows the brand, the title, the count, the date, the role and the username', () => {
+  it('shows the title, count, date and username in the compact header', () => {
     const view = render(<QueueHeader {...baseProps} />);
     expect(view.getByText('UroLens')).toBeTruthy();
     expect(view.getByText('Laboratory Diagnostics')).toBeTruthy();
+    expect(view.getByText('Medical Technologist')).toBeTruthy();
     expect(view.getByText('My Sample Queue')).toBeTruthy();
     expect(view.getByText('6 Active Samples')).toBeTruthy();
     expect(view.getByText('Sep 20, 2026')).toBeTruthy();
-    expect(view.getByText('Medical Technologist')).toBeTruthy();
     expect(view.getByText('maria.santos')).toBeTruthy();
   });
 
   it('leaves the username out when there is none', () => {
     const view = render(<QueueHeader {...baseProps} username={null} />);
     expect(view.queryByText('maria.santos')).toBeNull();
-    expect(view.getByText('Medical Technologist')).toBeTruthy();
+    expect(view.getByText('Sep 20, 2026')).toBeTruthy();
   });
 
   it('the Sync button calls onSync', () => {
@@ -86,13 +86,9 @@ describe('QueueHeader', () => {
 });
 
 describe('QueueStatsCard', () => {
-  it('shows each status with its count, and the last sync', () => {
+  it('shows each status with its count', () => {
     const view = render(
-      <QueueStatsCard
-        counts={{ assigned: 4, inProgress: 2, returned: 1 }}
-        lastSync="5m ago"
-        reduceMotion
-      />,
+      <QueueStatsCard counts={{ assigned: 4, inProgress: 2, returned: 1 }} reduceMotion />,
     );
     expect(view.getByText('4')).toBeTruthy();
     expect(view.getByText('2')).toBeTruthy();
@@ -100,7 +96,6 @@ describe('QueueStatsCard', () => {
     expect(view.getByText('Assigned')).toBeTruthy();
     expect(view.getByText('In Progress')).toBeTruthy();
     expect(view.getByText('Returned')).toBeTruthy();
-    expect(view.getByText('Last Sync: 5m ago')).toBeTruthy();
   });
 });
 
@@ -110,8 +105,9 @@ describe('SyncStatusPill', () => {
     ['caution', 'Offline • Showing cached data'],
     ['error', 'Online • Sync failed, showing cached data'],
   ] as const)('shows the %s label', (tone, label) => {
-    const view = render(<SyncStatusPill pill={{ tone, label }} live />);
+    const view = render(<SyncStatusPill pill={{ tone, label }} lastSync="5m ago" live />);
     expect(view.getByText(label)).toBeTruthy();
+    expect(view.getByText('Last Sync: 5m ago')).toBeTruthy();
   });
 });
 

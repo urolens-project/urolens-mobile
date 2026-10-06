@@ -573,10 +573,12 @@ describe('Smart Diagnosis', () => {
     no_significant_indicators: true,
   };
 
-  it('explains it is generated after confirmation while the result awaits the MedTech', async () => {
+  it('explains that a missing preview will be recalculated on confirmation', async () => {
     const view = await openScreen({ result: makeResult({ status: 'PENDING_CONFIRM' }) });
     expect(
-      view.getByText('Smart Diagnosis is generated after you confirm this result.'),
+      view.getByText(
+        'Smart Diagnosis preview is unavailable. It will be recalculated when you confirm this result.',
+      ),
     ).toBeTruthy();
     expect(view.queryByText('Diagnosis unavailable')).toBeNull();
   });
@@ -603,7 +605,7 @@ describe('Smart Diagnosis', () => {
     const view = await openScreen({
       result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL', smartDiagnosis: noIndicators }),
     });
-    expect(view.getByText(/No significant clinical indicators detected/)).toBeTruthy();
+    expect(view.getByText(/No significant diagnostic indicators found/)).toBeTruthy();
   });
 
   it('does not dress a condition with no level as Low', async () => {
@@ -618,9 +620,9 @@ describe('Smart Diagnosis', () => {
         },
       }),
     });
-    expect(view.getByText('Gout: HIGH')).toBeTruthy();
-    expect(view.getByText('Glomerulonephritis: Unavailable')).toBeTruthy();
-    expect(view.getByText('Nephrolithiasis: LOW')).toBeTruthy();
+    expect(view.getByLabelText('Gout: High')).toBeTruthy();
+    expect(view.getByLabelText('Glomerulonephritis: Unavailable')).toBeTruthy();
+    expect(view.getByLabelText('Nephrolithiasis: Low')).toBeTruthy();
   });
 });
 

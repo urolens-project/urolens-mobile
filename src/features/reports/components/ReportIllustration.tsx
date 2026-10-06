@@ -6,7 +6,13 @@ import { REPORT_CATEGORY_ORDER } from '../types';
 import type { ReportCategory } from '../types';
 
 import { Dot } from './illustrationParts';
-import { ApprovedScene, PendingScene, RejectedScene, ReleasedScene } from './illustrationScenes';
+import {
+  ApprovedScene,
+  EscalatedScene,
+  PendingScene,
+  RejectedScene,
+  ReleasedScene,
+} from './illustrationScenes';
 
 export const ILLUSTRATION_SIZE = 124;
 
@@ -31,7 +37,7 @@ export function ReportIllustration({
 
   useEffect(() => {
     if (!animate) return;
-    // Offset each category so the four illustrations don't bob in unison.
+    // Offset each category so the illustrations don't bob in unison.
     const phase = REPORT_CATEGORY_ORDER.indexOf(category) * 260;
     const loop = Animated.loop(
       Animated.sequence([
@@ -69,6 +75,7 @@ export function ReportIllustration({
       <Dot size={26} color={blob} style={{ position: 'absolute', top: 0, left: 6, opacity: 0.7 }} />
 
       {category === 'PENDING_APPROVAL' && <PendingScene color={color} blob={blob} />}
+      {category === 'ESCALATED' && <EscalatedScene color={color} />}
       {category === 'APPROVED' && <ApprovedScene color={color} />}
       {category === 'RELEASED' && <ReleasedScene color={color} />}
       {category === 'REJECTED' && <RejectedScene color={color} blob={blob} />}

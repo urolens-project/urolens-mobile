@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     // TODO(theme): near-black hairline at 0.08 alpha not in palette.
     borderBottomColor: 'rgba(0,0,0,0.08)',
-    backgroundColor: colors.cream,
+    backgroundColor: colors.creamAlt,
   },
   headerLeft: {
     flexDirection: 'row',

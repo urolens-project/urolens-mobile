@@ -32,7 +32,7 @@ export const REPORT_CATEGORY_ORDER: ReportCategory[] = [
 
 export const REPORT_CATEGORY_TITLES: Record<ReportCategory, string> = {
   PENDING_APPROVAL: 'Pending Supervisor Approval',
-  ESCALATED: 'Escalated to Supervisor',
+  ESCALATED: 'Escalated by Supervisor',
   APPROVED: 'Approved by Supervisor',
   RELEASED: 'Released',
   REJECTED: 'Rejected',
@@ -49,6 +49,9 @@ export const REPORT_CATEGORY_DESCRIPTIONS: Record<ReportCategory, string> = {
 
 export interface ReportItem {
   id: string;
+  // The server specimen ID, independent of `id` (a local-only ID for synced items).
+  // Lets history pages be deduped against the already-synced items shown for this category.
+  specimenId?: string | null;
   sampleUid: string;
   patientUid: string;
   testType: string;

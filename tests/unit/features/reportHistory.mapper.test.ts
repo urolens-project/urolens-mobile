@@ -17,6 +17,7 @@ describe('mapHistoryItemToReportItem', () => {
       }),
     ).toEqual({
       id: 'spec-1',
+      specimenId: 'spec-1',
       sampleUid: 'S-001',
       patientUid: 'P-001',
       testType: 'URINALYSIS',
