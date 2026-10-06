@@ -48,6 +48,7 @@ function mapSpecimenToReportItem(
 ): ReportItem {
   return {
     id: specimen.id,
+    specimenId: specimen.serverId,
     sampleUid: specimen.sampleUid,
     patientUid: specimen.patientUid,
     testType: specimen.testType,
