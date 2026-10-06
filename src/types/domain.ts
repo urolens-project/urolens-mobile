@@ -11,6 +11,24 @@ export interface TokenResponse {
   tokenType: string;
   role: string;
   userId: string;
+  /** When this access token expires (ISO 8601); refresh before then to keep working. */
+  expiresAt: string;
+  /** When the session ends for good (end of the shift); no refresh goes past it. */
+  sessionExpiresAt: string;
+  /** Inactivity limit for this role: a session with no request for this long is signed out server-side. */
+  idleTimeoutMinutes: number;
+  /** How long before the idle timeout the app should warn the user, in seconds. */
+  idleWarningSeconds: number;
+}
+
+/** Response body for `POST /auth/refresh` — a new token for the same session. */
+export interface TokenRefreshResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresAt: string;
+  sessionExpiresAt: string;
+  idleTimeoutMinutes: number;
+  idleWarningSeconds: number;
 }
 
 export interface AnalysisResultDTO {

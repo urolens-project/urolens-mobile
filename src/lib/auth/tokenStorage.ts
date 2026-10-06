@@ -7,6 +7,16 @@ const USER_ID_KEY = 'urolens_user_id';
 const USER_ROLE_KEY = 'urolens_user_role';
 const USERNAME_KEY = 'urolens_username';
 const LAST_ACTIVE_AT_KEY = 'urolens_last_active_at';
+const SESSION_META_KEY = 'urolens_session_meta';
+
+export interface SessionMeta {
+  /** When the current access token expires (ISO 8601). */
+  expiresAt: string;
+  /** When the session ends for good, regardless of refreshes (ISO 8601). */
+  sessionExpiresAt: string;
+  idleTimeoutMinutes: number;
+  idleWarningSeconds: number;
+}
 
 // expo-secure-store wraps the iOS Keychain / Android Keystore and is unavailable on web,
 // so web falls back to AsyncStorage (localStorage under the hood).
@@ -90,11 +100,22 @@ export const tokenStorage = {
     await deleteItem(LAST_ACTIVE_AT_KEY);
   },
 
+  /** Persists the current token's expiry and session-timeout info, e.g. after login or refresh. */
+  async saveSessionMeta(meta: SessionMeta): Promise<void> {
+    await setItem(SESSION_META_KEY, JSON.stringify(meta));
+  },
+
+  async getSessionMeta(): Promise<SessionMeta | null> {
+    const raw = await getItem(SESSION_META_KEY);
+    return raw ? (JSON.parse(raw) as SessionMeta) : null;
+  },
+
   async clearAll(): Promise<void> {
     await deleteItem(ACCESS_TOKEN_KEY);
     await deleteItem(USER_ID_KEY);
     await deleteItem(USER_ROLE_KEY);
     await deleteItem(USERNAME_KEY);
     await deleteItem(LAST_ACTIVE_AT_KEY);
+    await deleteItem(SESSION_META_KEY);
   },
 };

@@ -69,7 +69,7 @@ describe('tokenStorage', () => {
   });
 
   describe('clearAll', () => {
-    it('deletes all five SecureStore keys', async () => {
+    it('deletes all six SecureStore keys', async () => {
       mockSecureStore.deleteItemAsync.mockResolvedValue(undefined);
       await tokenStorage.clearAll();
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_access_token');
@@ -77,7 +77,36 @@ describe('tokenStorage', () => {
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_user_role');
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_username');
       expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_last_active_at');
-      expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledTimes(5);
+      expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('urolens_session_meta');
+      expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledTimes(6);
+    });
+  });
+
+  describe('saveSessionMeta / getSessionMeta', () => {
+    const meta = {
+      expiresAt: '2026-01-01T01:00:00Z',
+      sessionExpiresAt: '2026-01-01T08:00:00Z',
+      idleTimeoutMinutes: 60,
+      idleWarningSeconds: 120,
+    };
+
+    it('saves session meta as JSON to SecureStore', async () => {
+      mockSecureStore.setItemAsync.mockResolvedValue(undefined);
+      await tokenStorage.saveSessionMeta(meta);
+      expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
+        'urolens_session_meta',
+        JSON.stringify(meta),
+      );
+    });
+
+    it('retrieves and parses saved session meta', async () => {
+      mockSecureStore.getItemAsync.mockResolvedValue(JSON.stringify(meta));
+      expect(await tokenStorage.getSessionMeta()).toEqual(meta);
+    });
+
+    it('returns null when no session meta is stored', async () => {
+      mockSecureStore.getItemAsync.mockResolvedValue(null);
+      expect(await tokenStorage.getSessionMeta()).toBeNull();
     });
   });
 

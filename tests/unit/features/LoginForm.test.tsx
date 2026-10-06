@@ -1,6 +1,7 @@
 // Path: urolens-mobile/tests/unit/features/LoginForm.test.tsx
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { LoginForm } from '@features/auth/components/LoginForm';
 import { useAuth } from '@features/auth/hooks/useAuth';
 
@@ -18,12 +19,14 @@ const defaultHook = {
   login: mockLogin,
   logout: jest.fn(),
   isSubmitting: false,
+  isLocked: false,
   error: null,
 };
 
 beforeEach(() => {
   jest.clearAllMocks();
   (useAuth as jest.Mock).mockReturnValue(defaultHook);
+  (useLocalSearchParams as jest.Mock).mockReturnValue({});
 });
 
 describe('LoginForm', () => {
@@ -164,6 +167,36 @@ describe('LoginForm', () => {
       render(<LoginForm />);
       const message = screen.getByText('Login failed.');
       expect(message.parent?.props.accessibilityLiveRegion).toBe('polite');
+    });
+  });
+
+  describe('session-ended notice', () => {
+    it('shows the reason apiClient redirected here with, on first render', () => {
+      (useLocalSearchParams as jest.Mock).mockReturnValue({
+        sessionMessage: 'You were signed out due to inactivity. Please log in again.',
+      });
+      render(<LoginForm />);
+      expect(
+        screen.getByText('You were signed out due to inactivity. Please log in again.'),
+      ).toBeTruthy();
+    });
+
+    it('clears the session notice once the medtech submits again', () => {
+      (useLocalSearchParams as jest.Mock).mockReturnValue({ sessionMessage: 'Session ended.' });
+      render(<LoginForm />);
+      fireEvent.changeText(screen.getByPlaceholderText('Enter laboratory ID'), 'medtech01');
+      fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'secret123');
+      fireEvent.press(screen.getByRole('button', { name: 'Login' }));
+      expect(screen.queryByText('Session ended.')).toBeNull();
+    });
+  });
+
+  describe('login attempt lockout', () => {
+    it('disables the Login button while isLocked is true', () => {
+      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, isLocked: true });
+      render(<LoginForm />);
+      const btn = screen.getByRole('button', { name: 'Login' });
+      expect(btn.props.accessibilityState?.disabled ?? btn.props.disabled).toBe(true);
     });
   });
 });

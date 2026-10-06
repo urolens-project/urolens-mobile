@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 
 import { claimLocalDataFor } from '@db/sync/claimLocalData';
@@ -15,11 +15,15 @@ export interface UseAuthResult {
   login: (username: string, password: string, keepLoggedIn?: boolean) => Promise<void>;
   logout: (reason?: LogoutReason) => Promise<void>;
   isSubmitting: boolean;
+  /** True while a 429 TOO_MANY_LOGIN_ATTEMPTS lockout from the last attempt is in effect. */
+  isLocked: boolean;
   error: string | null;
 }
 
 /**
  * @description Maps a raw ApiError code from the login endpoint to a user-facing message.
+ * Codes the backend already writes a specific, user-safe message for (account locked, role
+ * not allowed, rate limited) are shown as-is rather than re-worded on the client.
  * @param apiError - Error rejected by the auth API client.
  */
 function describeLoginError(apiError: ApiError): string {
@@ -29,7 +33,9 @@ function describeLoginError(apiError: ApiError): string {
 
   switch (apiError.code) {
     case 'ACCOUNT_LOCKED':
-      return 'Your account is locked. Contact an administrator.';
+    case 'ROLE_NOT_ALLOWED':
+    case 'TOO_MANY_LOGIN_ATTEMPTS':
+      return apiError.message;
     case 'ACCOUNT_INACTIVE':
       return 'Your account is inactive. Contact an administrator.';
     case 'NETWORK_ERROR':
@@ -51,6 +57,16 @@ export function useAuth(): UseAuthResult {
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
+  const [isLocked, setIsLocked] = useState(false);
+  const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+    },
+    [],
+  );
+
   const performLogin = useCallback(
     async (
       _signal: AbortSignal,
@@ -62,7 +78,7 @@ export function useAuth(): UseAuthResult {
         throw new Error('Username and password are required.');
       }
       try {
-        const data = await authApi.login(username, password);
+        const data = await authApi.login(username, password, keepLoggedIn);
         // Before anything is saved or shown: never let this user see or send another
         // user's local data.
         await claimLocalDataFor(data.userId);
@@ -71,10 +87,23 @@ export function useAuth(): UseAuthResult {
         tokenStorage.setSessionOnly(!keepLoggedIn);
         await tokenStorage.saveToken(data.accessToken);
         await tokenStorage.saveUserInfo(data.userId, data.role, username);
+        await tokenStorage.saveSessionMeta({
+          expiresAt: data.expiresAt,
+          sessionExpiresAt: data.sessionExpiresAt,
+          idleTimeoutMinutes: data.idleTimeoutMinutes,
+          idleWarningSeconds: data.idleWarningSeconds,
+        });
         setAuthenticated(data.userId, data.role as UserRole, username);
         router.replace('/(medtech)/queue');
       } catch (err) {
-        throw new Error(describeLoginError(err as ApiError));
+        const apiError = err as ApiError;
+        const retryAfterSeconds = apiError.details?.retryAfterSeconds;
+        if (apiError.code === 'TOO_MANY_LOGIN_ATTEMPTS' && typeof retryAfterSeconds === 'number') {
+          setIsLocked(true);
+          if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+          lockTimerRef.current = setTimeout(() => setIsLocked(false), retryAfterSeconds * 1000);
+        }
+        throw new Error(describeLoginError(apiError));
       }
     },
     [setAuthenticated],
@@ -105,5 +134,5 @@ export function useAuth(): UseAuthResult {
     [clearAuth],
   );
 
-  return { login, logout, isSubmitting, error: error?.message ?? null };
+  return { login, logout, isSubmitting, isLocked, error: error?.message ?? null };
 }
