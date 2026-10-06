@@ -159,24 +159,52 @@ describe('read-only reports', (): void => {
     expect(startAnalysis).not.toHaveBeenCalled();
   });
 
-  it('shows findings but prevents confirmation, retake, and the result review shortcut', async (): Promise<void> => {
-    const view = await openScreen(
-      { result: makeResult() },
-      { id: 'spec-1', resultId: 'res-local', readOnly: 'true' },
-    );
-    await view.findByText('Analysis Results');
-    expect(view.queryByText('Confirm Result')).toBeNull();
-    expect(view.queryByText('Retake Image')).toBeNull();
-    expect(view.queryByText('REVIEW_SCREEN')).toBeNull();
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
+  it.each([
+    ['PENDING_CONFIRM', undefined],
+    ['PENDING_CONFIRM', 'srv-res-1'],
+    ['RETURNED_FOR_CORRECTION', undefined],
+    ['RETURNED_FOR_CORRECTION', 'srv-res-1'],
+  ])(
+    'shows findings without editing a %s report with resultId=%s',
+    async (status, resultId): Promise<void> => {
+      const view = await openScreen(
+        { result: makeResult({ status }) },
+        { id: 'spec-1', resultId, readOnly: 'true' },
+      );
+      await view.findByText('Analysis Results');
+      expect(view.getByText('Read-only report')).toBeTruthy();
+      expect(view.getByText('Wbc')).toBeTruthy();
+      expect(view.getByText('12')).toBeTruthy();
+      expect(view.queryByText('Analysis Result')).toBeNull();
+      expect(view.queryByText('Override')).toBeNull();
+      expect(view.queryByText('Confirm Result')).toBeNull();
+      expect(view.queryByText('Re-confirm & Submit')).toBeNull();
+      expect(view.queryByText('Retake Image')).toBeNull();
+      expect(view.queryByText('Reject Specimen')).toBeNull();
+      expect(view.queryByLabelText('Annotation notes')).toBeNull();
+      expect(mockConfirm).not.toHaveBeenCalled();
+      expect(mockRouter.push).not.toHaveBeenCalled();
+    },
+  );
 
   it('restores Queue actions when the same sample is opened without read-only mode', async (): Promise<void> => {
     const view = await openScreen({}, { id: 'spec-1', readOnly: 'true' });
     mockParams = { id: 'spec-1' };
     view.rerender(<SampleDetailRoute />);
     await view.findByText('Begin Analysis');
+    expect(view.queryByText('Read-only report')).toBeNull();
+  });
+
+  it('opens the editable review when the same report result is later opened from Queue', async (): Promise<void> => {
+    const view = await openScreen({ result: makeResult() }, { id: 'spec-1', readOnly: 'true' });
+    expect(view.getByText('Read-only report')).toBeTruthy();
+
+    mockParams = { id: 'spec-1' };
+    view.rerender(<SampleDetailRoute />);
+
+    await view.findByText('Analysis Result');
+    expect(view.getByText('Confirm Result')).toBeTruthy();
+    expect(view.getByText('Retake Image')).toBeTruthy();
     expect(view.queryByText('Read-only report')).toBeNull();
   });
 });
