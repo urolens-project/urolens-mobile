@@ -132,11 +132,19 @@ export function SampleDetailScreen({
 
   const handleBack = useCallback((): void => router.back(), [router]);
 
-  // Route variation: resultId present → mount review screen directly. A specimen
+  // Open the shared review once a route or synced specimen has a result. A specimen
   // that has since been rejected must not be reviewed or confirmed, so it falls
   // through to the regular view, which shows the rejection instead.
-  if (!isReadOnly && resultId && specimen?.status !== 'REJECTED') {
-    return <ResultReviewScreen resultId={resultId} specimenId={specimenId} />;
+  const reviewResultId = resultId ?? analysisResult?.serverId;
+  if (!isLoading && specimen && reviewResultId && specimen.status !== 'REJECTED') {
+    return (
+      <ResultReviewScreen
+        key={reviewResultId}
+        resultId={reviewResultId}
+        specimenId={specimenId}
+        specimen={specimen}
+      />
+    );
   }
 
   if (isLoading) {

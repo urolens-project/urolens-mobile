@@ -20,8 +20,16 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
 }));
 jest.mock('@hooks/useNetworkStatus');
+jest.mock('@features/result-confirmation/hooks/useResultReviewDetail', () => ({
+  useResultReviewDetail: jest.fn(() => ({
+    detail: null,
+    isLoading: false,
+    error: null,
+    refresh: jest.fn(),
+  })),
+}));
 jest.mock('expo-router', () => ({
-  router: { push: jest.fn(), back: jest.fn() },
+  router: { push: jest.fn(), back: jest.fn(), replace: jest.fn() },
   Stack: { Screen: () => null },
 }));
 jest.mock('@components/OfflineBanner', () => ({
@@ -31,7 +39,7 @@ jest.mock('@components/OfflineBanner', () => ({
 const mockResult = {
   serverId: 'result-123',
   specimenId: 'specimen-1',
-  status: 'PENDING_REVIEW' as const,
+  status: 'PENDING_CONFIRM' as const,
   isConfirmed: false,
   smartDiagnosis: null,
   smartDiagnosisUnavailable: false,
@@ -97,7 +105,7 @@ describe('ResultReviewScreen', () => {
     });
     render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
     expect(screen.queryByText('Confirm Result')).toBeNull();
-    expect(screen.getByText(/submitted for supervisor approval/i)).toBeTruthy();
+    expect(screen.getByText('Pending Supervisor Approval')).toBeTruthy();
   });
 
   it('shows loading indicator while loading', () => {
