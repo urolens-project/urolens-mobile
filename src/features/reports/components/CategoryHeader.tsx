@@ -29,6 +29,7 @@ type MaterialCommunityIconName = ComponentProps<typeof MaterialCommunityIcons>['
 // The same icon each category's illustration is built around.
 const CATEGORY_ICONS: Record<ReportCategory, MaterialCommunityIconName> = {
   PENDING_APPROVAL: 'timer-sand',
+  ESCALATED: 'alert-decagram',
   APPROVED: 'check-decagram',
   RELEASED: 'send',
   REJECTED: 'test-tube',
@@ -175,7 +176,12 @@ export function CategoryHeader({
         </View>
 
         <Animated.View style={[styles.chip, chipStyle]} accessibilityElementsHidden>
-          <Icon family="material-community" name={CATEGORY_ICONS[category]} size={24} color={color} />
+          <Icon
+            family="material-community"
+            name={CATEGORY_ICONS[category]}
+            size={24}
+            color={color}
+          />
         </Animated.View>
       </Animated.View>
     </View>
