@@ -8,12 +8,22 @@ export interface AIFindingEntry {
 }
 
 export interface SmartDiagnosisResult {
-  goutScore: ScoreLevel;
-  gnScore: ScoreLevel;
-  nephroScore: ScoreLevel;
+  goutScore: ScoreLevel | null;
+  gnScore: ScoreLevel | null;
+  nephroScore: ScoreLevel | null;
   noSignificantIndicators: boolean;
-  evidenceMap: Record<string, unknown>;
+  evidenceMap: Record<DiagnosisCondition, DiagnosisEvidence[]>;
   unavailable: boolean;
+}
+
+export type DiagnosisCondition = 'gout' | 'glomerulonephritis' | 'nephrolithiasis';
+
+export interface DiagnosisEvidence {
+  particleName: string;
+  particleDisplayName: string;
+  detectedCount: number;
+  normalRangeMax: number;
+  contributionRole: string;
 }
 
 export interface ResultDetail {

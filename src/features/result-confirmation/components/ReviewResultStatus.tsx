@@ -17,7 +17,7 @@ export function ReviewResultStatus({
 }: ReviewResultStatusProps): React.JSX.Element | null {
   const missingReason = isDetailAvailable
     ? 'The supervisor returned this result without a reason. Contact the supervisor before correcting it.'
-    : 'Connect and reload the result to view the supervisor’s correction reason.';
+    : 'Connect and pull down to refresh to view the supervisor’s correction reason.';
   if (status === 'RETURNED_FOR_CORRECTION')
     return (
       <ResultStatusBanner
