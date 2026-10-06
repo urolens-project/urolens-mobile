@@ -132,11 +132,11 @@ export function SampleDetailScreen({
 
   const handleBack = useCallback((): void => router.back(), [router]);
 
-  // Open the shared review once a route or synced specimen has a result. A specimen
-  // that has since been rejected must not be reviewed or confirmed, so it falls
-  // through to the regular view, which shows the rejection instead.
+  // Reports stay in the read-only detail view even when their result is editable.
+  // Other entry points open the shared review once a route or synced specimen has a
+  // result, unless the specimen has been rejected.
   const reviewResultId = resultId ?? analysisResult?.serverId;
-  if (!isLoading && specimen && reviewResultId && specimen.status !== 'REJECTED') {
+  if (!isReadOnly && !isLoading && specimen && reviewResultId && specimen.status !== 'REJECTED') {
     return (
       <ResultReviewScreen
         key={reviewResultId}
