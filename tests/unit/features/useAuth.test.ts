@@ -15,6 +15,7 @@ jest.mock('@lib/auth/tokenStorage', () => ({
     setSessionOnly: jest.fn(),
     saveToken: jest.fn().mockResolvedValue(undefined),
     saveUserInfo: jest.fn().mockResolvedValue(undefined),
+    saveSessionMeta: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -25,7 +26,16 @@ jest.mock('@db/sync/claimLocalData', () => ({
 const loginMock = authApi.login as jest.Mock;
 const claimMock = claimLocalDataFor as jest.Mock;
 
-const tokenResponse = { accessToken: 'jwt', tokenType: 'bearer', role: 'MEDTECH', userId: 'u1' };
+const tokenResponse = {
+  accessToken: 'jwt',
+  tokenType: 'bearer',
+  role: 'MEDTECH',
+  userId: 'u1',
+  expiresAt: '2026-01-01T01:00:00Z',
+  sessionExpiresAt: '2026-01-01T08:00:00Z',
+  idleTimeoutMinutes: 60,
+  idleWarningSeconds: 120,
+};
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -46,8 +56,29 @@ describe('useAuth.login', () => {
     expect(tokenStorage.setSessionOnly).toHaveBeenCalledWith(true);
   });
 
+  it('sends keepSignedIn through to authApi.login', async () => {
+    loginMock.mockResolvedValue(tokenResponse);
+    const { result } = renderHook(() => useAuth());
+    await act(() => result.current.login('medtech01', 'pw', true));
+    expect(loginMock).toHaveBeenCalledWith('medtech01', 'pw', true);
+  });
+
+  it('persists the expiry/session-timeout info from the login response', async () => {
+    loginMock.mockResolvedValue(tokenResponse);
+    const { result } = renderHook(() => useAuth());
+    await act(() => result.current.login('medtech01', 'pw'));
+    expect(tokenStorage.saveSessionMeta).toHaveBeenCalledWith({
+      expiresAt: tokenResponse.expiresAt,
+      sessionExpiresAt: tokenResponse.sessionExpiresAt,
+      idleTimeoutMinutes: tokenResponse.idleTimeoutMinutes,
+      idleWarningSeconds: tokenResponse.idleWarningSeconds,
+    });
+  });
+
   it.each([
-    ['ACCOUNT_LOCKED', 'Your account is locked. Contact an administrator.'],
+    ['ACCOUNT_LOCKED', 'x'],
+    ['ROLE_NOT_ALLOWED', 'x'],
+    ['TOO_MANY_LOGIN_ATTEMPTS', 'x'],
     ['ACCOUNT_INACTIVE', 'Your account is inactive. Contact an administrator.'],
     ['INVALID_CREDENTIALS', 'Invalid username or password.'],
     ['NETWORK_ERROR', 'Cannot reach the server. Check your connection and try again.'],

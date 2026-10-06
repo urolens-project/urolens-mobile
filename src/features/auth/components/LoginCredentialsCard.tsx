@@ -26,6 +26,8 @@ export interface LoginCredentialsCardProps {
   onForgotPassword: () => void;
   error: string | null;
   isSubmitting: boolean;
+  /** True while a 429 lockout from too many attempts is in effect; disables the submit button. */
+  isLocked: boolean;
   onSubmit: () => void;
 }
 
@@ -47,8 +49,10 @@ export function LoginCredentialsCard({
   onForgotPassword,
   error,
   isSubmitting,
+  isLocked,
   onSubmit,
 }: LoginCredentialsCardProps): React.JSX.Element {
+  const isDisabled = isSubmitting || isLocked;
   return (
     <View style={styles.card}>
       {/* Username */}
@@ -148,9 +152,9 @@ export function LoginCredentialsCard({
 
       {/* Login button */}
       <TouchableOpacity
-        style={[styles.button, isSubmitting && styles.buttonDisabled]}
+        style={[styles.button, isDisabled && styles.buttonDisabled]}
         onPress={onSubmit}
-        disabled={isSubmitting}
+        disabled={isDisabled}
         accessibilityRole="button"
         accessibilityLabel="Login"
         accessibilityHint="Signs in with the entered username and password"
