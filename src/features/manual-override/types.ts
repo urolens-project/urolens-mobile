@@ -15,14 +15,12 @@ export interface ManualOverrideRecord {
   rationale: string;
   overriddenBy: string;
   isSynced: boolean;
-  createdAt: string;
+  createdAt: number;
+  serverId: string | null;
 }
 
-export type OverrideResponse = {
-  id: string;
-  resultId: string;
-  parameter: string;
-  originalAiValue: number;
-  correctedValue: number;
-  rationale: string;
-};
+export interface OverrideContext {
+  originalAiValue: number | null;
+  currentValue: number | null;
+  canEdit: boolean;
+}
