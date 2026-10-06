@@ -17,7 +17,13 @@ import { useQueue } from '../hooks/useQueue';
 import { QUEUE_STATUS_STYLES } from '../constants';
 import { getQueueStatus } from '../status';
 import { getSyncPill } from '../syncPill';
-import { ITEM_GAP, ITEM_STRIDE, getStickyRest, getWheelRange, rollAwayStyle } from '../scrollEffects';
+import {
+  ITEM_GAP,
+  ITEM_STRIDE,
+  getStickyRest,
+  getWheelRange,
+  rollAwayStyle,
+} from '../scrollEffects';
 import { QueueActionBar } from './QueueActionBar';
 import { getSampleActions } from '../lib/sampleState';
 import { QueueEmptyState } from './QueueEmptyState';
@@ -177,7 +183,7 @@ export function QueueScreen(): React.JSX.Element {
       ? 'Continue'
       : 'Proceed to Analysis';
 
-  // A returned sample's result is with the Supervisor's workflow, so it can't be rejected.
+  // Returned results are back with the MedTech and may be rejected.
   const canRejectSelected = selectedItem
     ? getSampleActions(
         selectedItem.status,

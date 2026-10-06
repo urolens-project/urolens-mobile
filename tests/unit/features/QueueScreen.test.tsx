@@ -131,14 +131,12 @@ describe('the Reject button in the preview bar', () => {
     expect(view.getByText('Reject')).toBeTruthy();
   });
 
-  // A returned sample's result is with the Supervisor's workflow — the specimen can't
-  // be rejected any more, so the bar must not offer it (Sample Detail doesn't either).
-  it('is NOT offered for a returned sample, which can still be continued', () => {
+  it('offers rejection for a returned sample, which can still be continued', () => {
     const sample = item('A', { status: 'ASSIGNED', isReturnedForCorrection: true });
     setQueue([sample]);
     const view = render(<QueueScreen />);
     tapCard(view, sample);
-    expect(view.queryByText('Reject')).toBeNull();
+    expect(view.getByText('Reject')).toBeTruthy();
     expect(view.getByText('Continue')).toBeTruthy();
   });
 });

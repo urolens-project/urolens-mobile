@@ -34,14 +34,14 @@ describe('getSampleActions', () => {
       ['ASSIGNED', null],
       ['PROCESSING', null],
       ['PROCESSING', 'PENDING_CONFIRM'],
+      ['PROCESSING', 'RETURNED_FOR_CORRECTION'],
     ])("is offered while the specimen is still in the MedTech's hands (%s, %s)", (s, r) => {
       expect(getSampleActions(s, r).canReject).toBe(true);
     });
 
-    // Bug: Reject stayed visible after confirmation, return and escalation.
+    // Submitted results remain protected until the supervisor returns them.
     it.each<ResultState>([
       'PENDING_SUPERVISOR_APPROVAL',
-      'RETURNED_FOR_CORRECTION',
       'CRITICAL_ESCALATED',
       'APPROVED',
       'RELEASED',

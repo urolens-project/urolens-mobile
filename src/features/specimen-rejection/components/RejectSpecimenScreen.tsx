@@ -37,27 +37,51 @@ export interface RejectSpecimenScreenProps {
 export function RejectSpecimenScreen({ specimenId }: RejectSpecimenScreenProps): React.JSX.Element {
   const router = useRouter();
   const { specimenInfo, isLoadingSpecimen, blockedReason } = useSpecimenRejectionInfo(specimenId);
-  const { reject, isLoading: isRejecting } = useRejectSpecimen(specimenId);
+  const { reject, isLoading: isRejecting, hasAcceptedRejection } = useRejectSpecimen(specimenId);
 
   const [selectedReason, setSelectedReason] = useState<RejectionReason | null>(null);
   const [note, setNote] = useState('');
 
   const handleConfirm = useCallback(async (): Promise<void> => {
-    if (!selectedReason) return;
+    if (
+      !selectedReason ||
+      isRejecting ||
+      isLoadingSpecimen ||
+      (blockedReason && !hasAcceptedRejection)
+    )
+      return;
 
     const outcome = await reject(selectedReason, note);
     if (outcome.status === 'rejected') {
+      if (outcome.isQueued) {
+        Alert.alert(
+          'Rejection queued',
+          'This specimen was rejected on this device. The rejection will be submitted when you are back online.',
+        );
+      }
       router.replace(`/(medtech)/sample/${specimenId}`);
-    } else {
+    } else if (outcome.status === 'failed') {
       Alert.alert('Rejection Failed', outcome.message);
     }
-  }, [selectedReason, note, reject, router, specimenId]);
+  }, [
+    selectedReason,
+    note,
+    reject,
+    router,
+    specimenId,
+    isRejecting,
+    isLoadingSpecimen,
+    blockedReason,
+    hasAcceptedRejection,
+  ]);
 
-  const handleBack = useCallback((): void => router.back(), [router]);
-  const handleBackToSample = useCallback(
-    (): void => router.replace(`/(medtech)/sample/${specimenId}`),
-    [router, specimenId],
-  );
+  const handleBack = useCallback((): void => {
+    if (!isRejecting) router.back();
+  }, [router, isRejecting]);
+  const handleBackToSample = useCallback((): void => {
+    if (specimenInfo) router.replace(`/(medtech)/sample/${specimenId}`);
+    else router.replace('/(medtech)/queue');
+  }, [router, specimenId, specimenInfo]);
 
   if (isLoadingSpecimen) {
     return (
@@ -68,7 +92,7 @@ export function RejectSpecimenScreen({ specimenId }: RejectSpecimenScreenProps):
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.gray100} />
 
       <View style={styles.topBar}>
@@ -77,20 +101,28 @@ export function RejectSpecimenScreen({ specimenId }: RejectSpecimenScreenProps):
           onPress={handleBack}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          disabled={isRejecting}
+          accessibilityState={{ disabled: isRejecting }}
         >
-          <Icon name="chevron-back" size={24} color={colors.gray700} />
+          <Icon name="chevron-back" size={spacing.xxl} color={colors.gray700} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Reject Specimen</Text>
         {/* Spacer to center title */}
         <View style={styles.backBtn} />
       </View>
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         {specimenInfo && (
-          <SpecimenInfoCard sampleUid={specimenInfo.sampleUid} patientUid={specimenInfo.patientUid} />
+          <SpecimenInfoCard
+            sampleUid={specimenInfo.sampleUid}
+            patientUid={specimenInfo.patientUid}
+          />
         )}
 
-        {blockedReason ? (
+        {blockedReason && !hasAcceptedRejection ? (
           <BlockedRejectionCard reason={blockedReason} onBackToSample={handleBackToSample} />
         ) : (
           <RejectionReasonModal
@@ -100,6 +132,7 @@ export function RejectSpecimenScreen({ specimenId }: RejectSpecimenScreenProps):
             onNoteChange={setNote}
             onConfirm={handleConfirm}
             isLoading={isRejecting}
+            isReadOnly={hasAcceptedRejection}
           />
         )}
       </KeyboardAvoidingView>
@@ -108,7 +141,7 @@ export function RejectSpecimenScreen({ specimenId }: RejectSpecimenScreenProps):
 }
 
 const styles = StyleSheet.create({
-  safe: {
+  container: {
     flex: 1,
     backgroundColor: colors.gray100,
   },
@@ -129,8 +162,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray100,
   },
   backBtn: {
-    width: 40,
-    height: 40,
+    width: spacing.huge,
+    height: spacing.huge,
     justifyContent: 'center',
     alignItems: 'center',
   },
