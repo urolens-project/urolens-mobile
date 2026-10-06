@@ -16,8 +16,8 @@
 import { Platform } from 'react-native';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { ImageManipulatorContext, ImageRef } from 'expo-image-manipulator';
-import { ImagePickerAsset } from 'expo-image-picker';
-import { CameraCapturedPicture } from 'expo-camera';
+import type { ImagePickerAsset } from 'expo-image-picker';
+import type { CameraCapturedPicture } from 'expo-camera';
 
 export const MIN_WIDTH = 640;
 export const MIN_HEIGHT = 480;
@@ -102,6 +102,12 @@ export async function processCapture(picture: CameraCapturedPicture): Promise<Pr
  */
 export async function processPickerAsset(asset: ImagePickerAsset): Promise<ProcessedImage> {
   if (!asset.uri) throw new ImageFormatError('unknown');
+
+  const mimeType = getPickerMimeType(asset);
+  if (mimeType !== 'image/jpeg' && mimeType !== 'image/png') {
+    throw new ImageFormatError(mimeType);
+  }
+
   return processUri(asset.uri, asset.fileName ?? 'gallery-image');
 }
 
@@ -165,6 +171,17 @@ async function processUri(uri: string, filenameStem: string): Promise<ProcessedI
     sizeBytes,
     filename: `${filenameStem}-${Date.now()}.jpg`,
   };
+}
+
+function getPickerMimeType(asset: ImagePickerAsset): string {
+  if (asset.mimeType) return asset.mimeType;
+
+  const source = asset.fileName ?? asset.uri;
+  const extension = source.split('?')[0].split('.').pop()?.toLowerCase();
+
+  if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg';
+  if (extension === 'png') return 'image/png';
+  return extension ? `image/${extension}` : 'unknown';
 }
 
 // Scales the image so its longest side is MAX_LONG_EDGE, keeping its shape. An image
