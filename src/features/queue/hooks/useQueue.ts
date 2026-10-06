@@ -1,143 +1,234 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Query } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import { observeQuery } from '@db/observeQuery';
 import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
-import Specimen from '@db/models/Specimen';
-import AnalysisResult from '@db/models/AnalysisResult';
+import type Specimen from '@db/models/Specimen';
+import type AnalysisResult from '@db/models/AnalysisResult';
 import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
+import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
+import {
+  QUEUE_PAGE_SIZE,
+  QUEUE_RESULT_COLUMNS,
+  QUEUE_SPECIMEN_COLUMNS,
+} from '../constants/queue.constant';
 import { orderByStatus } from '../status';
-import { baseClause, buildQuery, FINISHED_RESULT_STATUSES, RETURNED_RESULT_STATUS } from '../lib/queueQuery';
+import {
+  baseClause,
+  buildQuery,
+  FINISHED_RESULT_STATUSES,
+  RETURNED_RESULT_STATUS,
+} from '../lib/queueQuery';
 import { dedupeQueueItems, sameIds, specimenToQueueItem } from '../lib/queueItemMapping';
 import type { FilterOption, QueueItem } from '../types';
 
-export { buildQuery } from '../lib/queueQuery';
+type QueueSource = 'items' | 'totals' | 'results';
 
 export interface UseQueueResult {
   items: QueueItem[];
   allItems: QueueItem[];
   isLoading: boolean;
+  error: Error | null;
   filter: FilterOption;
-  setFilter: (f: FilterOption) => void;
+  setFilter: (filter: FilterOption) => void;
   refresh: () => Promise<void>;
   isRefreshing: boolean;
   lastSyncAt: number | null;
+  page: number;
+  pageCount: number;
+  totalItems: number;
+  nextPage: () => void;
+  previousPage: () => void;
 }
 
 /**
- * @description Loads the medtech's queue from the local DB and keeps it in sync: three
- * live WatermelonDB subscriptions (filtered list, unfiltered totals, and each
- * specimen's latest result) plus a manual `refresh` that triggers a sync.
+ * @description Keeps the actionable queue and totals live offline, and pages the filtered list.
  */
 export function useQueue(): UseQueueResult {
   const { isOnline } = useNetworkStatus();
-
-  const [items, setItems] = useState<QueueItem[]>([]);
+  const [filteredItems, setFilteredItems] = useState<QueueItem[]>([]);
   const [allItems, setAllItems] = useState<QueueItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterOption>('ALL');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [filter, setActiveFilter] = useState<FilterOption>('ALL');
+  const [requestedPage, setRequestedPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [loadedSources, setLoadedSources] = useState<Partial<Record<QueueSource, boolean>>>({});
+  const [sourceErrors, setSourceErrors] = useState<Partial<Record<QueueSource, Error | null>>>({});
   const [returnedServerIds, setReturnedServerIds] = useState<string[]>([]);
   const [finishedServerIds, setFinishedServerIds] = useState<string[]>([]);
+  const [returnReasons, setReturnReasons] = useState<Map<string, string | null>>(new Map());
+  const pageCount = Math.max(1, Math.ceil(filteredItems.length / QUEUE_PAGE_SIZE));
+  const page = Math.min(requestedPage, pageCount);
+  const items = useMemo((): QueueItem[] => {
+    const offset = (page - 1) * QUEUE_PAGE_SIZE;
+    return filteredItems.slice(offset, offset + QUEUE_PAGE_SIZE).map(
+      (item): QueueItem => ({
+        ...item,
+        returnReason:
+          item.isReturnedForCorrection && item.serverId
+            ? (returnReasons.get(item.serverId) ?? null)
+            : null,
+      }),
+    );
+  }, [filteredItems, page, returnReasons]);
 
-  const loadLastSyncAt = useCallback(async (): Promise<void> => {
-    const raw = await AsyncStorage.getItem(LAST_SYNC_KEY);
-    setLastSyncAt(raw ? new Date(raw).getTime() : null);
+  const handleSourceLoaded = useCallback((source: QueueSource): void => {
+    setLoadedSources(
+      (previous): Partial<Record<QueueSource, boolean>> => ({ ...previous, [source]: true }),
+    );
+    setSourceErrors(
+      (previous): Partial<Record<QueueSource, Error | null>> => ({ ...previous, [source]: null }),
+    );
   }, []);
+  const handleSourceError = useCallback((source: QueueSource, error: Error): void => {
+    setSourceErrors(
+      (previous): Partial<Record<QueueSource, Error | null>> => ({ ...previous, [source]: error }),
+    );
+  }, []);
+  const syncQueue = useCallback(
+    async (signal: AbortSignal): Promise<void> => {
+      try {
+        if (isOnline) await synchronize();
+      } finally {
+        const raw = await AsyncStorage.getItem(LAST_SYNC_KEY);
+        const timestamp = raw ? new Date(raw).getTime() : NaN;
+        if (!signal.aborted) setLastSyncAt(Number.isFinite(timestamp) ? timestamp : null);
+      }
+    },
+    [isOnline],
+  );
+  const { run, isLoading: isRefreshing, error: syncError } = useAsyncAction('Queue', syncQueue);
 
-  useEffect(() => {
-    loadLastSyncAt();
-  }, [loadLastSyncAt]);
-
-  // Filtered list — changes with the active filter and with which specimens
-  // are currently flagged returned-for-correction or finished.
-  useEffect(() => {
-    const clauses = buildQuery(filter, returnedServerIds, finishedServerIds);
+  useEffect((): (() => void) => {
     const returnedSet = new Set(returnedServerIds);
     const subscription = observeQuery(
-      database.get<Specimen>('specimens').query(...clauses),
-      (specimens) => {
-        const next = dedupeQueueItems(specimens.map((s) => specimenToQueueItem(s, returnedSet)));
-        // All (and the Status chip, which lists the same samples) read best with
-        // what needs attention first: Returned, then In Progress, then Assigned.
-        // The status of a sample is derived (a returned flag on its result), so this
-        // can't be a database sort — it's applied here instead.
-        setItems(filter === 'ALL' || filter === 'STATUS' ? orderByStatus(next) : next);
-        setIsLoading(false);
+      (): Query<Specimen> =>
+        database
+          .get<Specimen>('specimens')
+          .query(...buildQuery(filter, returnedServerIds, finishedServerIds)),
+      (specimens): void => {
+        const next = dedupeQueueItems(
+          specimens.map((specimen): QueueItem => specimenToQueueItem(specimen, returnedSet)),
+        );
+        setFilteredItems(filter === 'ALL' || filter === 'STATUS' ? orderByStatus(next) : next);
+        handleSourceLoaded('items');
+      },
+      {
+        columns: QUEUE_SPECIMEN_COLUMNS,
+        onError: (error): void => handleSourceError('items', error),
       },
     );
+    return (): void => subscription.unsubscribe();
+  }, [
+    filter,
+    returnedServerIds,
+    finishedServerIds,
+    reloadKey,
+    handleSourceLoaded,
+    handleSourceError,
+  ]);
 
-    return () => subscription.unsubscribe();
-  }, [filter, returnedServerIds, finishedServerIds]);
-
-  // Unfiltered totals — always the full active queue for stats card
-  useEffect(() => {
+  useEffect((): (() => void) => {
     const returnedSet = new Set(returnedServerIds);
     const subscription = observeQuery(
-      database.get<Specimen>('specimens').query(baseClause(returnedServerIds, finishedServerIds)),
-      (specimens) => {
-        setAllItems(dedupeQueueItems(specimens.map((s) => specimenToQueueItem(s, returnedSet))));
+      (): Query<Specimen> =>
+        database.get<Specimen>('specimens').query(baseClause(returnedServerIds, finishedServerIds)),
+      (specimens): void => {
+        setAllItems(
+          dedupeQueueItems(
+            specimens.map((specimen): QueueItem => specimenToQueueItem(specimen, returnedSet)),
+          ),
+        );
+        handleSourceLoaded('totals');
+      },
+      {
+        columns: QUEUE_SPECIMEN_COLUMNS,
+        onError: (error): void => handleSourceError('totals', error),
       },
     );
+    return (): void => subscription.unsubscribe();
+  }, [returnedServerIds, finishedServerIds, reloadKey, handleSourceLoaded, handleSourceError]);
 
-    return () => subscription.unsubscribe();
-  }, [returnedServerIds, finishedServerIds]);
-
-  // Tracks each specimen's LATEST result (by server_id) — feeds the two
-  // subscriptions above with two derived sets:
-  //  - returnedServerIds: latest result is RETURNED_FOR_CORRECTION — stays
-  //    in the Queue (SRS UC 3.4) no matter what specimen.status says.
-  //  - finishedServerIds: latest result means the MedTech's part is done
-  //    (confirmed and awaiting/through Supervisor review) — excluded from
-  //    the Queue even though the backend leaves specimen.status at ASSIGNED
-  //    all the way through Supervisor approval; only COMPLETED/REJECTED
-  //    ever move it out, and COMPLETED only lands once approved/released.
-  // Fetches every result (not pre-filtered by status): although the backend
-  // enforces exactly one analysis_results row per specimen, a past sync bug
-  // could still leave more than one *locally* (dedupeByServerId cleans this
-  // up on sync, but this local computation is a second, immediate line of
-  // defense) — only the latest one should ever decide a specimen's state.
-  useEffect(() => {
+  useEffect((): (() => void) => {
     const subscription = observeQuery(
-      database.get<AnalysisResult>('analysis_results').query(),
-      (results) => {
+      (): Query<AnalysisResult> => database.get<AnalysisResult>('analysis_results').query(),
+      (results): void => {
         const latest = Array.from(latestAnalysisResultsBySpecimen(results).values());
-        const nextReturned = latest
-          .filter((r) => r.status === RETURNED_RESULT_STATUS)
-          .map((r) => r.specimenId);
+        const returned = latest.filter(
+          (result): boolean => result.status === RETURNED_RESULT_STATUS,
+        );
+        const nextReturned = returned.map((result): string => result.specimenId);
         const nextFinished = latest
-          .filter((r) => FINISHED_RESULT_STATUSES.includes(r.status))
-          .map((r) => r.specimenId);
-        setReturnedServerIds((prev) => (sameIds(prev, nextReturned) ? prev : nextReturned));
-        setFinishedServerIds((prev) => (sameIds(prev, nextFinished) ? prev : nextFinished));
+          .filter((result): boolean => FINISHED_RESULT_STATUSES.includes(result.status))
+          .map((result): string => result.specimenId);
+        setReturnedServerIds((previous): string[] =>
+          sameIds(previous, nextReturned) ? previous : nextReturned,
+        );
+        setFinishedServerIds((previous): string[] =>
+          sameIds(previous, nextFinished) ? previous : nextFinished,
+        );
+        setReturnReasons(
+          new Map(
+            returned.map((result): [string, string | null] => [
+              result.specimenId,
+              result.returnReason ?? null,
+            ]),
+          ),
+        );
+        handleSourceLoaded('results');
+      },
+      {
+        columns: QUEUE_RESULT_COLUMNS,
+        onError: (error): void => handleSourceError('results', error),
       },
     );
+    return (): void => subscription.unsubscribe();
+  }, [reloadKey, handleSourceLoaded, handleSourceError]);
 
-    return () => subscription.unsubscribe();
+  useEffect((): void => {
+    void run();
+  }, [run]);
+  useEffect((): void => {
+    setRequestedPage(page);
+  }, [page]);
+
+  const setFilter = useCallback((nextFilter: FilterOption): void => {
+    setActiveFilter(nextFilter);
+    setRequestedPage(1);
   }, []);
-
-  useEffect(() => {
-    if (isOnline) {
-      synchronize()
-        .finally(loadLastSyncAt)
-        .catch(() => {});
-    }
-  }, [isOnline, loadLastSyncAt]);
-
   const refresh = useCallback(async (): Promise<void> => {
-    if (!isOnline) return;
-    setIsRefreshing(true);
-    try {
-      await synchronize();
-    } finally {
-      setIsRefreshing(false);
-      await loadLastSyncAt();
-    }
-  }, [isOnline, loadLastSyncAt]);
+    setSourceErrors({});
+    setLoadedSources({});
+    setReloadKey((previous): number => previous + 1);
+    await run();
+  }, [run]);
+  const nextPage = useCallback(
+    (): void => setRequestedPage(Math.min(page + 1, pageCount)),
+    [page, pageCount],
+  );
+  const previousPage = useCallback((): void => setRequestedPage(Math.max(1, page - 1)), [page]);
+  const error = sourceErrors.items ?? sourceErrors.totals ?? sourceErrors.results ?? syncError;
+  const hasLoadedQueue = loadedSources.items && loadedSources.totals && loadedSources.results;
+  const isLoading = !error && (!hasLoadedQueue || (isRefreshing && allItems.length === 0));
 
-  return { items, allItems, isLoading, filter, setFilter, refresh, isRefreshing, lastSyncAt };
+  return {
+    items,
+    allItems,
+    isLoading,
+    error,
+    filter,
+    setFilter,
+    refresh,
+    isRefreshing,
+    lastSyncAt,
+    page,
+    pageCount,
+    totalItems: filteredItems.length,
+    nextPage,
+    previousPage,
+  };
 }

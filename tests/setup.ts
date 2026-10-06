@@ -129,6 +129,10 @@ jest.mock('@nozbe/watermelondb', () => {
   const noop = () => ({});
   const Q = {
     where: jest.fn(noop),
+    sortBy: jest.fn(noop),
+    take: jest.fn(noop),
+    asc: 'asc',
+    desc: 'desc',
     and: jest.fn(noop),
     or: jest.fn(noop),
     eq: jest.fn(noop),

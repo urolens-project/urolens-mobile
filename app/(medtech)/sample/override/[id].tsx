@@ -11,22 +11,21 @@ import { OverrideEntryForm } from '@features/manual-override/components/Override
  * the manual-override feature's entry form.
  */
 export default function OverrideScreen(): React.JSX.Element {
-  const { id, parameter, originalValue, specimenId } = useLocalSearchParams<{
+  const { id, parameter, specimenId } = useLocalSearchParams<{
     id: string;
     parameter: string;
-    originalValue: string;
     specimenId: string;
   }>();
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <OverrideEntryForm
-          resultId={id}
+          key={`${id}:${parameter}`}
+          resultId={id ?? ''}
           specimenId={specimenId ?? ''}
-          parameter={parameter}
-          originalAiValue={Number(originalValue ?? '0')}
+          parameter={parameter ?? ''}
         />
       </SafeAreaView>
     </>
@@ -34,5 +33,5 @@ export default function OverrideScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
+  container: { flex: 1, backgroundColor: colors.cream },
 });

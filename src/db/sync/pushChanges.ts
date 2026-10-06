@@ -27,6 +27,11 @@ interface PushError {
   message?: string;
 }
 
+export interface PushSummary {
+  /** Changes given up on in this run: the phone still shows them as done, the server never applied them. */
+  refusedCount: number;
+}
+
 /**
  * @description Worth trying again later: the request never got a proper answer (no
  * network, timeout), the server had a problem (5xx), it asked us to slow down
@@ -103,15 +108,17 @@ export async function requeueLegacyFailedActions(): Promise<void> {
 /**
  * @description Sends every pending local change to the server in creation order,
  * retrying transient failures on the next sync and giving up (FAILED) on permanent
- * ones or once MAX_RETRY_AGE_MS has passed.
+ * ones or once MAX_RETRY_AGE_MS has passed. Reports how many it gave up on, so the
+ * caller can put the phone back in step with the server (see syncManager).
  */
-export async function pushChanges(): Promise<void> {
+export async function pushChanges(): Promise<PushSummary> {
   const collection = database.get<PendingSync>('pending_sync');
   // Oldest first, so changes reach the server in the order they were made
   // (e.g. Begin Analysis before Confirm).
   const pendingItems = await collection
     .query(Q.where('status', PendingSyncStatus.PENDING), Q.sortBy('created_at', Q.asc))
     .fetch();
+  let refusedCount = 0;
 
   for (const item of pendingItems) {
     try {
@@ -136,9 +143,11 @@ export async function pushChanges(): Promise<void> {
       } else {
         console.error(`[pushChanges] ${item.action} for ${item.entityId} failed: ${message}`);
         await markItem(item, PendingSyncStatus.FAILED, message);
+        refusedCount += 1;
       }
     }
   }
+  return { refusedCount };
 }
 
 async function dispatchAction(item: PendingSync): Promise<void> {

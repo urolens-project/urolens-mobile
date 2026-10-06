@@ -1,10 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
-import AnalysisResult from '@db/models/AnalysisResult';
+import type AnalysisResult from '@db/models/AnalysisResult';
+
+import { RESULT_COLUMNS } from '@features/sample/constants';
 
 import { useConfirmAction } from './useConfirmAction';
+import type { ConfirmActionResult } from './useConfirmAction';
 import type { AIFindingEntry } from '../types';
 
 export interface UseResultConfirmationReturn {
@@ -13,7 +16,13 @@ export interface UseResultConfirmationReturn {
   isLoading: boolean;
   isConfirming: boolean;
   error: string | null;
-  confirmResult: () => Promise<void>;
+  confirmResult: (
+    beforeConfirm?: (signal: AbortSignal) => Promise<void>,
+  ) => Promise<ConfirmActionResult>;
+}
+
+interface ResultSnapshot {
+  result: AnalysisResult | null;
 }
 
 /**
@@ -22,11 +31,13 @@ export interface UseResultConfirmationReturn {
  * @param raw - Raw particle-name → count map from the analysis result.
  */
 function deriveFindings(raw: Record<string, number>): AIFindingEntry[] {
-  return Object.entries(raw).map(([parameter, count]) => ({
-    parameter,
-    count,
-    isAnomalous: count > 5,
-  }));
+  return Object.entries(raw).map(
+    ([parameter, count]): AIFindingEntry => ({
+      parameter,
+      count,
+      isAnomalous: count > 5,
+    }),
+  );
 }
 
 /**
@@ -36,32 +47,39 @@ function deriveFindings(raw: Record<string, number>): AIFindingEntry[] {
  * @param resultId - Server id of the analysis result to load.
  */
 export function useResultConfirmation(resultId: string): UseResultConfirmationReturn {
-  const [result, setResult] = useState<AnalysisResult | null>(null);
+  // WatermelonDB mutates model instances in place; a new snapshot makes every column emission render.
+  const [snapshot, setSnapshot] = useState<ResultSnapshot>({ result: null });
+  const result = snapshot.result;
   const [isLoading, setIsLoading] = useState(true);
   const { confirmResult: confirmAction, isConfirming, error } = useConfirmAction();
 
   // Observe local WatermelonDB record — components never call API directly (SRP)
-  useEffect(() => {
+  useEffect((): (() => void) => {
     const subscription = database
       .get<AnalysisResult>('analysis_results')
       .query(Q.where('server_id', resultId))
-      .observe()
-      .subscribe((records) => {
-        setResult(records[0] ?? null);
+      .observeWithColumns(RESULT_COLUMNS)
+      .subscribe((records: AnalysisResult[]): void => {
+        setSnapshot({ result: records[0] ?? null });
         setIsLoading(false);
       });
 
-    return () => subscription.unsubscribe();
+    return (): void => subscription.unsubscribe();
   }, [resultId]);
 
-  const confirmResult = async (): Promise<void> => {
-    if (!result) return;
-    await confirmAction(result);
-  };
+  const confirmResult = useCallback(
+    async (
+      beforeConfirm?: (signal: AbortSignal) => Promise<void>,
+    ): Promise<ConfirmActionResult> => {
+      if (!result) return { status: 'failed', message: 'Result not found. Please retry.' };
+      return confirmAction(result, beforeConfirm);
+    },
+    [result, confirmAction],
+  );
 
   const aiFindings = useMemo<AIFindingEntry[]>(
-    () => (result ? deriveFindings(result.aiFindings) : []),
-    [result],
+    (): AIFindingEntry[] => (snapshot.result ? deriveFindings(snapshot.result.aiFindings) : []),
+    [snapshot],
   );
 
   return { result, aiFindings, isLoading, isConfirming, error, confirmResult };

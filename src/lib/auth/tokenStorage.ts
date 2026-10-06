@@ -6,6 +6,7 @@ const ACCESS_TOKEN_KEY = 'urolens_access_token';
 const USER_ID_KEY = 'urolens_user_id';
 const USER_ROLE_KEY = 'urolens_user_role';
 const USERNAME_KEY = 'urolens_username';
+const LAST_ACTIVE_AT_KEY = 'urolens_last_active_at';
 
 // expo-secure-store wraps the iOS Keychain / Android Keystore and is unavailable on web,
 // so web falls back to AsyncStorage (localStorage under the hood).
@@ -72,10 +73,28 @@ export const tokenStorage = {
     return getItem(USERNAME_KEY);
   },
 
+  /** Records "now" as the last moment the medtech was active, so a cold start can tell
+   * how long the app was backgrounded or closed. */
+  async saveLastActiveAt(timestamp: number): Promise<void> {
+    await setItem(LAST_ACTIVE_AT_KEY, String(timestamp));
+  },
+
+  async getLastActiveAt(): Promise<number | null> {
+    const value = await getItem(LAST_ACTIVE_AT_KEY);
+    return value ? Number(value) : null;
+  },
+
+  /** @description Clears the background timestamp once the session resumes, so a
+   * later cold start cannot expire it using an earlier background period. */
+  async removeLastActiveAt(): Promise<void> {
+    await deleteItem(LAST_ACTIVE_AT_KEY);
+  },
+
   async clearAll(): Promise<void> {
     await deleteItem(ACCESS_TOKEN_KEY);
     await deleteItem(USER_ID_KEY);
     await deleteItem(USER_ROLE_KEY);
     await deleteItem(USERNAME_KEY);
+    await deleteItem(LAST_ACTIVE_AT_KEY);
   },
 };

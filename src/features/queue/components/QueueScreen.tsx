@@ -1,16 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Animated, View, FlatList, RefreshControl, StyleSheet, StatusBar } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { Animated, View, FlatList, RefreshControl, StyleSheet } from 'react-native';
+import type { ListRenderItemInfo } from 'react-native';
 
-import { useAuthStore } from '@lib/auth/authStore';
-import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import { useSyncStatus } from '@hooks/useSyncStatus';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatClinicToday } from '@lib/dateTime';
 import { colors, spacing } from '@src/theme';
 
-import { DropReveal, useReduceMotion } from '@components/DropReveal';
 import { RiseIn } from '@components/RiseIn';
 
 import { useQueue } from '../hooks/useQueue';
@@ -25,64 +19,26 @@ import {
   rollAwayStyle,
 } from '../scrollEffects';
 import { QueueActionBar } from './QueueActionBar';
-import { getSampleActions } from '../lib/sampleState';
-import { QueueEmptyState } from './QueueEmptyState';
+import { QueueLoadState } from './QueueLoadState';
+import { QueuePagination } from './QueuePagination';
 import { QueueFilterBar } from './QueueFilterBar';
 import { QueueHeader } from './QueueHeader';
-import { QueueItemCard } from './QueueItemCard';
-import { QueueStatsCard } from './QueueStatsCard';
+import { QueueListRow } from './QueueListRow';
+import { QueueListHeader } from './QueueListHeader';
 import { StickyFilters } from './StickyFilters';
-import { SyncStatusPill } from './SyncStatusPill';
 import type { QueueItem } from '../types';
 
-// Number of rows that get the drop-in entrance; anything further down is just shown,
-// so scrolling a long list never re-triggers animation.
-const ANIMATED_ROWS = 8;
-const ROW_STAGGER_MS = 90;
-const CARD_RADIUS = 20;
-
-// Layout the scroll effects are worked out from (see scrollEffects).
-const LIST_PADDING_TOP = 16;
-const BLOCK_GAP = 14;
-// Air between the pinned filters and the first row.
-const FILTERS_BOTTOM_SPACE = 6;
-
-// The list reports its scroll position on the native thread, so the effects below track
-// the finger exactly without waking the JS thread.
+const LIST_PADDING_TOP = spacing.lg;
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as unknown as typeof FlatList;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 /**
- * @description Formats a last-sync epoch timestamp as a short relative label.
- * @param lastSyncAt - Epoch ms of the last successful sync, or null if never synced.
- */
-function formatLastSync(lastSyncAt: number | null): string {
-  if (!lastSyncAt) return 'Not yet synced';
-  const diffMin = Math.floor((Date.now() - lastSyncAt) / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.floor(diffHr / 24)}d ago`;
-}
-
-function ItemSeparator(): React.JSX.Element {
-  return <View style={styles.separator} />;
-}
-
-// ─── Screen ──────────────────────────────────────────────────────────────────
-/**
- * @description Queue tab: the medtech's assigned/in-progress/returned specimen list,
- * with sticky filters, sync status, and a bottom action bar for the selected item.
+ * @description Presents actionable samples, live totals and offline sync feedback for the MedTech.
  */
 export function QueueScreen(): React.JSX.Element {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isOnline } = useNetworkStatus();
-  const { username } = useAuthStore();
   const {
-    items: dbItems,
-    allItems: dbAllItems,
+    items,
+    allItems,
     isLoading,
     filter,
     setFilter,
@@ -210,7 +166,7 @@ export function QueueScreen(): React.JSX.Element {
   }, [router, selectedItem]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <QueueHeader
         username={username}
         activeCount={allItems.length}
@@ -218,90 +174,82 @@ export function QueueScreen(): React.JSX.Element {
         topInset={insets.top}
         playKey={playKey}
         reduceMotion={reduceMotion}
-        live={live}
-        syncing={syncStatus.state === 'syncing' || isRefreshing}
+        live={isLive}
+        syncing={isSyncing}
         syncDisabled={!isOnline || isRefreshing}
         onSync={refresh}
       />
 
-      {/* ── List ── */}
       <View style={styles.listArea}>
         <AnimatedFlatList
+          ref={listRef}
           data={items}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => {
-            const status = getQueueStatus(item);
-            const roll = reduceMotion
-              ? undefined
-              : rollAwayStyle(scrollY, getWheelRange(rowsTop + index * ITEM_STRIDE, pinBottom));
-            return (
-              <Animated.View style={roll}>
-                <DropReveal
-                  index={index}
-                  playKey={playKey}
-                  reduceMotion={reduceMotion || index >= ANIMATED_ROWS}
-                  accent={status ? QUEUE_STATUS_STYLES[status].color : colors.teal}
-                  radius={CARD_RADIUS}
-                  staggerMs={ROW_STAGGER_MS}
-                >
-                  <QueueItemCard
-                    item={item}
-                    onPress={handleItemPress}
-                    selected={item.id === selectedId}
-                    live={live}
-                  />
-                </DropReveal>
-              </Animated.View>
-            );
-          }}
+          keyExtractor={(item): string => item.id}
+          renderItem={({ item, index }: ListRenderItemInfo<QueueItem>): React.JSX.Element => (
+            <QueueListRow
+              item={item}
+              index={index}
+              scrollY={scrollY}
+              rowsTop={rowsTop}
+              pinBottom={filtersHeight}
+              playKey={playKey}
+              reduceMotion={reduceMotion}
+              hasVariableRows={hasVariableRows}
+              isLive={isLive}
+              isSelected={item.id === selectedItem?.id}
+              onPress={handleItemPress}
+            />
+          )}
           ItemSeparatorComponent={ItemSeparator}
           onScroll={onScroll}
           scrollEventThrottle={16}
           refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={refresh}
-              tintColor={colors.teal}
-              enabled={isOnline}
-            />
+            <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.teal} />
           }
           ListHeaderComponent={
-            <View onLayout={(e) => setListHeaderHeight(e.nativeEvent.layout.height)}>
-              {/* Scrolls away: rolls up and under the pinned filters. */}
-              <Animated.View
-                style={[styles.topBlock, topBlockRoll]}
-                onLayout={(e) => setTopBlockHeight(e.nativeEvent.layout.height)}
-              >
-                {/* Connection / sync status */}
-                <RiseIn playKey={playKey} reduceMotion={reduceMotion} style={styles.pillRow}>
-                  <SyncStatusPill pill={syncPill} live={live} />
-                </RiseIn>
-
-                {/* Stats card */}
-                <RiseIn playKey={playKey} reduceMotion={reduceMotion} delay={80}>
-                  <QueueStatsCard
-                    counts={counts}
-                    lastSync={formatLastSync(lastSyncAt)}
-                    reduceMotion={reduceMotion}
-                  />
-                </RiseIn>
-              </Animated.View>
-
-              {/* Room for the filters, which sit over the list (below) rather than in it. */}
-              <View style={{ height: BLOCK_GAP + filtersHeight + FILTERS_BOTTOM_SPACE }} />
-            </View>
+            <QueueListHeader
+              counts={counts}
+              lastSyncAt={lastSyncAt}
+              syncPill={syncPill}
+              playKey={playKey}
+              reduceMotion={reduceMotion}
+              isLive={isLive}
+              rollStyle={topBlockRoll}
+              filtersHeight={filtersHeight}
+              hasItems={items.length > 0}
+              error={error}
+              isOnline={isOnline}
+              filter={filter}
+              onRetry={refresh}
+              onLayout={handleListHeaderLayout}
+              onTopBlockLayout={handleTopBlockLayout}
+            />
           }
           ListEmptyComponent={
-            isLoading ? null : (
-              <QueueEmptyState isOnline={isOnline} filter={filter} reduceMotion={reduceMotion} />
-            )
+            <QueueLoadState
+              isLoading={isLoading}
+              error={error}
+              hasActiveSamples={allItems.length > 0}
+              isOnline={isOnline}
+              filter={filter}
+              reduceMotion={reduceMotion}
+              onRetry={refresh}
+            />
+          }
+          ListFooterComponent={
+            <QueuePagination
+              page={page}
+              pageCount={pageCount}
+              totalItems={totalItems}
+              onNext={nextPage}
+              onPrevious={previousPage}
+            />
           }
           contentContainerStyle={[styles.list, items.length === 0 && styles.listEmpty]}
           showsVerticalScrollIndicator={false}
         />
 
-        {/* Filter bar: follows the scroll up, then stays pinned under the header. */}
-        <StickyFilters scrollY={scrollY} restY={stickyRest} onHeight={setFiltersHeight}>
+        <StickyFilters scrollY={scrollY} restY={stickyRest} onHeight={handleFiltersHeight}>
           <RiseIn playKey={playKey} reduceMotion={reduceMotion} delay={160}>
             <QueueFilterBar
               selected={filter}
@@ -317,7 +265,6 @@ export function QueueScreen(): React.JSX.Element {
         </StickyFilters>
       </View>
 
-      {/* ── Bottom action bar ── */}
       <QueueActionBar
         item={selectedItem}
         proceedLabel={proceedLabel}
@@ -329,30 +276,25 @@ export function QueueScreen(): React.JSX.Element {
     </SafeAreaView>
   );
 }
+function ItemSeparator(): React.JSX.Element {
+  return <View style={styles.separator} />;
+}
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: {
+  container: {
     flex: 1,
     backgroundColor: colors.gray100,
   },
-  // Holds the list and the filters laid over it.
   listArea: {
     flex: 1,
   },
   list: {
     paddingHorizontal: spacing.lg,
     paddingTop: LIST_PADDING_TOP,
-    paddingBottom: 140,
+    paddingBottom: spacing.jumbo * 3,
   },
   listEmpty: {
     flex: 1,
-  },
-  topBlock: {
-    gap: BLOCK_GAP,
-  },
-  pillRow: {
-    paddingHorizontal: spacing.xxs,
   },
   separator: {
     height: ITEM_GAP,
