@@ -40,7 +40,7 @@ function AIFindingsPanelComponent({
   React.useEffect(() => {
     const subscription = database
       .get<ManualOverride>('manual_overrides')
-      .query(Q.where('result_id', resultId))
+      .query(Q.where('result_id', resultId), Q.sortBy('created_at', Q.asc))
       .observe()
       .subscribe((records) => {
         const map: Record<string, number> = {};
