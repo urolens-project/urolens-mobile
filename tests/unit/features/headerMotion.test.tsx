@@ -21,8 +21,8 @@ const headerProps = {
 
 beforeEach(() => jest.clearAllMocks());
 
-// "Infinite": every moving part is an Animated.loop, so these check that each one is
-// started while the header is live, and that none of them is left running when it is not.
+// The compact Queue header loops its smaller waves while visible, plus its sync
+// icon during a sync. All motion stops out of view or with reduced motion enabled.
 describe('the waves', () => {
   const wave = (flow?: boolean) => (
     <HeaderWaves
@@ -55,16 +55,28 @@ describe('the waves', () => {
 });
 
 describe('the Queue header', () => {
-  it('sets a whole field of circles moving, plus the waves, while live', () => {
+  it('keeps the two compact waves moving while live', () => {
     render(<QueueHeader {...headerProps} />);
-    // 5 drifting circles × 2 axes + 6 rising bubbles + 2 waves = 18 endless loops.
-    expect(loop.mock.calls.length).toBe(18);
+    expect(loop).toHaveBeenCalledTimes(2);
+    for (const [, config] of loop.mock.calls) {
+      expect(config).toEqual({ resetBeforeIteration: false });
+    }
   });
 
-  it('every drifting circle and wave loops without resetting, so there is no visible jump', () => {
-    render(<QueueHeader {...headerProps} />);
-    const noReset = loop.mock.calls.filter(([, config]) => config?.resetBeforeIteration === false);
-    expect(noReset.length).toBe(loop.mock.calls.length);
+  it('stops both waves and the sync animation when the tab leaves view', () => {
+    const view = render(<QueueHeader {...headerProps} syncing />);
+    // Wave cleanup stops its enclosing sequence; the Animated mock does not
+    // forward that stop to the loop nested inside it.
+    const waveAnimations = (Animated.sequence as jest.Mock).mock.results
+      .map(({ value }) => value)
+      .filter((animation) => animation.start.mock.calls.length > 0);
+    const syncAnimation = loop.mock.results[loop.mock.results.length - 1].value;
+    expect(waveAnimations).toHaveLength(2);
+    view.rerender(<QueueHeader {...headerProps} syncing live={false} />);
+    for (const animation of [...waveAnimations, syncAnimation]) {
+      expect(animation.stop).toHaveBeenCalledTimes(1);
+    }
+    expect(loop).toHaveBeenCalledTimes(3);
   });
 
   it('keeps nothing running when the tab is out of view', () => {
@@ -77,15 +89,15 @@ describe('the Queue header', () => {
     expect(loop).not.toHaveBeenCalled();
   });
 
-  it('turns the sync icon while syncing, in addition', () => {
+  it('turns the sync icon alongside the waves while syncing', () => {
     render(<QueueHeader {...headerProps} syncing />);
-    expect(loop.mock.calls.length).toBe(19);
+    expect(loop).toHaveBeenCalledTimes(3);
   });
 
-  it('starts again when it comes back into view', () => {
-    const view = render(<QueueHeader {...headerProps} live={false} />);
+  it('resumes the waves and sync animation when it comes back into view', () => {
+    const view = render(<QueueHeader {...headerProps} syncing live={false} />);
     expect(loop).not.toHaveBeenCalled();
-    view.rerender(<QueueHeader {...headerProps} live />);
-    expect(loop.mock.calls.length).toBe(18);
+    view.rerender(<QueueHeader {...headerProps} syncing live />);
+    expect(loop).toHaveBeenCalledTimes(3);
   });
 });

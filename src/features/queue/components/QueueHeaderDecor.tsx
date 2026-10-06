@@ -92,6 +92,23 @@ function useClimb(active: boolean, duration: number, phase: number): Animated.Va
   return value;
 }
 
+interface HeaderParticleProps {
+  x: number;
+  size: number;
+  duration: number;
+  phase: number;
+  width: number;
+  active: boolean;
+}
+
+interface FloatingCircleProps extends HeaderParticleProps {
+  y: number;
+  driftX: number;
+  driftY: number;
+  alpha: number;
+  height: number;
+}
+
 function FloatingCircle({
   x,
   y,
@@ -104,7 +121,7 @@ function FloatingCircle({
   width,
   height,
   active,
-}: (typeof FLOATERS)[number] & { width: number; height: number; active: boolean }): React.JSX.Element {
+}: FloatingCircleProps): React.JSX.Element {
   // Sideways and vertical wander run on different periods, tracing a slow loop rather
   // than a straight back-and-forth.
   const sway = useOscillation(active, duration, phase);
@@ -132,6 +149,11 @@ function FloatingCircle({
   );
 }
 
+interface RisingBubbleProps extends HeaderParticleProps {
+  travel: number;
+  bottom: number;
+}
+
 function RisingBubble({
   x,
   size,
@@ -141,12 +163,7 @@ function RisingBubble({
   travel,
   bottom,
   active,
-}: (typeof RISERS)[number] & {
-  width: number;
-  travel: number;
-  bottom: number;
-  active: boolean;
-}): React.JSX.Element {
+}: RisingBubbleProps): React.JSX.Element {
   const rise = useClimb(active, duration, phase);
 
   return (
@@ -179,6 +196,8 @@ export interface QueueHeaderDecorProps {
   topInset: number;
   /** Whether the ambient motion should run (live tab, motion not reduced). */
   active: boolean;
+  /** Scales circle sizes and motion distances for a compact header. */
+  scale?: number;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -189,6 +208,7 @@ export interface QueueHeaderDecorProps {
  * @param height - Header height.
  * @param topInset - Safe-area top inset; keeps bubbles from rising past the header.
  * @param active - Whether the ambient motion should run.
+ * @param scale - Circle-size and motion-distance scale. Defaults to full size.
  * @param style - Fades the whole layer in/out with the header's entrance animation.
  */
 export function QueueHeaderDecor({
@@ -196,17 +216,28 @@ export function QueueHeaderDecor({
   height,
   topInset,
   active,
+  scale = 1,
   style,
 }: QueueHeaderDecorProps): React.JSX.Element {
   return (
     <Animated.View style={[StyleSheet.absoluteFill, style]} pointerEvents="none">
       {FLOATERS.map((circle) => (
-        <FloatingCircle key={circle.x} {...circle} width={width} height={height} active={active} />
+        <FloatingCircle
+          key={circle.x}
+          {...circle}
+          size={circle.size * scale}
+          driftX={circle.driftX * scale}
+          driftY={circle.driftY * scale}
+          width={width}
+          height={height}
+          active={active}
+        />
       ))}
       {RISERS.map((bubble) => (
         <RisingBubble
           key={bubble.x}
           {...bubble}
+          size={bubble.size * scale}
           width={width}
           travel={height - topInset - 60}
           bottom={34}

@@ -31,6 +31,19 @@ export function PendingScene({ color, blob }: SceneProps): React.JSX.Element {
 }
 
 /**
+ * @description Report escalated by a supervisor: the sheet with an alert badge.
+ * @param color - Category accent color.
+ */
+export function EscalatedScene({ color }: Pick<SceneProps, 'color'>): React.JSX.Element {
+  return (
+    <>
+      <Paper accent={color} />
+      <Badge icon="alert-decagram" color={color} iconSize={32} position="bottomRight" />
+    </>
+  );
+}
+
+/**
  * @description Report approved: the sheet with an approval seal.
  * @param color - Category accent color.
  */
@@ -87,7 +100,13 @@ export function ReleasedScene({ color }: Pick<SceneProps, 'color'>): React.JSX.E
 export function RejectedScene({ color, blob }: SceneProps): React.JSX.Element {
   return (
     <>
-      <Icon family="material-community" name="test-tube" size={78} color={color} style={styles.tube} />
+      <Icon
+        family="material-community"
+        name="test-tube"
+        size={78}
+        color={color}
+        style={styles.tube}
+      />
       <Badge icon="close-circle" color={color} iconSize={30} position="bottomRight" />
       <Droplet size={11} color={color} style={styles.rejectedDropletLg} />
       <Droplet size={7} color={blob} style={styles.rejectedDropletSm} />

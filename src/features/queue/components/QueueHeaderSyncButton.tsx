@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, TouchableOpacity } from 'react-native';
 
-import { colors } from '@src/theme';
+import { colors, radius, spacing } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
@@ -55,6 +55,7 @@ export function QueueHeaderSyncButton({
     <TouchableOpacity
       style={styles.iconBtn}
       accessibilityLabel="Sync"
+      accessibilityRole="button"
       onPress={onSync}
       disabled={syncDisabled}
     >
@@ -67,10 +68,9 @@ export function QueueHeaderSyncButton({
 
 const styles = StyleSheet.create({
   iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19, // Half of width/height above — computed circle radius.
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    width: spacing.jumbo - spacing.xs,
+    height: spacing.jumbo - spacing.xs,
+    borderRadius: radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },

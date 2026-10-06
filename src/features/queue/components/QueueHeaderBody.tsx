@@ -1,7 +1,7 @@
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
-import { colors, fontWeight, radius, spacing } from '@src/theme';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
@@ -23,8 +23,9 @@ export interface QueueHeaderBodyProps {
 }
 
 /**
- * @description The Queue header's brand row, title/count row, and date/role/username
- * row — everything above the wave background except the decoration.
+ * @description Keeps queue context and actions in two compact rows so samples have
+ * more room on screen.
+ * @param props - Queue totals, user/date context, safe area and sync controls.
  */
 export function QueueHeaderBody({
   username,
@@ -38,19 +39,26 @@ export function QueueHeaderBody({
   onSync,
 }: QueueHeaderBodyProps): React.JSX.Element {
   return (
-    <Animated.View style={[styles.content, { paddingTop: topInset + 10 }, style]}>
-      {/* Brand row */}
-      <View style={styles.brandRow}>
-        <View style={styles.brand}>
-          <View style={styles.logoBox}>
-            <Icon name="flask" size={18} color={colors.white} />
-          </View>
-          <View>
+    <Animated.View style={[styles.container, { paddingTop: topInset + spacing.sm }, style]}>
+      <View style={styles.titleRow}>
+        <View style={styles.heading}>
+          <View style={styles.brandRow}>
+            <Icon name="flask" size={spacing.md} color={colors.white} />
             <Text style={styles.appName}>UroLens</Text>
-            <Text style={styles.appSub}>Laboratory Diagnostics</Text>
+            <Text style={styles.appSubtitle} numberOfLines={1}>
+              Laboratory Diagnostics
+            </Text>
           </View>
+          <Text
+            style={styles.title}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+            accessibilityRole="header"
+          >
+            My Sample Queue
+          </Text>
         </View>
-
         <View style={styles.actions}>
           <QueueHeaderSyncButton
             syncing={syncing}
@@ -58,160 +66,130 @@ export function QueueHeaderBody({
             reduceMotion={reduceMotion}
             onSync={onSync}
           />
-          <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Notifications">
+          <TouchableOpacity
+            style={styles.iconButton}
+            accessibilityLabel="Notifications"
+            accessibilityRole="button"
+          >
             <View>
               <Icon name="notifications-outline" size={20} color={colors.white} />
-              <View style={styles.notifDot} />
+              <View style={styles.notificationDot} />
             </View>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Title row */}
-      <View style={styles.titleRow}>
-        <Text
-          style={styles.title}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.85}
-          accessibilityRole="header"
-        >
-          My Sample Queue
-        </Text>
-        <View style={styles.countPill}>
-          <Text style={styles.countText}>{activeCount} Active Samples</Text>
-        </View>
-      </View>
-
-      {/* Who and when */}
       <View style={styles.metaRow}>
-        <Text style={styles.date}>{dateLabel}</Text>
-        <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>Medical Technologist</Text>
-        </View>
-        {username && (
-          <Text style={styles.username} numberOfLines={1}>
-            {username}
+        <View style={styles.summary}>
+          <Text style={styles.countText}>{activeCount} Active Samples</Text>
+          <Text style={styles.role} numberOfLines={1}>
+            Medical Technologist
           </Text>
-        )}
+        </View>
+        <View style={styles.context}>
+          <Text style={styles.date} numberOfLines={1}>
+            {dateLabel}
+          </Text>
+          {username && (
+            <Text style={styles.username} numberOfLines={1}>
+              {username}
+            </Text>
+          )}
+        </View>
       </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: spacing.xl,
+  container: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  heading: {
+    flex: 1,
+    gap: spacing.xxs,
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.smd,
-  },
-  logoBox: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: spacing.xs,
   },
   appName: {
-    fontSize: 15,
-    lineHeight: 18,
-    fontWeight: fontWeight.extrabold,
+    ...typography.micro,
+    fontWeight: fontWeight.bold,
     color: colors.white,
   },
-  appSub: {
-    fontSize: 11,
-    lineHeight: 14,
-    color: 'rgba(255,255,255,0.8)',
+  appSubtitle: {
+    flexShrink: 1,
+    ...typography.tiny,
+    color: colors.white,
+    opacity: 0.8,
+  },
+  title: {
+    ...typography.titleLg,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19, // Half of width/height above — computed circle radius.
-    backgroundColor: 'rgba(255,255,255,0.18)',
+  iconButton: {
+    width: spacing.jumbo - spacing.xs,
+    height: spacing.jumbo - spacing.xs,
+    borderRadius: radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  notifDot: {
+  notificationDot: {
     position: 'absolute',
-    top: -1,
-    right: -1,
-    width: 8,
-    height: 8,
-    borderRadius: 4, // Half of width/height above — computed circle radius.
+    top: -spacing.xxs,
+    right: -spacing.xxs,
+    width: spacing.sm,
+    height: spacing.sm,
+    borderRadius: radius.pill,
     backgroundColor: colors.red500,
-    borderWidth: 1.5,
-    borderColor: colors.teal,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.smd,
-    marginTop: 18, // TODO(theme): between spacing.lg(16)/xl(20); left exact.
-  },
-  title: {
-    flexShrink: 1,
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: fontWeight.extrabold,
-    color: colors.white,
-  },
-  countPill: {
-    flexShrink: 0,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    paddingHorizontal: 9, // TODO(theme): between spacing.sm(8)/smd(10); left exact.
-    paddingVertical: spacing.xs,
-    borderRadius: radius.lg,
-  },
-  countText: {
-    fontSize: 11.5, // TODO(theme): fractional size, no token.
-    fontWeight: fontWeight.bold,
-    color: colors.white,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
-  date: {
-    fontSize: 13,
-    fontWeight: fontWeight.medium,
-    color: 'rgba(255,255,255,0.9)',
-  },
-  roleBadge: {
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.smd,
-    paddingVertical: 3, // TODO(theme): between spacing.xxs(2)/xs(4); left exact.
-    borderRadius: radius.lg,
-  },
-  roleText: {
-    fontSize: 11,
-    fontWeight: fontWeight.bold,
-    color: colors.teal,
-  },
-  username: {
-    flexShrink: 1,
-    fontSize: 13,
+  countText: {
+    ...typography.caption,
     fontWeight: fontWeight.semibold,
     color: colors.white,
+  },
+  summary: {
+    flex: 1,
+  },
+  role: {
+    ...typography.micro,
+    color: colors.white,
+    opacity: 0.85,
+  },
+  context: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  date: {
+    ...typography.caption,
+    color: colors.white,
+    opacity: 0.85,
+  },
+  username: {
+    ...typography.caption,
+    fontWeight: fontWeight.medium,
+    color: colors.white,
+    maxWidth: '100%',
   },
 });

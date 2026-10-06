@@ -318,7 +318,7 @@ describe('useReports', () => {
 
   it.each([
     ['PENDING_SUPERVISOR_APPROVAL', 'PENDING_APPROVAL', 'Pending Supervisor Approval'],
-    ['CRITICAL_ESCALATED', 'ESCALATED', 'Escalated to Supervisor'],
+    ['CRITICAL_ESCALATED', 'ESCALATED', 'Escalated by Supervisor'],
     ['APPROVED', 'APPROVED', 'Approved by Supervisor'],
     ['RELEASED', 'RELEASED', 'Released'],
   ] as const)(

@@ -1,9 +1,17 @@
-import { View, Text, ScrollView, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  RefreshControl,
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import type { ResultStatus } from '@app-types/enums';
-import { colors, spacing, typography } from '@src/theme';
+import { colors, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 import { OfflineBanner } from '@components/OfflineBanner';
@@ -11,14 +19,14 @@ import { OfflineBanner } from '@components/OfflineBanner';
 import type { QueueItem } from '@features/queue/types';
 import { getSampleActions, getSampleStatusLabel } from '@features/queue/lib/sampleState';
 
-import { useResultAnnotations } from '../hooks/useResultAnnotations';
 import { useResultConfirmation } from '../hooks/useResultConfirmation';
 import { useResultReviewDetail } from '../hooks/useResultReviewDetail';
 import { useResultReviewActions } from '../hooks/useResultReviewActions';
 import { mapSmartDiagnosis } from '../mappers/resultReview.mapper';
+import { getSmartDiagnosisState, SMART_DIAGNOSIS_MESSAGES } from '../lib/smartDiagnosisState';
 import { AIDisclaimer } from './AIDisclaimer';
 import { AIFindingsPanel } from './AIFindingsPanel';
-import { ResultAnnotationPanel } from './ResultAnnotationPanel';
+import { ResultImagePanel } from './ResultImagePanel';
 import { ResultPatientSummary } from './ResultPatientSummary';
 import { ResultReviewActionBar } from './ResultReviewActionBar';
 import { ResultReviewTitleBar } from './ResultReviewTitleBar';
@@ -32,7 +40,7 @@ export interface ResultReviewScreenProps {
 }
 
 /**
- * @description Reviews patient context, the microscopy image and AI findings, and saves corrections before submission.
+ * @description Reviews patient context, the microscopy image and AI findings before confirmation.
  * @param resultId - Server result identifier.
  * @param specimenId - Local specimen identifier used by the queue and capture flow.
  * @param specimen - Optional local patient/sample context for offline review.
@@ -62,12 +70,11 @@ export function ResultReviewScreen({
     error: detailError,
     refresh,
   } = useResultReviewDetail(resultId, localRevision);
-  const annotations = useResultAnnotations(detail);
   const isQueuedSubmission = result?.status === 'PENDING_SUPERVISOR_APPROVAL' && !result.isSynced;
   const status = isQueuedSubmission ? result.status : (detail?.status ?? result?.status ?? '');
   const canEdit = status === 'PENDING_CONFIRM' || status === 'RETURNED_FOR_CORRECTION';
   const isReturned = status === 'RETURNED_FOR_CORRECTION';
-  const isBusy = isConfirming || annotations.isSaving;
+  const isBusy = isConfirming;
   const isConfirmed = !canEdit;
   let subtitle = 'Pending your confirmation';
   if (isReturned) subtitle = 'Returned for Correction';
@@ -90,9 +97,6 @@ export function ResultReviewScreen({
       canEdit,
       canReject,
       isReturned,
-      isDirty: annotations.isDirty,
-      saveBeforeConfirm: annotations.saveBeforeConfirm,
-      saveAnnotations: annotations.save,
       confirmResult,
     });
 
@@ -113,16 +117,14 @@ export function ResultReviewScreen({
         </Pressable>
       </View>
     );
-  let diagnosisMessage: string | undefined;
-  if (!isDiagnosisUnavailable) {
-    if (canEdit) diagnosisMessage = 'Smart Diagnosis is generated after you confirm this result.';
-    else if (!result.isSynced)
-      diagnosisMessage =
-        'Your confirmation is queued. Smart Diagnosis will appear once this device syncs.';
-    else
-      diagnosisMessage =
-        'Smart Diagnosis is not available for this sample. Try reloading the result.';
-  }
+  const diagnosisState = getSmartDiagnosisState({
+    status: status as `${ResultStatus}`,
+    smartDiagnosis,
+    unavailable: isDiagnosisUnavailable,
+    isSynced: result.isSynced,
+  });
+  const diagnosisMessage =
+    diagnosisState === 'READY' ? undefined : SMART_DIAGNOSIS_MESSAGES[diagnosisState];
 
   return (
     <View style={styles.container}>
@@ -137,6 +139,18 @@ export function ResultReviewScreen({
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            accessibilityLabel="Refresh result details"
+            refreshing={isDetailLoading}
+            enabled={!isBusy}
+            tintColor={colors.teal}
+            colors={[colors.teal]}
+            onRefresh={(): void => {
+              if (!isBusy) void refresh();
+            }}
+          />
+        }
       >
         <AIDisclaimer />
         <ResultPatientSummary detail={detail} specimen={specimen} />
@@ -148,39 +162,14 @@ export function ResultReviewScreen({
           />
         </View>
         {isDetailLoading && (
-          <ActivityIndicator
-            color={colors.teal}
-            accessibilityLabel="Loading image and annotations"
-          />
+          <ActivityIndicator color={colors.teal} accessibilityLabel="Loading result details" />
         )}
         {detailError && (
           <Text accessibilityRole="alert" style={styles.errorText}>
             {detailError.message}
           </Text>
         )}
-        <Pressable
-          accessibilityRole="button"
-          onPress={(): void => {
-            void refresh();
-          }}
-          disabled={isBusy || isDetailLoading}
-        >
-          <Text style={styles.link}>Reload result details</Text>
-        </Pressable>
-        <ResultAnnotationPanel
-          imageUrl={detail?.imageUrl ?? null}
-          draft={annotations.draft}
-          otherAnnotations={detail?.otherAnnotations ?? []}
-          isEditable={canEdit && !!detail && !isBusy}
-          isDirty={annotations.isDirty}
-          isSaving={annotations.isSaving}
-          error={annotations.error?.message ?? null}
-          onNotesChange={annotations.setNotes}
-          onBoxesChange={annotations.setBoxes}
-          onSave={(): void => {
-            void annotations.save();
-          }}
-        />
+        <ResultImagePanel key={detail?.imageUrl} imageUrl={detail?.imageUrl ?? null} />
         <AIFindingsPanel
           resultId={resultId}
           findings={detail?.aiFindings ?? aiFindings}
@@ -191,10 +180,17 @@ export function ResultReviewScreen({
           smartDiagnosis={smartDiagnosis}
           unavailable={isDiagnosisUnavailable}
           emptyMessage={diagnosisMessage}
+          isPreview={canEdit || isQueuedSubmission}
         />
         {canReject && (
-          <Pressable accessibilityRole="button" disabled={isBusy} onPress={handleReject}>
-            <Text style={styles.link}>Reject Specimen</Text>
+          <Pressable
+            style={[styles.rejectButton, isBusy && styles.rejectButtonDisabled]}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isBusy }}
+            disabled={isBusy}
+            onPress={handleReject}
+          >
+            <Text style={styles.rejectButtonText}>Reject Specimen</Text>
           </Pressable>
         )}
         {error && (
@@ -233,5 +229,16 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: spacing.jumbo * 3 },
   status: { marginHorizontal: spacing.lg },
   link: { ...typography.label, color: colors.teal, padding: spacing.lg },
+  rejectButton: {
+    marginHorizontal: spacing.lg,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.mlg,
+    alignItems: 'center',
+    backgroundColor: colors.red50,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.red200,
+  },
+  rejectButtonDisabled: { opacity: 0.5 },
+  rejectButtonText: { ...typography.title, color: colors.red700 },
   errorText: { ...typography.body, color: colors.red700, padding: spacing.lg },
 });

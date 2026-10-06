@@ -10,8 +10,6 @@ import { QUEUE_STATS_TILES, QUEUE_STATUS_STYLES } from '../constants';
 
 export interface QueueStatsCardProps {
   counts: { assigned: number; inProgress: number; returned: number };
-  /** e.g. "5m ago" — shown as "Last Sync: 5m ago". */
-  lastSync: string;
   reduceMotion: boolean;
 }
 
@@ -20,10 +18,9 @@ export interface QueueStatsCardProps {
  * status colors used everywhere else; the numbers count to their new value when the
  * queue changes rather than jumping.
  * @param counts - Current count per status.
- * @param lastSync - Human-readable time since the last sync.
  * @param reduceMotion - Disables the count-up animation.
  */
-export function QueueStatsCard({ counts, lastSync, reduceMotion }: QueueStatsCardProps): React.JSX.Element {
+export function QueueStatsCard({ counts, reduceMotion }: QueueStatsCardProps): React.JSX.Element {
   return (
     <View style={styles.card}>
       <View style={styles.tiles}>
@@ -44,11 +41,6 @@ export function QueueStatsCard({ counts, lastSync, reduceMotion }: QueueStatsCar
           );
         })}
       </View>
-
-      <View style={styles.syncRow}>
-        <Icon name="time-outline" size={13} color={colors.gray400} />
-        <Text style={styles.syncText}>Last Sync: {lastSync}</Text>
-      </View>
     </View>
   );
 }
@@ -57,7 +49,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.white,
     borderRadius: radius.xxxl,
-    padding: spacing.mlg,
+    padding: spacing.md,
     shadowColor: colors.gray800,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
@@ -76,8 +68,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
   },
   chip: {
-    width: 28,
-    height: 28,
+    width: 14,
+    height: 14,
     borderRadius: 14, // Half of width/height above — computed circle radius.
     justifyContent: 'center',
     alignItems: 'center',
@@ -90,18 +82,5 @@ const styles = StyleSheet.create({
     ...typography.micro,
     fontWeight: fontWeight.semibold,
     color: colors.gray500,
-  },
-  syncRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6, // TODO(theme): between spacing.xs(4)/sm(8); left exact.
-    marginTop: spacing.md,
-    paddingTop: spacing.smd,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray100,
-  },
-  syncText: {
-    ...typography.caption,
-    color: colors.gray400,
   },
 });

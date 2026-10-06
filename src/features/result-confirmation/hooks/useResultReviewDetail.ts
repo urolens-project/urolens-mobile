@@ -19,6 +19,7 @@ interface UseResultReviewDetailResult {
 interface LoadedReviewDetail {
   detail: ResultReviewDetail;
   localRevision: string | undefined;
+  userId: string | null;
 }
 
 /**
@@ -39,11 +40,9 @@ export function useResultReviewDetail(
       try {
         const dto = await resultReviewApi.getDetail(resultId, signal);
         if (!signal.aborted)
-          setLoaded({ detail: mapResultReviewDetail(dto, userId), localRevision });
+          setLoaded({ detail: mapResultReviewDetail(dto), localRevision, userId });
       } catch (error: unknown) {
-        throw new Error(
-          getErrorMessage(error, 'Could not load the image and annotations. Please retry.'),
-        );
+        throw new Error(getErrorMessage(error, 'Could not load the result details. Please retry.'));
       }
     },
     [isOnline, localRevision, resultId, userId],
@@ -60,6 +59,9 @@ export function useResultReviewDetail(
   const refresh = useCallback(async (): Promise<void> => {
     await run();
   }, [run]);
-  const detail = loaded?.localRevision === localRevision ? (loaded?.detail ?? null) : null;
+  const detail =
+    loaded?.localRevision === localRevision && loaded?.userId === userId
+      ? (loaded?.detail ?? null)
+      : null;
   return { detail, isLoading, error, refresh };
 }

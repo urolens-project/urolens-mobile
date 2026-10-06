@@ -12,6 +12,7 @@ type MedtechHistoryItemDto = components['schemas']['MedtechHistoryItem'];
 export function mapHistoryItemToReportItem(dto: MedtechHistoryItemDto): ReportItem {
   return {
     id: dto.specimenId,
+    specimenId: dto.specimenId,
     sampleUid: dto.sampleUid ?? '',
     patientUid: dto.patientUid ?? '',
     testType: dto.testType ?? '',

@@ -66,14 +66,10 @@ export function QueueListHeader({
     <View onLayout={onLayout}>
       <Animated.View style={[styles.container, rollStyle]} onLayout={onTopBlockLayout}>
         <RiseIn playKey={playKey} reduceMotion={reduceMotion} style={styles.pillRow}>
-          <SyncStatusPill pill={syncPill} live={isLive} />
+          <SyncStatusPill pill={syncPill} lastSync={formatLastSync(lastSyncAt)} live={isLive} />
         </RiseIn>
         <RiseIn playKey={playKey} reduceMotion={reduceMotion} delay={80}>
-          <QueueStatsCard
-            counts={counts}
-            lastSync={formatLastSync(lastSyncAt)}
-            reduceMotion={reduceMotion}
-          />
+          <QueueStatsCard counts={counts} reduceMotion={reduceMotion} />
         </RiseIn>
         {hasItems && error && (
           <QueueLoadState

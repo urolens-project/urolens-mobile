@@ -1,30 +1,20 @@
 import type { components } from '@app-types/api';
-import type { SmartDiagnosisJson } from '@db/models/AnalysisResult';
 
 import type {
   ResultReviewDetail,
-  AnnotationDraft,
   SmartDiagnosisResult,
   AIFindingEntry,
-  ReviewerAnnotation,
+  DiagnosisEvidence,
+  ScoreLevel,
 } from '../types';
 
 /**
- * @description Keeps API data and other reviewers' corrections separate from the editable draft.
+ * @description Maps server result details to the mobile review model.
  * @param dto - Backend result detail.
- * @param userId - The MedTech whose own annotation may be edited.
  */
 export function mapResultReviewDetail(
   dto: components['schemas']['FullResultDetail'],
-  userId: string | null,
 ): ResultReviewDetail {
-  const ownAnnotation = dto.annotations.find(
-    (annotation): boolean => annotation.reviewedBy === userId,
-  );
-  const annotation: AnnotationDraft = {
-    annotationNotes: ownAnnotation?.annotationNotes ?? '',
-    spatialAnnotations: ownAnnotation?.spatialAnnotations ?? [],
-  };
   return {
     resultId: dto.resultId,
     specimenId: dto.specimenId,
@@ -35,7 +25,6 @@ export function mapResultReviewDetail(
     imageUrl: dto.imageUrl ?? null,
     status: dto.status,
     returnReason: dto.returnReason ?? null,
-    annotation,
     aiFindings: Object.entries(dto.aiFindings).map(
       ([parameter, count]): AIFindingEntry => ({
         parameter,
@@ -43,18 +32,8 @@ export function mapResultReviewDetail(
         isAnomalous: !!dto.flaggedAnomalies[parameter],
       }),
     ),
-    smartDiagnosis: mapSmartDiagnosis(dto.smartDiagnosis as SmartDiagnosisJson | null),
+    smartDiagnosis: mapSmartDiagnosis(dto.smartDiagnosis),
     smartDiagnosisUnavailable: dto.smartDiagnosisUnavailable,
-    otherAnnotations: dto.annotations
-      .filter((item): boolean => item.reviewedBy !== userId)
-      .map(
-        (item): ReviewerAnnotation => ({
-          reviewedBy: item.reviewedBy,
-          reviewerRole: item.reviewerRole,
-          annotationNotes: item.annotationNotes ?? '',
-          spatialAnnotations: item.spatialAnnotations ?? [],
-        }),
-      ),
   };
 }
 
@@ -62,20 +41,71 @@ export function mapResultReviewDetail(
  * @description Translates the engine's payload into camelCase values for the diagnosis panel.
  * @param diagnosis - Engine payload from the API or local cache.
  */
-export function mapSmartDiagnosis(
-  diagnosis: SmartDiagnosisJson | null,
-): SmartDiagnosisResult | null {
-  if (!diagnosis || diagnosis.unavailable) return null;
+export function mapSmartDiagnosis(diagnosis: unknown): SmartDiagnosisResult | null {
+  const payload = asRecord(diagnosis);
+  if (!payload || payload.unavailable === true) return null;
+  const gout = asRecord(payload.gout);
+  const gn = asRecord(payload.glomerulonephritis);
+  const nephro = asRecord(payload.nephrolithiasis);
+  const goutScore = mapScoreLevel(payload.goutScore ?? gout?.level);
+  const gnScore = mapScoreLevel(payload.gnScore ?? gn?.level);
+  const nephroScore = mapScoreLevel(payload.nephroScore ?? nephro?.level);
+  if (!goutScore && !gnScore && !nephroScore) return null;
+  const evidence = asRecord(payload.evidenceMap);
+  const hasNoIndicators = payload.noSignificantIndicators ?? payload.no_significant_indicators;
   return {
-    goutScore: diagnosis.gout?.level,
-    gnScore: diagnosis.glomerulonephritis?.level,
-    nephroScore: diagnosis.nephrolithiasis?.level,
-    noSignificantIndicators: diagnosis.no_significant_indicators,
+    goutScore,
+    gnScore,
+    nephroScore,
+    noSignificantIndicators:
+      hasNoIndicators === true && goutScore === 'LOW' && gnScore === 'LOW' && nephroScore === 'LOW',
     evidenceMap: {
-      gout: diagnosis.gout,
-      glomerulonephritis: diagnosis.glomerulonephritis,
-      nephrolithiasis: diagnosis.nephrolithiasis,
+      gout: mapEvidence(evidence?.gout ?? gout),
+      glomerulonephritis: mapEvidence(evidence?.glomerulonephritis ?? gn),
+      nephrolithiasis: mapEvidence(evidence?.nephrolithiasis ?? nephro),
     },
-    unavailable: !!diagnosis.unavailable,
+    unavailable: false,
   };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function mapScoreLevel(value: unknown): ScoreLevel | null {
+  return value === 'LOW' || value === 'MODERATE' || value === 'HIGH' ? value : null;
+}
+
+function mapEvidence(value: unknown): DiagnosisEvidence[] {
+  const items = Array.isArray(value) ? value : asRecord(value)?.evidence;
+  if (!Array.isArray(items)) return [];
+  return items.flatMap((item: unknown): DiagnosisEvidence[] => {
+    const record = asRecord(item);
+    if (
+      !record ||
+      typeof record.particle_name !== 'string' ||
+      typeof record.detected_count !== 'number' ||
+      typeof record.normal_range_max !== 'number' ||
+      !Number.isFinite(record.detected_count) ||
+      record.detected_count < 0 ||
+      !Number.isFinite(record.normal_range_max) ||
+      record.normal_range_max < 0
+    )
+      return [];
+    return [
+      {
+        particleName: record.particle_name,
+        particleDisplayName:
+          typeof record.particle_display_name === 'string'
+            ? record.particle_display_name
+            : record.particle_name.replace(/_/g, ' '),
+        detectedCount: record.detected_count,
+        normalRangeMax: record.normal_range_max,
+        contributionRole:
+          typeof record.contribution_role === 'string' ? record.contribution_role : '',
+      },
+    ];
+  });
 }
