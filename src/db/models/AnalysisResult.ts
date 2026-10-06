@@ -43,6 +43,7 @@ export default class AnalysisResult extends Model {
   @field('smart_diagnosis_unavailable') smartDiagnosisUnavailable!: boolean;
   @field('confirmed_at') confirmedAt!: string | null;
   @field('confirmed_by') confirmedBy!: string | null;
+  @field('return_reason') returnReason!: string | null;
   @field('is_synced') isSynced!: boolean;
   @field('created_at') createdAt!: number;
   @field('synced_at') syncedAt!: string | null;

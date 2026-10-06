@@ -17,6 +17,7 @@
 jest.mock('@lib/apiClient', () => ({
   __esModule: true,
   default: { get: jest.fn() },
+  apiClient: { get: jest.fn() },
 }));
 
 jest.mock('@db/sync/conflictResolver', () => ({
@@ -55,7 +56,7 @@ jest.mock('@db/database', () => ({
 }));
 
 import { pullChanges } from '../../src/db/sync/pullChanges';
-import apiClient from '@lib/apiClient';
+import { apiClient } from '@lib/apiClient';
 
 function fixtureResponse() {
   return {
@@ -107,6 +108,7 @@ function fixtureResponse() {
               image_id: 'img-1',
               confirmed_at: null,
               confirmed_by: null,
+              return_reason: 'Review the WBC count.',
             },
           ],
           updated: [],
@@ -190,6 +192,7 @@ describe('pullChanges', () => {
         smartDiagnosisUnavailable: false,
         status: 'PENDING_CONFIRM',
         imageId: 'img-1',
+        returnReason: 'Review the WBC count.',
       }),
     );
   });
