@@ -200,7 +200,11 @@ describe('pushChanges START_ANALYSIS', () => {
 
     await pushChanges();
 
-    expect(post).toHaveBeenCalledWith('/specimens/srv-1/start-analysis');
+    expect(post).toHaveBeenCalledTimes(1);
+    const [url, body, requestOptions] = post.mock.calls[0];
+    expect(url).toBe('/specimens/srv-1/start-analysis');
+    expect(body).toBeUndefined();
+    expect(requestOptions?.signal).toBeUndefined();
     expect(item.status).toBe(PendingSyncStatus.SYNCED);
   });
 });
