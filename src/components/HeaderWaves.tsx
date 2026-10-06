@@ -38,16 +38,13 @@ export const LANDING_WAVES: WavePreset = {
   backFrom: -95,
 };
 
-// Offset curves for the Queue's narrow wave strip. The header scales their height
-// to keep the lighter back wave close to the front at every screen width.
+// The Reports landing curves, kept shallow by Queue's responsive vertical scale.
+// A smaller back-wave offset keeps both curves inside the compact header.
 export const QUEUE_WAVES: WavePreset = {
-  frontDiameter: 3,
-  frontCenter: 0.6,
-  backDiameter: 2.4,
-  backCenter: 0.3,
+  ...LANDING_WAVES,
   backDip: spacing.xxs,
-  frontFrom: -54,
-  backFrom: -76,
+  frontFrom: -spacing.sm,
+  backFrom: -spacing.md,
 };
 
 // Flatter, shallower curve — the compact category headers.
