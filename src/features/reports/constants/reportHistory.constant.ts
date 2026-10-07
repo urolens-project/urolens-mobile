@@ -30,3 +30,9 @@ export const REPORT_RESULT_COLUMNS = [
 
 export const REPORT_ANIMATED_ITEMS = 8;
 export const REPORT_ITEM_STAGGER_MS = 90;
+
+// Below this many locally-synced samples, assume there's nothing older worth paging into
+// and hide "Load older samples" until the server confirms otherwise. Without this, the
+// button shows for every category on first render (historyTotal is unknown until fetched),
+// even ones with a single sample.
+export const REPORT_HISTORY_LOAD_MORE_THRESHOLD = 10;
