@@ -91,6 +91,47 @@ describe('CategoryDrilldownView load-older history', () => {
       },
     });
 
+    // Over the load-more threshold, so the button shows before the first history fetch.
+    const localItems = Array.from({ length: 11 }, (_, index) =>
+      makeLocalItem({
+        id: `local-spec-${index + 1}`,
+        specimenId: index === 0 ? 'srv-1' : `srv-local-${index + 1}`,
+        sampleUid: `LOCAL-${String(index + 1).padStart(3, '0')}`,
+      }),
+    );
+    const section = makeSection(localItems);
+    const view = render(
+      <CategoryDrilldownView
+        category="RELEASED"
+        section={section}
+        topInset={0}
+        playKey={0}
+        reduceMotion
+        isOnline
+        isLoading={false}
+        hasError={false}
+        isRefreshing={false}
+        onRefresh={noop}
+        onBack={jest.fn()}
+        onItemPress={jest.fn()}
+      />,
+    );
+
+    const footer = listOf(view).props.ListFooterComponent;
+    await act(async () => {
+      footer.props.onPress();
+      await Promise.resolve();
+    });
+
+    const sampleUids = listOf(view).props.data.map((item: ReportItem) => item.sampleUid);
+    expect(sampleUids).toContain('SAMPLE-002');
+    // Both server rows are now accounted for, so the button goes away.
+    expect(listOf(view).props.ListFooterComponent).toBeNull();
+  });
+
+  it('hides the load-older button when there is nothing more to page into', () => {
+    // 10 or fewer local samples and no history fetched yet — don't show a button that
+    // would lead nowhere.
     const section = makeSection([makeLocalItem()]);
     const view = render(
       <CategoryDrilldownView
@@ -110,16 +151,7 @@ describe('CategoryDrilldownView load-older history', () => {
     );
 
     expect(listOf(view).props.data).toEqual([expect.objectContaining({ sampleUid: 'SAMPLE-001' })]);
-
-    const footer = listOf(view).props.ListFooterComponent;
-    await act(async () => {
-      footer.props.onPress();
-      await Promise.resolve();
-    });
-
-    const sampleUids = listOf(view).props.data.map((item: ReportItem) => item.sampleUid);
-    expect(sampleUids).toEqual(['SAMPLE-001', 'SAMPLE-002']);
-    // Both server rows are now accounted for, so the button goes away.
     expect(listOf(view).props.ListFooterComponent).toBeNull();
+    expect(getMock).not.toHaveBeenCalled();
   });
 });
