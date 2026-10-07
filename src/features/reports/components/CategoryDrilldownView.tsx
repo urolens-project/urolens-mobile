@@ -22,7 +22,11 @@ import { ReportIllustration } from './ReportIllustration';
 import { ReportFilters } from './ReportFilters';
 import { ReportDataNotice } from './ReportDataNotice';
 import { REPORT_CATEGORY_STYLES } from '../constants';
-import { REPORT_ANIMATED_ITEMS, REPORT_ITEM_STAGGER_MS } from '../constants/reportHistory.constant';
+import {
+  REPORT_ANIMATED_ITEMS,
+  REPORT_HISTORY_LOAD_MORE_THRESHOLD,
+  REPORT_ITEM_STAGGER_MS,
+} from '../constants/reportHistory.constant';
 import { useReportFilters } from '../hooks/useReportFilters';
 import { mapHistoryItemToReportItem } from '../mappers/reportHistory.mapper';
 import type { HistoryReportCategory, ReportCategory, ReportItem, ReportSection } from '../types';
@@ -175,8 +179,14 @@ export function CategoryDrilldownView({
   }, [category, historyPage, isLoadingHistory, localSpecimenIds]);
 
   const allItems = historyItems.length > 0 ? [...section.data, ...historyItems] : section.data;
+  // Before the first history fetch, historyTotal is unknown — only guess there's more to
+  // load when the locally-synced count already clears the threshold, instead of always
+  // showing the button. Once a fetch has returned, trust the server's total instead.
   const hasMoreHistory =
-    isHistoryEligible(category) && (historyTotal === null || rawHistoryFetched < historyTotal);
+    isHistoryEligible(category) &&
+    (historyTotal === null
+      ? section.data.length > REPORT_HISTORY_LOAD_MORE_THRESHOLD
+      : rawHistoryFetched < historyTotal);
   const {
     searchQuery,
     period,
