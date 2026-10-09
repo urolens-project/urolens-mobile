@@ -4,6 +4,8 @@ import { render, screen, fireEvent } from '@testing-library/react-native';
 import { ResultReviewScreen } from '@features/result-confirmation/components/ResultReviewScreen';
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
 import { useResultConfirmation } from '@features/result-confirmation/hooks/useResultConfirmation';
+import { useResultReviewDetail } from '@features/result-confirmation/hooks/useResultReviewDetail';
+import type { ResultReviewDetail } from '@features/result-confirmation/types';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { useHasManualOverrides } from '@features/manual-override/hooks/useHasManualOverrides';
 import { Alert } from 'react-native';
@@ -66,6 +68,12 @@ beforeEach(() => {
   (useResultConfirmation as jest.Mock).mockReturnValue(mockHookReturn);
   (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: true });
   (useHasManualOverrides as jest.Mock).mockReturnValue(false);
+  (useResultReviewDetail as jest.Mock).mockReturnValue({
+    detail: null,
+    isLoading: false,
+    error: null,
+    refresh: jest.fn(),
+  });
 });
 
 describe('AIDisclaimer', () => {
@@ -82,6 +90,58 @@ describe('AIDisclaimer', () => {
 });
 
 describe('ResultReviewScreen', () => {
+  it('displays AI boxes from the current result detail during first review', (): void => {
+    const detail: ResultReviewDetail = {
+      resultId: 'result-123',
+      specimenId: 'specimen-1',
+      sampleUid: 'sample-1',
+      patientUid: 'patient-1',
+      patientAge: null,
+      patientSex: null,
+      imageUrl: 'https://example.test/image.jpg',
+      imageId: 'image-1',
+      status: 'PENDING_CONFIRM',
+      returnReason: null,
+      aiFindings: mockHookReturn.aiFindings,
+      smartDiagnosis: null,
+      smartDiagnosisUnavailable: false,
+      imageBoxes: [
+        {
+          id: 'box-1',
+          renderKey: 'AI:image-1:box-1',
+          particleType: 'erythrocytes',
+          label: 'Erythrocytes',
+          x: 10,
+          y: 10,
+          w: 20,
+          h: 20,
+          source: 'AI',
+          confidence: 0.9,
+          reviewedBy: null,
+          reviewerRole: null,
+          updatedAt: null,
+        },
+      ],
+    };
+    (useResultReviewDetail as jest.Mock).mockReturnValue({
+      detail,
+      isLoading: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+    render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
+    fireEvent(screen.getByLabelText('Microscopy image'), 'load', {
+      nativeEvent: { source: { width: 1000, height: 500 } },
+    });
+    fireEvent(screen.getByTestId('sampleImageWrapper'), 'layout', {
+      nativeEvent: { layout: { width: 300, height: 150 } },
+    });
+    expect(
+      screen.getByTestId('imageBox:AI:image-1:box-1', { includeHiddenElements: true }),
+    ).toHaveStyle({ left: 30, top: 15, width: 60, height: 30 });
+    expect(screen.getByText('1 annotation · AI')).toBeTruthy();
+  });
+
   it('renders AIDisclaimer as the first element', () => {
     render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
     expect(screen.getByText(/clinical decision-support tool/i)).toBeTruthy();
