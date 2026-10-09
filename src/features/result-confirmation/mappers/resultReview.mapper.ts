@@ -1,5 +1,6 @@
 import type { components } from '@app-types/api';
 
+import { mapResultImageBoxes } from './imageBoxes.mapper';
 import type {
   ResultReviewDetail,
   SmartDiagnosisResult,
@@ -23,6 +24,7 @@ export function mapResultReviewDetail(
     patientAge: dto.patientAge ?? null,
     patientSex: dto.patientSex ?? null,
     imageUrl: dto.imageUrl ?? null,
+    imageId: dto.imageId ?? null,
     status: dto.status,
     returnReason: dto.returnReason ?? null,
     aiFindings: Object.entries(dto.aiFindings).map(
@@ -34,6 +36,7 @@ export function mapResultReviewDetail(
     ),
     smartDiagnosis: mapSmartDiagnosis(dto.smartDiagnosis),
     smartDiagnosisUnavailable: dto.smartDiagnosisUnavailable,
+    imageBoxes: mapResultImageBoxes(dto),
   };
 }
 

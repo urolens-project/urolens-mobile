@@ -60,7 +60,9 @@ export function useResultReviewDetail(
     await run();
   }, [run]);
   const detail =
-    loaded?.localRevision === localRevision && loaded?.userId === userId
+    loaded?.detail.resultId === resultId &&
+    loaded?.localRevision === localRevision &&
+    loaded?.userId === userId
       ? (loaded?.detail ?? null)
       : null;
   return { detail, isLoading, error, refresh };

@@ -169,7 +169,12 @@ export function ResultReviewScreen({
             {detailError.message}
           </Text>
         )}
-        <ResultImagePanel key={detail?.imageUrl} imageUrl={detail?.imageUrl ?? null} />
+        <ResultImagePanel
+          key={resultId}
+          imageUrl={detail?.imageUrl ?? null}
+          imageId={detail?.imageId}
+          boxes={detail?.imageBoxes ?? []}
+        />
         <AIFindingsPanel
           resultId={resultId}
           findings={detail?.aiFindings ?? aiFindings}

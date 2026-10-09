@@ -41,6 +41,26 @@ export interface ConfirmResultPayload {
   resultId: string;
 }
 
+export type ImageBoxSource = 'AI' | 'MEDTECH' | 'SUPERVISOR' | 'REVIEWER';
+
+export interface ImageBox {
+  /** Unique across all boxes on this image; namespaced by reviewer since box IDs are only unique per reviewer. */
+  renderKey: string;
+  id: string;
+  particleType: string;
+  label: string;
+  /** Percentages (0-100) of the image's displayed area, not pixels or 0-1 fractions. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  source: ImageBoxSource;
+  reviewedBy: string | null;
+  reviewerRole: string | null;
+  updatedAt: string | null;
+  confidence: number | null;
+}
+
 export interface ResultReviewDetail {
   resultId: string;
   specimenId: string;
@@ -49,11 +69,13 @@ export interface ResultReviewDetail {
   patientAge: number | null;
   patientSex: string | null;
   imageUrl: string | null;
+  imageId: string | null;
   status: string;
   returnReason: string | null;
   aiFindings: AIFindingEntry[];
   smartDiagnosis: SmartDiagnosisResult | null;
   smartDiagnosisUnavailable: boolean;
+  imageBoxes: ImageBox[];
 }
 
 export type ConfirmResultResponse = {
