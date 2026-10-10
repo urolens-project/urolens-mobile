@@ -19,7 +19,7 @@ jest.mock('@lib/auth/tokenStorage', () => ({
 
 jest.mock('@db/models/AnalysisResult', () => ({}));
 
-import { uploadImageViaXhr } from '../../src/lib/camera/uploadImage';
+import { uploadImageViaXhr, uploadImageBatchViaXhr } from '../../src/lib/camera/uploadImage';
 
 interface FakeResponse {
   status: number;
@@ -97,5 +97,26 @@ describe('uploadImageViaXhr failure messages', () => {
 
     await expect(upload()).resolves.toMatchObject({ resultId: 'r1' });
     expect(opened).toEqual(['POST https://api.test/api/v1/images/upload']);
+  });
+});
+
+describe('uploadImageBatchViaXhr', () => {
+  function uploadBatch(): Promise<unknown> {
+    return uploadImageBatchViaXhr(new FormData(), new AbortController().signal, jest.fn());
+  }
+
+  it('posts to /images/upload-batch instead of /images/upload', async () => {
+    const { opened } = installFakeXhr({
+      status: 201,
+      responseText: JSON.stringify({ id: 'r1', resultId: 'r1', imageIds: ['img-1', 'img-2'] }),
+    });
+
+    await expect(uploadBatch()).resolves.toMatchObject({ imageIds: ['img-1', 'img-2'] });
+    expect(opened).toEqual(['POST https://api.test/api/v1/images/upload-batch']);
+  });
+
+  it('shares the same failure-message behavior as the single-image upload', async () => {
+    installFakeXhr({ status: 502, responseText: 'Bad Gateway' });
+    await expect(uploadBatch()).rejects.toThrow('Upload failed with status 502');
   });
 });

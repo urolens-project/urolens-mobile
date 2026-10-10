@@ -37,6 +37,7 @@ export default class AnalysisResult extends Model {
   @field('server_id') serverId!: string | null;
   @field('specimen_id') specimenId!: string;
   @field('image_id') imageId!: string | null;
+  @field('image_ids_json') imageIdsJson!: string | null;
   @field('status') status!: ResultStatus;
   @field('ai_findings_json') aiFindingsJson!: string;
   @field('smart_diagnosis_json') smartDiagnosisJson!: string | null;
@@ -50,6 +51,20 @@ export default class AnalysisResult extends Model {
   @field('is_synced') isSynced!: boolean;
   @field('created_at') createdAt!: number;
   @field('synced_at') syncedAt!: string | null;
+
+  // Computed getter — every image id in the capture batch; falls back to the
+  // single representative image for results written before this column existed
+  get imageIds(): string[] {
+    if (!this.imageIdsJson) return this.imageId ? [this.imageId] : [];
+    try {
+      const parsed = JSON.parse(this.imageIdsJson) as unknown;
+      return Array.isArray(parsed)
+        ? parsed.filter((id): id is string => typeof id === 'string')
+        : [];
+    } catch {
+      return this.imageId ? [this.imageId] : [];
+    }
+  }
 
   // Computed getter — parses JSONB string safely
   get aiFindings(): AIFindings {

@@ -3,24 +3,25 @@ import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import type AnalysisResult from '@db/models/AnalysisResult';
 import type ManualOverride from '@db/models/ManualOverride';
-import type { UploadImageResponse } from '@lib/camera/uploadImage';
+import type { UploadBatchImageResponse } from '@lib/camera/uploadImage';
 
 /**
- * @description Writes a fresh upload response into WatermelonDB immediately, so Sample
- * Detail shows the new result without waiting for the next background sync. Backend
- * reuses the same result_id on retake (UPDATE, not INSERT), so any manual overrides
- * left over from the previous AI findings are purged first.
+ * @description Writes a fresh batch-upload response into WatermelonDB immediately, so
+ * Sample Detail shows the new result without waiting for the next background sync.
+ * Backend reuses the same result_id on retake (UPDATE, not INSERT), so any manual
+ * overrides left over from the previous AI findings are purged first.
  * @param specimenId - Local specimen id the result belongs to.
- * @param data - Response from the image upload endpoint.
+ * @param data - Response from the batch image upload endpoint.
  */
 export async function saveUploadedResult(
   specimenId: string,
-  data: UploadImageResponse,
+  data: UploadBatchImageResponse,
 ): Promise<void> {
-  // Backend: both `id` and `resultId` equal the analysis result UUID; `imageId` is the image UUID.
+  // Backend: both `id` and `resultId` equal the analysis result UUID.
   const {
     id: serverResultId,
-    imageId: uploadedImageId,
+    primaryImageId,
+    imageIds,
     status,
     aiFindings,
     smartDiagnosis,
@@ -32,6 +33,7 @@ export async function saveUploadedResult(
     const existing = await collection.query(Q.where('specimen_id', specimenId)).fetch();
     const findings = JSON.stringify(aiFindings ?? {});
     const diagnosisJson = smartDiagnosis ? JSON.stringify(smartDiagnosis) : null;
+    const imageIdsJson = JSON.stringify(imageIds ?? []);
 
     if (existing.length > 0) {
       if (existing[0].serverId) {
@@ -45,7 +47,8 @@ export async function saveUploadedResult(
       }
       await existing[0].update((r) => {
         r.serverId = serverResultId;
-        r.imageId = uploadedImageId ?? null;
+        r.imageId = primaryImageId ?? null;
+        r.imageIdsJson = imageIdsJson;
         r.status = status;
         r.aiFindingsJson = findings;
         r.smartDiagnosisJson = diagnosisJson;
@@ -57,7 +60,8 @@ export async function saveUploadedResult(
       await collection.create((r) => {
         r.serverId = serverResultId;
         r.specimenId = specimenId;
-        r.imageId = uploadedImageId ?? null;
+        r.imageId = primaryImageId ?? null;
+        r.imageIdsJson = imageIdsJson;
         r.status = status;
         r.aiFindingsJson = findings;
         r.smartDiagnosisJson = diagnosisJson;

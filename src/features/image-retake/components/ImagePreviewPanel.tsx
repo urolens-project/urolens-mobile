@@ -11,27 +11,33 @@ import { DiscardConfirmationModal } from './DiscardConfirmationModal';
 export interface ImagePreviewPanelProps {
   processed: ProcessedImage;
   validationError: string | null;
+  /** 1-based index of the slot this photo belongs to, for the header label. */
+  slotNumber: number;
+  targetCount: number;
   showDiscardModal: boolean;
   isDiscarding: boolean;
   onGoBack: () => void;
   onRetake: () => void;
-  onUseImage: () => void;
+  onKeep: () => void;
   onDiscardConfirm: () => void;
   onDiscardCancel: () => void;
 }
 
 /**
- * @description Full-screen preview of the captured/picked image with Retake and
- * Use This Image actions, plus the guarded discard-confirmation modal for retakes.
+ * @description Full-screen preview of one just-captured/picked photo within a capture
+ * session, with Retake and Keep Photo actions, plus the guarded discard-confirmation
+ * modal shown the first time an existing uploaded batch is being replaced.
  */
 export function ImagePreviewPanel({
   processed,
   validationError,
+  slotNumber,
+  targetCount,
   showDiscardModal,
   isDiscarding,
   onGoBack,
   onRetake,
-  onUseImage,
+  onKeep,
   onDiscardConfirm,
   onDiscardCancel,
 }: ImagePreviewPanelProps): React.JSX.Element {
@@ -47,7 +53,9 @@ export function ImagePreviewPanel({
           >
             <Icon name="close" size={24} color={colors.white} />
           </TouchableOpacity>
-          <Text style={styles.previewTitle}>Image Preview</Text>
+          <Text style={styles.previewTitle}>
+            Photo {slotNumber} of {targetCount}
+          </Text>
           <View style={styles.headerSpacer} />
         </View>
         <Text style={styles.previewMeta}>
@@ -77,11 +85,11 @@ export function ImagePreviewPanel({
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.previewBtn, styles.useBtn]}
-          onPress={onUseImage}
-          testID="use-image-button"
+          onPress={onKeep}
+          testID="keep-photo-button"
         >
           <Icon name="checkmark-circle-outline" size={18} color={colors.white} />
-          <Text style={styles.useLabel}>Use This Image</Text>
+          <Text style={styles.useLabel}>Keep Photo</Text>
         </TouchableOpacity>
       </View>
 

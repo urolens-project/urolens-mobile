@@ -108,7 +108,7 @@
       "src/db/sync/conflictResolver.ts",
       "src/lib/auth/tokenStorage.ts",
       "src/lib/camera/imageUtils.ts",
-      "src/features/image-retake/hooks/useImageRetake.ts",
+      "src/features/image-retake/hooks/useBatchCapture.ts",
       "src/features/queue/hooks/useQueue.ts",
       "src/features/specimen-rejection/hooks/useRejectSpecimen.ts"
     ],

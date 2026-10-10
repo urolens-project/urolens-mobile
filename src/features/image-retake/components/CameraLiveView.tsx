@@ -3,13 +3,23 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView } from 'expo-camera';
 
-import { colors, radius, spacing, typography } from '@src/theme';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
+
+import { CaptureCountStepper } from './CaptureCountStepper';
 
 export interface CameraLiveViewProps {
   cameraRef: RefObject<CameraView | null>;
   validationError: string | null;
+  /** 1-based index of the photo currently being captured. */
+  slotNumber: number;
+  targetCount: number;
+  /** True when re-shooting an already-committed slot from the review grid. */
+  isRetake: boolean;
+  canDecreaseTarget: boolean;
+  canIncreaseTarget: boolean;
+  onAdjustTarget: (delta: number) => void;
   onMountError: () => void;
   onGoBack: () => void;
   onGalleryPick: () => void;
@@ -23,6 +33,12 @@ export interface CameraLiveViewProps {
 export function CameraLiveView({
   cameraRef,
   validationError,
+  slotNumber,
+  targetCount,
+  isRetake,
+  canDecreaseTarget,
+  canIncreaseTarget,
+  onAdjustTarget,
   onMountError,
   onGoBack,
   onGalleryPick,
@@ -52,6 +68,24 @@ export function CameraLiveView({
           </TouchableOpacity>
           <Text style={styles.cameraTitle}>Specimen Capture</Text>
           <View style={styles.headerSpacer} />
+        </View>
+
+        <View style={styles.progressPill} testID="capture-progress">
+          {isRetake ? (
+            <Text style={styles.progressText}>
+              Retaking photo {slotNumber} of {targetCount}
+            </Text>
+          ) : (
+            <View style={styles.progressRow}>
+              <Text style={styles.progressText}>Photo {slotNumber} of</Text>
+              <CaptureCountStepper
+                targetCount={targetCount}
+                canDecrease={canDecreaseTarget}
+                canIncrease={canIncreaseTarget}
+                onAdjust={onAdjustTarget}
+              />
+            </View>
+          )}
         </View>
 
         <View style={styles.instructionBanner}>
@@ -115,7 +149,22 @@ const styles = StyleSheet.create({
     padding: spacing.smd,
     marginTop: spacing.sm,
   },
-  instructionText: { ...typography.caption, color: colors.gray200, textAlign: 'center', lineHeight: 17 },
+  instructionText: {
+    ...typography.caption,
+    color: colors.gray200,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  progressPill: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.xs,
+  },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  progressText: { ...typography.caption, color: colors.white, fontWeight: fontWeight.semibold },
   // space-between with equal-width gallery + spacer perfectly centers the capture ring
   cameraControls: {
     position: 'absolute',

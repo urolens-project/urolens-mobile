@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 6,
+  version: 7,
   tables: [
     tableSchema({
       name: 'specimens',
@@ -54,6 +54,9 @@ export const schema = appSchema({
         { name: 'synced_at', type: 'string', isOptional: true },
         // kept for migrated installs — not exposed in model
         { name: 'flagged_anomalies_json', type: 'string', isOptional: true },
+        // JSON array of every image id in the capture batch; image_id above
+        // stays the single representative/primary image for older display code.
+        { name: 'image_ids_json', type: 'string', isOptional: true },
       ],
     }),
     tableSchema({

@@ -14,7 +14,7 @@ export function UploadProgressView({ progress }: UploadProgressViewProps): React
   return (
     <SafeAreaView style={[styles.container, styles.centered]}>
       <ActivityIndicator size="large" color={colors.teal} />
-      <Text style={styles.uploadingTitle}>Uploading image…</Text>
+      <Text style={styles.uploadingTitle}>Uploading photos…</Text>
       <Text style={styles.uploadingProgress}>{progress}%</Text>
       <Text style={styles.uploadingSubtitle}>AI analysis will begin automatically</Text>
     </SafeAreaView>

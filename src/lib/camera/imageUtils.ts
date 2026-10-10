@@ -22,6 +22,12 @@ import type { CameraCapturedPicture } from 'expo-camera';
 export const MIN_WIDTH = 640;
 export const MIN_HEIGHT = 480;
 
+// A specimen capture session is a burst of several microscope fields of view,
+// not one shot — bounds agreed with the MedTech workflow owner.
+export const MIN_BATCH_IMAGES = 10;
+export const MAX_BATCH_IMAGES = 30;
+export const DEFAULT_BATCH_IMAGES = 15;
+
 // Longest side of an uploaded image. Phone cameras and gallery photos are far
 // larger than the AI engine needs (it scales to about 640 px), and full-size files
 // can pass the server's limit.
@@ -138,6 +144,36 @@ export async function buildUploadFormData(
       name: image.filename,
       type: image.mimeType,
     } as unknown as Blob);
+  }
+
+  return form;
+}
+
+/**
+ * @description Builds a FormData object for the multipart POST /images/upload-batch —
+ * one specimen_id plus every captured field-of-view under a single `files` field,
+ * in capture order (the AI engine aggregates particle counts across the set).
+ * @param images - Processed images from the capture session, in capture order.
+ * @param specimenId - Specimen the images belong to.
+ */
+export async function buildBatchUploadFormData(
+  images: ProcessedImage[],
+  specimenId: string,
+): Promise<FormData> {
+  const form = new FormData();
+  form.append('specimen_id', specimenId);
+
+  for (const image of images) {
+    if (Platform.OS === 'web') {
+      const blob = await fetch(image.uri).then((r) => r.blob());
+      form.append('files', new File([blob], image.filename, { type: image.mimeType }));
+    } else {
+      form.append('files', {
+        uri: image.uri,
+        name: image.filename,
+        type: image.mimeType,
+      } as unknown as Blob);
+    }
   }
 
   return form;
