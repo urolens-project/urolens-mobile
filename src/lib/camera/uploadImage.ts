@@ -24,6 +24,23 @@ export interface UploadImageResponse {
   smartDiagnosisUnavailable: boolean;
 }
 
+/** @description Response shape for POST /images/upload-batch — see the backend contract report. */
+export interface UploadBatchImageResponse {
+  id: string;
+  resultId: string;
+  specimenId: string;
+  /** Every image id created for this batch, in capture order. */
+  imageIds: string[];
+  /** Representative image shown where the UI only has room for one (e.g. result review). */
+  primaryImageId: string | null;
+  imageCount: number;
+  status: ResultStatus;
+  aiFindings: Record<string, number> | null;
+  flaggedAnomalies: Record<string, unknown> | null;
+  smartDiagnosis: Record<string, unknown> | null;
+  smartDiagnosisUnavailable: boolean;
+}
+
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 
 interface UploadErrorBody {
@@ -47,6 +64,44 @@ export function uploadImageViaXhr(
   signal: AbortSignal,
   onProgress: (progress: number) => void,
 ): Promise<UploadImageResponse> {
+  return postMultipartViaXhr<UploadImageResponse>('/images/upload', form, signal, onProgress);
+}
+
+/**
+ * @description Uploads a full capture-session batch (10-30 fields of view) via the
+ * same raw-XHR approach as `uploadImageViaXhr`. One request, one progress stream —
+ * the server aggregates AI findings across every file in the `files` field.
+ * @param form - Multipart form built by `buildBatchUploadFormData`.
+ * @param signal - Aborts the in-flight request when triggered.
+ * @param onProgress - Called with 0-100 as the upload progresses.
+ */
+export function uploadImageBatchViaXhr(
+  form: FormData,
+  signal: AbortSignal,
+  onProgress: (progress: number) => void,
+): Promise<UploadBatchImageResponse> {
+  return postMultipartViaXhr<UploadBatchImageResponse>(
+    '/images/upload-batch',
+    form,
+    signal,
+    onProgress,
+  );
+}
+
+/**
+ * @description Shared raw-XHR multipart POST behind both upload functions — see the
+ * file header for why XHR instead of axios/fetch.
+ * @param path - API path relative to the configured base URL (e.g. '/images/upload').
+ * @param form - Multipart form to send as the request body.
+ * @param signal - Aborts the in-flight request when triggered.
+ * @param onProgress - Called with 0-100 as the upload progresses.
+ */
+function postMultipartViaXhr<T>(
+  path: string,
+  form: FormData,
+  signal: AbortSignal,
+  onProgress: (progress: number) => void,
+): Promise<T> {
   return new Promise(async (resolve, reject) => {
     const token = await tokenStorage.getToken();
     const baseUrl = (apiClient.defaults.baseURL ?? '').replace(/\/$/, '');
@@ -55,7 +110,7 @@ export function uploadImageViaXhr(
     const onAbort = () => xhr.abort();
     signal.addEventListener('abort', onAbort);
 
-    xhr.open('POST', `${baseUrl}/images/upload`);
+    xhr.open('POST', `${baseUrl}${path}`);
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.timeout = 60000;
 
@@ -67,7 +122,7 @@ export function uploadImageViaXhr(
 
     xhr.onload = () => {
       signal.removeEventListener('abort', onAbort);
-      let body: (UploadImageResponse & UploadErrorBody) | null = null;
+      let body: (T & UploadErrorBody) | null = null;
       try {
         body = JSON.parse(xhr.responseText);
       } catch {

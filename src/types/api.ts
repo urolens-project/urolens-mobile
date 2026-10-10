@@ -400,6 +400,8 @@ export interface paths {
          *
          *     Recorded as `LOGOUT`, or as `SESSION_TIMED_OUT` when the app signs the user
          *     out for inactivity (`reason: "INACTIVITY"`, UROLENS-245). The body is optional.
+         *     A manual logout also stops pushes to the user's device; an inactivity
+         *     sign-out doesn't (UROLENS-248; see `user_notifications_service.forgetPushToken`).
          */
         post: operations["logout_api_v1_auth_logout_post"];
         delete?: never;
@@ -1005,7 +1007,7 @@ export interface paths {
         };
         /**
          * Listnotifications
-         * @description List the authenticated user's 50 most recent notifications, newest first.
+         * @description List the caller's notifications, newest first; see `user_notifications_service.listNotifications`.
          */
         get: operations["listNotifications_api_v1_notifications_get"];
         put?: never;
@@ -1016,28 +1018,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/notifications/{notification_id}/read": {
+    "/api/v1/notifications/unread-count": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Countunreadnotifications
+         * @description The bell badge; see `user_notifications_service.countUnreadNotifications`.
+         */
+        get: operations["countUnreadNotifications_api_v1_notifications_unread_count_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Marknotificationread
-         * @description Mark one of the authenticated user's own notifications read.
-         *
-         *     Raises:
-         *         HTTPException: 404, if `notification_id` doesn't exist or doesn't
-         *             belong to the caller.
-         */
-        patch: operations["markNotificationRead_api_v1_notifications__notification_id__read_patch"];
+        patch?: never;
         trace?: never;
     };
     "/api/v1/notifications/read-all": {
@@ -1055,9 +1053,29 @@ export interface paths {
         head?: never;
         /**
          * Markallnotificationsread
-         * @description Mark all of the authenticated user's unread notifications read.
+         * @description Mark all the caller's notifications read; see `user_notifications_service.markAllNotificationsRead`.
          */
         patch: operations["markAllNotificationsRead_api_v1_notifications_read_all_patch"];
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Marknotificationread
+         * @description Mark one of the caller's notifications read; see `user_notifications_service.markNotificationRead`.
+         */
+        patch: operations["markNotificationRead_api_v1_notifications__notification_id__read_patch"];
         trace?: never;
     };
     "/api/v1/users/push-token": {
@@ -1071,8 +1089,7 @@ export interface paths {
         put?: never;
         /**
          * Registerpushtoken
-         * @description Register or update the authenticated user's Expo push token for
-         *     mobile push notifications.
+         * @description Register the caller's device for pushes; see `user_notifications_service.registerPushToken`.
          */
         post: operations["registerPushToken_api_v1_users_push_token_post"];
         delete?: never;
@@ -1105,6 +1122,26 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AIDetectionItem
+         * @description A model detection, with image-relative percentage geometry and confidence.
+         */
+        AIDetectionItem: {
+            /** Id */
+            id: string;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+            /** W */
+            w: number;
+            /** H */
+            h: number;
+            /** Particletype */
+            particleType: string;
+            /** Confidence */
+            confidence: number;
+        };
         /**
          * AnalysisResultResponse
          * @description Response body for a successful image upload — the specimen's
@@ -1465,6 +1502,10 @@ export interface components {
             manualOverrides: components["schemas"]["ManualOverrideItem"][];
             /** Imageurl */
             imageUrl?: string | null;
+            /** Imageid */
+            imageId?: string | null;
+            /** Aidetections */
+            aiDetections?: components["schemas"]["AIDetectionItem"][] | null;
             /** Smartdiagnosis */
             smartDiagnosis?: {
                 [key: string]: unknown;
@@ -1844,6 +1885,14 @@ export interface components {
              * Format: date-time
              */
             createdAt: string;
+        };
+        /**
+         * NotificationUnreadCountResponse
+         * @description How many of the caller's notifications are unread — the bell badge (UROLENS-248).
+         */
+        NotificationUnreadCountResponse: {
+            /** Unreadcount */
+            unreadCount: number;
         };
         /**
          * OverrideRequest
@@ -4329,7 +4378,11 @@ export interface operations {
     };
     listNotifications_api_v1_notifications_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                before?: string | null;
+                unreadOnly?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4344,6 +4397,53 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NotificationOut"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    countUnreadNotifications_api_v1_notifications_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationUnreadCountResponse"];
+                };
+            };
+        };
+    };
+    markAllNotificationsRead_api_v1_notifications_read_all_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -4373,24 +4473,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-        };
-    };
-    markAllNotificationsRead_api_v1_notifications_read_all_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

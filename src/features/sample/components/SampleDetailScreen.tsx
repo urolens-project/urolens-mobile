@@ -119,7 +119,9 @@ export function SampleDetailScreen({
         params: {
           specimenId: serverId,
           localSpecimenId: specimenId,
-          existingImageId: analysisResult?.imageId ?? undefined,
+          existingImageIds: analysisResult?.imageIds.length
+            ? analysisResult.imageIds.join(',')
+            : undefined,
         },
       });
     });

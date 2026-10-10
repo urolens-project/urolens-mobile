@@ -69,7 +69,7 @@ export function useResultReviewActions({
         params: {
           specimenId: result.specimenId,
           localSpecimenId: specimenId,
-          existingImageId: result.imageId ?? undefined,
+          existingImageIds: result.imageId ?? undefined,
         },
       });
     });

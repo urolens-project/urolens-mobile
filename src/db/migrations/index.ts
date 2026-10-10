@@ -145,5 +145,17 @@ export default schemaMigrations({
         ),
       ],
     },
+    {
+      toVersion: 7,
+      steps: [
+        // Multi-image capture sessions (10-30 fields of view per specimen) — see
+        // POST /images/upload-batch. image_id keeps pointing at the representative
+        // image; this column holds the full set for retake/discard.
+        addColumns({
+          table: 'analysis_results',
+          columns: [{ name: 'image_ids_json', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });
