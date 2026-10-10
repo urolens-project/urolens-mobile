@@ -11,15 +11,17 @@ jest.mock('@db/database', () => ({ database: { write: jest.fn(), get: jest.fn() 
 
 import { saveUploadedResult } from '../../src/features/image-retake/lib/saveUploadedResult';
 import { database } from '../../src/db/database';
-import type { UploadImageResponse } from '../../src/lib/camera/uploadImage';
+import type { UploadBatchImageResponse } from '../../src/lib/camera/uploadImage';
 
-function baseResponse(overrides: Partial<UploadImageResponse> = {}): UploadImageResponse {
+function baseResponse(overrides: Partial<UploadBatchImageResponse> = {}): UploadBatchImageResponse {
   return {
     id: 'srv-result-1',
     resultId: 'srv-result-1',
     specimenId: 'srv-spec-1',
-    imageId: 'srv-image-1',
-    status: 'PENDING_CONFIRM' as UploadImageResponse['status'],
+    imageIds: ['srv-image-1', 'srv-image-2'],
+    primaryImageId: 'srv-image-1',
+    imageCount: 2,
+    status: 'PENDING_CONFIRM' as UploadBatchImageResponse['status'],
     aiFindings: { RBC: 3 },
     flaggedAnomalies: null,
     smartDiagnosis: null,
@@ -62,6 +64,19 @@ describe('saveUploadedResult', () => {
     },
   );
 
+  it('persists the primary image id and the full batch image-id set on create', async () => {
+    const created = mockNoExistingResult();
+
+    await saveUploadedResult('local-spec-1', baseResponse());
+
+    expect(created[0]).toEqual(
+      expect.objectContaining({
+        imageId: 'srv-image-1',
+        imageIdsJson: JSON.stringify(['srv-image-1', 'srv-image-2']),
+      }),
+    );
+  });
+
   it('updates an existing result with smartDiagnosisUnavailable from the response (retake)', async () => {
     const updateMock = jest.fn(async (fn: (r: Record<string, unknown>) => void) => {
       fn(existingRecord);
@@ -82,5 +97,32 @@ describe('saveUploadedResult', () => {
 
     expect(updateMock).toHaveBeenCalledTimes(1);
     expect(existingRecord['smartDiagnosisUnavailable']).toBe(true);
+  });
+
+  it('replaces the stored image-id set on an update (retake with a different batch)', async () => {
+    const updateMock = jest.fn(async (fn: (r: Record<string, unknown>) => void) => {
+      fn(existingRecord);
+    });
+    const existingRecord: Record<string, unknown> = {
+      serverId: 'old-srv-result',
+      imageId: 'old-image',
+      imageIdsJson: JSON.stringify(['old-image']),
+      update: updateMock,
+    };
+    (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<void>) => fn());
+    (database.get as jest.Mock).mockImplementation((table: string) => {
+      if (table === 'analysis_results') {
+        return { query: () => ({ fetch: async () => [existingRecord] }) };
+      }
+      return { query: () => ({ fetch: async () => [] }) }; // manual_overrides
+    });
+
+    await saveUploadedResult(
+      'local-spec-1',
+      baseResponse({ primaryImageId: 'new-image-1', imageIds: ['new-image-1', 'new-image-2'] }),
+    );
+
+    expect(existingRecord['imageId']).toBe('new-image-1');
+    expect(existingRecord['imageIdsJson']).toBe(JSON.stringify(['new-image-1', 'new-image-2']));
   });
 });

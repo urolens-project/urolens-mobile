@@ -36,6 +36,7 @@ import {
   ImageFormatError,
   ImageTooLargeError,
   buildUploadFormData,
+  buildBatchUploadFormData,
   isImageValidationError,
   processCapture,
   processPickerAsset,
@@ -43,6 +44,9 @@ import {
   MAX_UPLOAD_BYTES,
   MIN_WIDTH,
   MIN_HEIGHT,
+  MIN_BATCH_IMAGES,
+  MAX_BATCH_IMAGES,
+  DEFAULT_BATCH_IMAGES,
   type ProcessedImage,
 } from '../../src/lib/camera/imageUtils';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
@@ -166,6 +170,52 @@ describe('buildUploadFormData', () => {
         type: mockProcessedImage.mimeType,
       }),
     );
+    appendSpy.mockRestore();
+  });
+});
+
+describe('batch capture bounds', () => {
+  it('keeps the default within [min, max]', () => {
+    expect(DEFAULT_BATCH_IMAGES).toBeGreaterThanOrEqual(MIN_BATCH_IMAGES);
+    expect(DEFAULT_BATCH_IMAGES).toBeLessThanOrEqual(MAX_BATCH_IMAGES);
+  });
+
+  it('matches the agreed 10-30 range', () => {
+    expect(MIN_BATCH_IMAGES).toBe(10);
+    expect(MAX_BATCH_IMAGES).toBe(30);
+  });
+});
+
+describe('buildBatchUploadFormData', () => {
+  const secondImage: ProcessedImage = {
+    ...mockProcessedImage,
+    uri: 'file://test-2.jpg',
+    filename: 'test-2.jpg',
+  };
+
+  it('returns a FormData instance', async () => {
+    const form = await buildBatchUploadFormData([mockProcessedImage], 'specimen-abc');
+    expect(form).toBeInstanceOf(FormData);
+  });
+
+  it('appends specimen_id once regardless of image count', async () => {
+    const appendSpy = jest.spyOn(FormData.prototype, 'append');
+    await buildBatchUploadFormData([mockProcessedImage, secondImage], 'specimen-abc');
+    const specimenIdCalls = appendSpy.mock.calls.filter(([field]) => field === 'specimen_id');
+    expect(specimenIdCalls).toEqual([['specimen_id', 'specimen-abc']]);
+    appendSpy.mockRestore();
+  });
+
+  it('appends one "files" entry per image, in order', async () => {
+    const appendSpy = jest.spyOn(FormData.prototype, 'append');
+    await buildBatchUploadFormData([mockProcessedImage, secondImage], 'specimen-abc');
+    const fileCalls = appendSpy.mock.calls.filter(([field]) => field === 'files');
+    expect(fileCalls).toHaveLength(2);
+    expect(fileCalls[0][1]).toMatchObject({
+      uri: mockProcessedImage.uri,
+      name: mockProcessedImage.filename,
+    });
+    expect(fileCalls[1][1]).toMatchObject({ uri: secondImage.uri, name: secondImage.filename });
     appendSpy.mockRestore();
   });
 });

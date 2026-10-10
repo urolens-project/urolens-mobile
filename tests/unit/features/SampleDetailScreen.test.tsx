@@ -65,6 +65,7 @@ const makeResult = (over: Row = {}): Row => ({
   serverId: 'srv-res-1',
   specimenId: 'srv-spec-1',
   imageId: 'img-1',
+  imageIds: ['img-1'],
   status: 'PENDING_CONFIRM',
   aiFindings: { wbc: 12, rbc: 3 },
   smartDiagnosis: null,
@@ -475,7 +476,7 @@ describe('Retake Image', () => {
     expect(Alert.alert).not.toHaveBeenCalled();
     expect(mockRouter.push).toHaveBeenCalledWith({
       pathname: '/(medtech)/capture',
-      params: { specimenId: 'srv-spec-1', localSpecimenId: 'spec-1', existingImageId: 'img-1' },
+      params: { specimenId: 'srv-spec-1', localSpecimenId: 'spec-1', existingImageIds: 'img-1' },
     });
   });
 });

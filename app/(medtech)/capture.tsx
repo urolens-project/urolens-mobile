@@ -7,13 +7,13 @@ import { ImageCaptureScreen } from '@features/image-retake/components/ImageCaptu
  * @description Route entry for /capture. Reads specimen params here, where
  * useLocalSearchParams is reliable, and forwards them to ImageCaptureScreen.
  * Expects `specimenId` (required), `localSpecimenId` (WatermelonDB local id, used for
- * return navigation), and `existingImageId` (present on retake only).
+ * return navigation), and `existingImageIds` (comma-joined, present on retake only).
  */
 export default function CaptureRoute(): React.JSX.Element {
-  const { specimenId, localSpecimenId, existingImageId } = useLocalSearchParams<{
+  const { specimenId, localSpecimenId, existingImageIds } = useLocalSearchParams<{
     specimenId: string;
     localSpecimenId: string;
-    existingImageId?: string;
+    existingImageIds?: string;
   }>();
 
   const [mountKey, setMountKey] = useState(0);
@@ -31,7 +31,7 @@ export default function CaptureRoute(): React.JSX.Element {
       key={mountKey}
       specimenId={specimenId}
       localSpecimenId={localSpecimenId}
-      existingImageId={existingImageId}
+      existingImageIds={existingImageIds ? existingImageIds.split(',') : undefined}
     />
   );
 }
