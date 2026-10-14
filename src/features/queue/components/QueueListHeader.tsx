@@ -5,7 +5,7 @@ import { spacing } from '@src/theme';
 
 import { RiseIn } from '@components/RiseIn';
 
-import { QueueLoadState } from './QueueLoadState';
+import { QueueLoadState } from './queue-load-state';
 import { QueueStatsCard } from './QueueStatsCard';
 import { SyncStatusPill } from './SyncStatusPill';
 import type { RollAwayStyle } from '../scrollEffects';

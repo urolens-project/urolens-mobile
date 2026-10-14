@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { QueueDateSubFilters } from './QueueDateSubFilters';
 import { QueueFilterMainChips } from './QueueFilterMainChips';
 import { QueueStatusSubFilters } from './QueueStatusSubFilters';
-import type { FilterOption } from '../types';
+import type { FilterOption } from '../../types';
 
 export interface QueueFilterBarProps {
   selected: FilterOption;
@@ -21,7 +21,11 @@ type ExpandedGroup = 'date' | 'status' | null;
  * @param onChange - Called with the newly selected filter.
  * @param counts - Optional per-filter counts shown as small badges.
  */
-export function QueueFilterBar({ selected, onChange, counts }: QueueFilterBarProps): React.JSX.Element {
+export function QueueFilterBar({
+  selected,
+  onChange,
+  counts,
+}: QueueFilterBarProps): React.JSX.Element {
   const isDateFilter = selected === 'LATEST' || selected === 'EARLIEST';
   const isStatusFilter =
     selected === 'ASSIGNED' || selected === 'PROCESSING' || selected === 'RETURNED';

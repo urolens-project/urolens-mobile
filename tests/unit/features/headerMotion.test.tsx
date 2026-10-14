@@ -2,7 +2,7 @@ import React from 'react';
 import { Animated } from 'react-native';
 import { render } from '@testing-library/react-native';
 import { HeaderWaves, QUEUE_WAVES } from '../../../src/components/HeaderWaves';
-import { QueueHeader } from '../../../src/features/queue/components/QueueHeader';
+import { QueueHeader } from '../../../src/features/queue/components/queue-header';
 
 const loop = Animated.loop as jest.Mock;
 

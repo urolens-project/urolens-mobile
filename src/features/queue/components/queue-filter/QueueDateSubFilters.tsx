@@ -5,8 +5,8 @@ import { colors, spacing, typography, fontWeight } from '@src/theme';
 import { Icon } from '@components/Icon';
 import { RiseIn } from '@components/RiseIn';
 
-import { DATE_SUB_FILTERS } from '../constants';
-import type { FilterOption } from '../types';
+import { DATE_SUB_FILTERS } from '../../constants';
+import type { FilterOption } from '../../types';
 
 export interface QueueDateSubFiltersProps {
   selected: FilterOption;
@@ -18,10 +18,17 @@ export interface QueueDateSubFiltersProps {
  * @param selected - The currently active filter.
  * @param onChange - Called with the newly selected filter.
  */
-export function QueueDateSubFilters({ selected, onChange }: QueueDateSubFiltersProps): React.JSX.Element {
+export function QueueDateSubFilters({
+  selected,
+  onChange,
+}: QueueDateSubFiltersProps): React.JSX.Element {
   return (
     <RiseIn distance={-10}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.subRow}
+      >
         {DATE_SUB_FILTERS.map((sub) => {
           const isActive = selected === sub.key;
           return (
@@ -37,7 +44,9 @@ export function QueueDateSubFilters({ selected, onChange }: QueueDateSubFiltersP
               accessibilityState={{ selected: isActive }}
             >
               <Icon name={sub.icon} size={14} color={isActive ? colors.teal : colors.gray500} />
-              <Text style={[styles.subChipText, { color: isActive ? colors.teal : colors.gray700 }]}>
+              <Text
+                style={[styles.subChipText, { color: isActive ? colors.teal : colors.gray700 }]}
+              >
                 {sub.label}
               </Text>
             </TouchableOpacity>

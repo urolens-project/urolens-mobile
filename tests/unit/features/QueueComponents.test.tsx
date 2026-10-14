@@ -1,11 +1,11 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
-import { QueueHeader } from '../../../src/features/queue/components/QueueHeader';
+import { QueueHeader } from '../../../src/features/queue/components/queue-header';
 import { QueueStatsCard } from '../../../src/features/queue/components/QueueStatsCard';
 import { SyncStatusPill } from '../../../src/features/queue/components/SyncStatusPill';
-import { QueueEmptyState } from '../../../src/features/queue/components/QueueEmptyState';
+import { QueueEmptyState } from '../../../src/features/queue/components/queue-load-state/QueueEmptyState';
 import { QueueActionBar } from '../../../src/features/queue/components/QueueActionBar';
-import { QueueFilterBar } from '../../../src/features/queue/components/QueueFilterBar';
+import { QueueFilterBar } from '../../../src/features/queue/components/queue-filter';
 import { QUEUE_STATUS_STYLES } from '../../../src/features/queue/constants';
 import type { QueueItem } from '../../../src/features/queue/types';
 

@@ -5,10 +5,10 @@ import { colors, radius } from '@src/theme';
 import { DropReveal } from '@components/DropReveal';
 
 import { QueueItemCard } from './QueueItemCard';
-import { QUEUE_STATUS_STYLES } from '../constants';
-import { getQueueStatus } from '../status';
-import { ITEM_STRIDE, getWheelRange, rollAwayStyle } from '../scrollEffects';
-import type { QueueItem } from '../types';
+import { QUEUE_STATUS_STYLES } from '../../constants';
+import { getQueueStatus } from '../../status';
+import { ITEM_STRIDE, getWheelRange, rollAwayStyle } from '../../scrollEffects';
+import type { QueueItem } from '../../types';
 
 const ANIMATED_ROWS = 8;
 const ROW_STAGGER_MS = 90;

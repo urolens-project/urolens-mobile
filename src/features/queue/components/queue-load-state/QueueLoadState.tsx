@@ -5,7 +5,7 @@ import { colors, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { QueueEmptyState } from './QueueEmptyState';
-import type { FilterOption } from '../types';
+import type { FilterOption } from '../../types';
 
 export interface QueueLoadStateProps {
   isLoading: boolean;

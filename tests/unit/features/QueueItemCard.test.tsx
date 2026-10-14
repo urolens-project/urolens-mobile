@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
-import { QueueItemCard } from '../../../src/features/queue/components/QueueItemCard';
+import { QueueItemCard } from '../../../src/features/queue/components/queue-list-row/QueueItemCard';
 import type { QueueItem } from '../../../src/features/queue/types';
 
 const onPress = jest.fn();

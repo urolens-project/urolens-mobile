@@ -7,10 +7,10 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 import { PulseDot } from '@components/PulseDot';
 
-import { QUEUE_STATUS_STYLES } from '../constants';
-import { getQueueStatus } from '../status';
-import { ITEM_HEIGHT } from '../scrollEffects';
-import type { QueueItem } from '../types';
+import { QUEUE_STATUS_STYLES } from '../../constants';
+import { getQueueStatus } from '../../status';
+import { ITEM_HEIGHT } from '../../scrollEffects';
+import type { QueueItem } from '../../types';
 
 export interface QueueItemCardProps {
   item: QueueItem;
