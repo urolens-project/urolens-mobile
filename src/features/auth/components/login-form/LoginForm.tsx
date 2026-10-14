@@ -4,7 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 
 import { colors, spacing } from '@src/theme';
 
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 import { LoginHeader } from './LoginHeader';
 import { LoginCredentialsCard } from './LoginCredentialsCard';
 import { LoginFooter } from './LoginFooter';

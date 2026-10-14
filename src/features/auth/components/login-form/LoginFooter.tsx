@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { appInfo } from '@lib/appInfo';
 import { colors, fontWeight, spacing, radius, typography } from '@src/theme';
 
-import { ENV_COLORS } from '../constants/envColors.constant';
+import { ENV_COLORS } from '../../constants/envColors.constant';
 
 /**
  * @description Build/version and environment info shown below the login card.
