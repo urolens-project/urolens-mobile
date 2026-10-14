@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
-import { OverrideEntryForm } from '@features/manual-override/components/OverrideEntryForm';
+import { OverrideEntryForm } from '@features/manual-override/components/override-entry-form';
 import { useManualOverride } from '@features/manual-override/hooks/useManualOverride';
 import { useOverrideContext } from '@features/manual-override/hooks/useOverrideContext';
 
