@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { LoginForm } from '@features/auth/components/LoginForm';
+import { LoginForm } from '@features/auth/components/login-form';
 
 /**
  * @description Route entry for /login. Renders the auth feature's login form, forwarding

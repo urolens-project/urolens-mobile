@@ -2,7 +2,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { LoginForm } from '@features/auth/components/LoginForm';
+import { LoginForm } from '@features/auth/components/login-form';
 import { useAuth } from '@features/auth/hooks/useAuth';
 
 jest.mock('@features/auth/hooks/useAuth', () => ({

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useSessionIdleTimer } from '../hooks/useSessionIdleTimer';
+import { useSessionIdleTimer } from '../../hooks/useSessionIdleTimer';
 import { SessionExpiryWarningModal } from './SessionExpiryWarningModal';
 
 export interface SessionActivityGateProps {
