@@ -35,7 +35,7 @@ import { colors } from '@src/theme';
 import { CameraPermissionRequest } from './CameraPermissionRequest';
 import { CameraUnavailableView } from './CameraUnavailableView';
 import { CameraLiveView } from './CameraLiveView';
-import { ImagePreviewPanel } from './ImagePreviewPanel';
+import { ImagePreviewPanel } from './image-preview-panel';
 import { UploadProgressView } from './UploadProgressView';
 import { saveUploadedResult } from '../lib/saveUploadedResult';
 

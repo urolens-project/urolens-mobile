@@ -1,4 +1,4 @@
-// src/features/image-retake/components/DiscardConfirmationModal.tsx
+// src/features/image-retake/components/image-preview-panel/DiscardConfirmationModal.tsx
 /**
  * DiscardConfirmationModal — T2.7
  *
@@ -60,8 +60,8 @@ export function DiscardConfirmationModal({
           {/* ── Copy ── */}
           <Text style={styles.title}>Discard this image?</Text>
           <Text style={styles.body}>
-            The current image and its AI analysis will be discarded. You will need
-            to recapture a new specimen image. This action cannot be undone.
+            The current image and its AI analysis will be discarded. You will need to recapture a
+            new specimen image. This action cannot be undone.
           </Text>
 
           {/* ── Actions ── */}
