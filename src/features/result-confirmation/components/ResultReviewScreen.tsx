@@ -25,7 +25,7 @@ import { useResultReviewActions } from '../hooks/useResultReviewActions';
 import { mapSmartDiagnosis } from '../mappers/resultReview.mapper';
 import { getSmartDiagnosisState, SMART_DIAGNOSIS_MESSAGES } from '../lib/smartDiagnosisState';
 import { AIDisclaimer } from './AIDisclaimer';
-import { AIFindingsPanel } from './AIFindingsPanel';
+import { AIFindingsPanel } from './ai-findings-panel';
 import { ResultImagePanel } from './ResultImagePanel';
 import { ResultPatientSummary } from './ResultPatientSummary';
 import { ResultReviewActionBar } from './ResultReviewActionBar';
