@@ -2,8 +2,11 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
-import { MAX_OVERRIDE_COUNT, MAX_OVERRIDE_RATIONALE_LENGTH } from '../constants/override.constant';
-import { parseOverrideCount } from '../lib/overrideValidation';
+import {
+  MAX_OVERRIDE_COUNT,
+  MAX_OVERRIDE_RATIONALE_LENGTH,
+} from '../../constants/override.constant';
+import { parseOverrideCount } from '../../lib/overrideValidation';
 
 export interface OverrideFormFieldsProps {
   originalAiValue: number;

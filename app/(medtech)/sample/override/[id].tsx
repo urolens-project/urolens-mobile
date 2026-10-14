@@ -4,7 +4,7 @@ import { useLocalSearchParams, Stack } from 'expo-router';
 
 import { colors } from '@src/theme';
 
-import { OverrideEntryForm } from '@features/manual-override/components/OverrideEntryForm';
+import { OverrideEntryForm } from '@features/manual-override/components/override-entry-form';
 
 /**
  * @description Route entry for /sample/override/:id. Reads override params and renders
