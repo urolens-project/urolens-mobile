@@ -5,10 +5,10 @@ import { colors, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
-import { REPORT_CATEGORY_STYLES } from '../constants';
-import { REPORT_CATEGORY_DESCRIPTIONS } from '../types';
-import type { ReportCategory } from '../types';
-import { ReportIllustration } from './ReportIllustration';
+import { REPORT_CATEGORY_STYLES } from '../../constants';
+import { REPORT_CATEGORY_DESCRIPTIONS } from '../../types';
+import type { ReportCategory } from '../../types';
+import { ReportIllustration } from '../report-illustration';
 
 export interface ReportCategoryCardProps {
   category: ReportCategory;

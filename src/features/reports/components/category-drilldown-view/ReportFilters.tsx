@@ -4,8 +4,8 @@ import { colors, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
-import { REPORT_PERIOD_OPTIONS } from '../constants/reportHistory.constant';
-import type { ReportPeriod } from '../types';
+import { REPORT_PERIOD_OPTIONS } from '../../constants/reportHistory.constant';
+import type { ReportPeriod } from '../../types';
 
 interface ReportFiltersProps {
   searchQuery: string;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react-native';
-import { CurvedHeader } from '../../../../src/features/reports/components/CurvedHeader';
+import { CurvedHeader } from '../../../../src/features/reports/components/curved-header';
 import { getInitials } from '../../../../src/lib/auth/getInitials';
 
 function renderHeader(props: Partial<React.ComponentProps<typeof CurvedHeader>> = {}) {

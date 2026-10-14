@@ -6,8 +6,8 @@ import { colors, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
-import { REPORT_CATEGORY_STYLES } from '../constants';
-import type { ReportItem } from '../types';
+import { REPORT_CATEGORY_STYLES } from '../../constants';
+import type { ReportItem } from '../../types';
 
 export interface ReportItemCardProps {
   item: ReportItem;

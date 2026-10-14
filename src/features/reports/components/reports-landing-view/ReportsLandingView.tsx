@@ -6,11 +6,11 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 import { DropReveal } from '@components/DropReveal';
 
-import { CurvedHeader } from './CurvedHeader';
-import { ReportDataNotice } from './ReportDataNotice';
+import { CurvedHeader } from '../curved-header';
+import { ReportDataNotice } from '../ReportDataNotice';
 import { CARD_RADIUS, ReportCategoryCard } from './ReportCategoryCard';
-import { REPORT_CATEGORY_STYLES } from '../constants';
-import type { ReportCategory, ReportSection } from '../types';
+import { REPORT_CATEGORY_STYLES } from '../../constants';
+import type { ReportCategory, ReportSection } from '../../types';
 
 export interface ReportsLandingViewProps {
   username: string | null;

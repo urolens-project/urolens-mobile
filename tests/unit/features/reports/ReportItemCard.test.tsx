@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
-import { ReportItemCard } from '../../../../src/features/reports/components/ReportItemCard';
+import { ReportItemCard } from '../../../../src/features/reports/components/category-drilldown-view/ReportItemCard';
 import type { ReportItem } from '../../../../src/features/reports/types';
 
 const onPress = jest.fn();

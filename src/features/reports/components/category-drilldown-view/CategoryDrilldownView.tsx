@@ -15,21 +15,21 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { DropReveal } from '@components/DropReveal';
 
-import { reportsApi } from '../api/reportsApi';
-import { CategoryHeader } from './CategoryHeader';
+import { reportsApi } from '../../api/reportsApi';
+import { CategoryHeader } from '../CategoryHeader';
 import { ReportItemCard } from './ReportItemCard';
-import { ReportIllustration } from './ReportIllustration';
+import { ReportIllustration } from '../report-illustration';
 import { ReportFilters } from './ReportFilters';
-import { ReportDataNotice } from './ReportDataNotice';
-import { REPORT_CATEGORY_STYLES } from '../constants';
+import { ReportDataNotice } from '../ReportDataNotice';
+import { REPORT_CATEGORY_STYLES } from '../../constants';
 import {
   REPORT_ANIMATED_ITEMS,
   REPORT_HISTORY_LOAD_MORE_THRESHOLD,
   REPORT_ITEM_STAGGER_MS,
-} from '../constants/reportHistory.constant';
-import { useReportFilters } from '../hooks/useReportFilters';
-import { mapHistoryItemToReportItem } from '../mappers/reportHistory.mapper';
-import type { HistoryReportCategory, ReportCategory, ReportItem, ReportSection } from '../types';
+} from '../../constants/reportHistory.constant';
+import { useReportFilters } from '../../hooks/useReportFilters';
+import { mapHistoryItemToReportItem } from '../../mappers/reportHistory.mapper';
+import type { HistoryReportCategory, ReportCategory, ReportItem, ReportSection } from '../../types';
 
 /** GET /results/medtech/history has no ESCALATED category — see HistoryReportCategory. */
 function isHistoryEligible(category: ReportCategory): category is HistoryReportCategory {
