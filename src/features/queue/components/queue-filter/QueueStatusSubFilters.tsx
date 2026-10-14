@@ -4,8 +4,8 @@ import { colors, spacing, typography, fontWeight, radius } from '@src/theme';
 
 import { RiseIn } from '@components/RiseIn';
 
-import { STATUS_SUB_FILTERS } from '../constants';
-import type { FilterOption } from '../types';
+import { STATUS_SUB_FILTERS } from '../../constants';
+import type { FilterOption } from '../../types';
 
 export interface QueueStatusSubFiltersProps {
   selected: FilterOption;
@@ -27,7 +27,11 @@ export function QueueStatusSubFilters({
 }: QueueStatusSubFiltersProps): React.JSX.Element {
   return (
     <RiseIn distance={-10}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.subRow}
+      >
         {STATUS_SUB_FILTERS.map((sub) => {
           const isActive = selected === sub.key;
           return (

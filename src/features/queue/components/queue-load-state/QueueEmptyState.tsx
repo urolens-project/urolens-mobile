@@ -5,7 +5,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
-import type { FilterOption } from '../types';
+import type { FilterOption } from '../../types';
 
 interface EmptyStateDescription {
   icon: 'cloud-offline-outline' | 'filter-outline' | 'checkmark-circle-outline';

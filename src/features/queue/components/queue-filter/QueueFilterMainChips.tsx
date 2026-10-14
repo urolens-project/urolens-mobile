@@ -4,7 +4,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
-import type { FilterOption } from '../types';
+import type { FilterOption } from '../../types';
 
 export interface QueueFilterMainChipsProps {
   selected: FilterOption;
@@ -63,7 +63,11 @@ export function QueueFilterMainChips({
           accessibilityRole="button"
           accessibilityState={{ selected: isDateActive }}
         >
-          <Icon name="calendar-outline" size={14} color={isDateActive ? colors.white : colors.gray500} />
+          <Icon
+            name="calendar-outline"
+            size={14}
+            color={isDateActive ? colors.white : colors.gray500}
+          />
           <Text style={[styles.chipText, isDateActive && styles.chipTextActive]}>Date</Text>
           <Icon
             name={expandedGroup === 'date' ? 'chevron-up' : 'chevron-down'}
