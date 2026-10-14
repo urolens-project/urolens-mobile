@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
-import { REPORT_CATEGORY_STYLES } from '../constants';
-import { REPORT_CATEGORY_ORDER } from '../types';
-import type { ReportCategory } from '../types';
+import { REPORT_CATEGORY_STYLES } from '../../constants';
+import { REPORT_CATEGORY_ORDER } from '../../types';
+import type { ReportCategory } from '../../types';
 
 import { Dot } from './illustrationParts';
 import {

@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 
 import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 
-import { ReportFilters } from '@features/reports/components/ReportFilters';
+import { ReportFilters } from '@features/reports/components/category-drilldown-view/ReportFilters';
 import { ReportDataNotice } from '@features/reports/components/ReportDataNotice';
 import { ReportsScreen } from '@features/reports/components/ReportsScreen';
 import { useReportFilters } from '@features/reports/hooks/useReportFilters';
@@ -24,7 +24,7 @@ jest.mock('@hooks/useNetworkStatus', (): object => ({
 }));
 jest.mock('@components/DropReveal', (): object => ({ useReduceMotion: (): boolean => true }));
 jest.mock('@features/reports/hooks/useReports', (): object => ({ useReports: jest.fn() }));
-jest.mock('@features/reports/components/ReportsLandingView', (): object => ({
+jest.mock('@features/reports/components/reports-landing-view', (): object => ({
   ReportsLandingView: ({
     onSelectCategory,
   }: {
@@ -36,7 +36,7 @@ jest.mock('@features/reports/components/ReportsLandingView', (): object => ({
       'Released',
     ),
 }));
-jest.mock('@features/reports/components/CategoryDrilldownView', (): object => ({
+jest.mock('@features/reports/components/category-drilldown-view', (): object => ({
   CategoryDrilldownView: ({
     onItemPress,
   }: {

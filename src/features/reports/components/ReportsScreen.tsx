@@ -9,8 +9,8 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { useReduceMotion } from '@components/DropReveal';
 
 import { useReports } from '../hooks/useReports';
-import { CategoryDrilldownView } from './CategoryDrilldownView';
-import { ReportsLandingView } from './ReportsLandingView';
+import { CategoryDrilldownView } from './category-drilldown-view';
+import { ReportsLandingView } from './reports-landing-view';
 import type { ReportCategory, ReportSection } from '../types';
 
 /**

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
-import { ReportCategoryCard } from '../../../../src/features/reports/components/ReportCategoryCard';
+import { ReportCategoryCard } from '../../../../src/features/reports/components/reports-landing-view/ReportCategoryCard';
 import {
   REPORT_CATEGORY_DESCRIPTIONS,
   REPORT_CATEGORY_TITLES,
