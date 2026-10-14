@@ -1,0 +1,1 @@
+export { ProfileSyncCard } from './ProfileSyncCard';

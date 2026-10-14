@@ -11,8 +11,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { FailedActionsList } from './FailedActionsList';
-import { InfoRow } from './InfoRow';
-import { InfoRowSeparator } from './InfoRowSeparator';
+import { InfoRow } from '../InfoRow';
+import { InfoRowSeparator } from '../InfoRowSeparator';
 
 const LAST_SYNC_KEY = 'urolens_last_sync_at';
 
