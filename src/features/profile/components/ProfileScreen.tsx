@@ -10,7 +10,7 @@ import { useAuth } from '@features/auth/hooks/useAuth';
 
 import { ProfileAccountCard } from './ProfileAccountCard';
 import { ProfileHeader } from './ProfileHeader';
-import { ProfileSyncCard } from './ProfileSyncCard';
+import { ProfileSyncCard } from './profile-sync-card';
 
 const ROLE_LABELS: Record<string, string> = {
   MEDTECH: 'Medical Technologist',

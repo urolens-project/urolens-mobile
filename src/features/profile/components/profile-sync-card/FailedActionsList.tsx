@@ -4,9 +4,9 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
-import { useFailedActions } from '../hooks/useFailedActions';
-import type { FailedActionUi } from '../types';
-import { InfoRowSeparator } from './InfoRowSeparator';
+import { useFailedActions } from '../../hooks/useFailedActions';
+import type { FailedActionUi } from '../../types';
+import { InfoRowSeparator } from '../InfoRowSeparator';
 
 /**
  * @description The changes made on this phone that the server refused, with the reason
