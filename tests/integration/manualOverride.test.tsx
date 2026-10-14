@@ -8,8 +8,8 @@ import { apiClient } from '@lib/apiClient';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
 
-import { OverrideEntryForm } from '@features/manual-override/components/OverrideEntryForm';
-import { AIFindingsPanel } from '@features/result-confirmation/components/AIFindingsPanel';
+import { OverrideEntryForm } from '@features/manual-override/components/override-entry-form';
+import { AIFindingsPanel } from '@features/result-confirmation/components/ai-findings-panel';
 
 jest.mock('@db/database', () => ({
   database: { get: jest.fn(), write: jest.fn((work) => work()), batch: jest.fn() },

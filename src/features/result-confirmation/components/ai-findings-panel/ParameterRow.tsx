@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 import { colors, radius, spacing } from '@src/theme';
 
-import type { AIFindingEntry } from '../types';
+import type { AIFindingEntry } from '../../types';
 
 export interface ParameterRowProps {
   finding: AIFindingEntry;

@@ -9,7 +9,7 @@ import { colors, radius, spacing } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { ParameterRow } from './ParameterRow';
-import type { AIFindingEntry } from '../types';
+import type { AIFindingEntry } from '../../types';
 
 export interface AIFindingsPanelProps {
   /** server_id of the AnalysisResult. */
