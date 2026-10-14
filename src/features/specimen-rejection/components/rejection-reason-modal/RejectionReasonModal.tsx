@@ -14,8 +14,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 import type { RejectionReason } from '@app-types/enums';
 
-import { REJECTION_REASONS } from '../constants/rejectionReason.constant';
-import { MAX_REJECTION_NOTE_LENGTH } from '../constants/specimenRejection.constant';
+import { REJECTION_REASONS } from '../../constants/rejectionReason.constant';
+import { MAX_REJECTION_NOTE_LENGTH } from '../../constants/specimenRejection.constant';
 import { RejectionReasonCard } from './RejectionReasonCard';
 
 export interface RejectionReasonModalProps {

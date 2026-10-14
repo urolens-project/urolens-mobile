@@ -21,7 +21,7 @@ import { Icon } from '@components/Icon';
 import { useRejectSpecimen } from '../hooks/useRejectSpecimen';
 import { useSpecimenRejectionInfo } from '../hooks/useSpecimenRejectionInfo';
 import { BlockedRejectionCard } from './BlockedRejectionCard';
-import { RejectionReasonModal } from './RejectionReasonModal';
+import { RejectionReasonModal } from './rejection-reason-modal';
 import { SpecimenInfoCard } from './SpecimenInfoCard';
 
 export interface RejectSpecimenScreenProps {

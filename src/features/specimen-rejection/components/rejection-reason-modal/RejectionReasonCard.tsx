@@ -2,7 +2,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
-import type { RejectionReasonOption } from '../constants/rejectionReason.constant';
+import type { RejectionReasonOption } from '../../constants/rejectionReason.constant';
 
 export interface RejectionReasonCardProps {
   reason: RejectionReasonOption;
