@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { alertsApi } from '../api/alertsApi';
+import { ALERTS_TEXT } from '../constants/alertsText.constant';
 import { useOpenNotification } from '../hooks/useOpenNotification';
 import { useNotificationsActions, useNotificationsList } from '../store/notificationsStore';
 import { NotificationCard } from './NotificationCard';
@@ -68,7 +69,7 @@ export function NotificationsPreview({
         <Pressable style={styles.sheet} onPress={() => {}}>
           <View style={styles.header}>
             <View style={styles.titleRow}>
-              <Text style={styles.title}>Notifications</Text>
+              <Text style={styles.title}>{ALERTS_TEXT.previewTitle}</Text>
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{unreadCount}</Text>
@@ -77,14 +78,14 @@ export function NotificationsPreview({
             </View>
             {unreadCount > 0 && (
               <Pressable onPress={handleMarkAllRead}>
-                <Text style={styles.markAllText}>Mark all as read</Text>
+                <Text style={styles.markAllText}>{ALERTS_TEXT.markAllReadLabel}</Text>
               </Pressable>
             )}
           </View>
 
           {recent.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>No alerts yet.</Text>
+              <Text style={styles.emptyText}>{ALERTS_TEXT.previewEmptyText}</Text>
             </View>
           ) : (
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -95,7 +96,7 @@ export function NotificationsPreview({
           )}
 
           <Pressable style={styles.seeAllBtn} onPress={handleSeeAll}>
-            <Text style={styles.seeAllText}>See all</Text>
+            <Text style={styles.seeAllText}>{ALERTS_TEXT.seeAllLabel}</Text>
           </Pressable>
         </Pressable>
       </Pressable>

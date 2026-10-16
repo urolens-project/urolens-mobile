@@ -1,3 +1,4 @@
+import { ALERTS_TEXT } from '../constants/alertsText.constant';
 import type { NotificationItem } from '../types';
 
 export interface NotificationGroup {
@@ -6,15 +7,6 @@ export interface NotificationGroup {
 }
 
 const DAY_MS = 86_400_000;
-const WEEKDAY_NAMES = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-];
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -31,9 +23,9 @@ function dateGroupTitle(createdAt: string, now: Date): string {
   const created = startOfDay(new Date(createdAt));
   const diffDays = Math.round((today.getTime() - created.getTime()) / DAY_MS);
 
-  if (diffDays <= 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return WEEKDAY_NAMES[created.getDay()];
+  if (diffDays <= 0) return ALERTS_TEXT.todayLabel;
+  if (diffDays === 1) return ALERTS_TEXT.yesterdayLabel;
+  if (diffDays < 7) return ALERTS_TEXT.weekdayNames[created.getDay()];
   return created.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 

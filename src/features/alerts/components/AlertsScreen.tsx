@@ -17,6 +17,7 @@ import { Icon } from '@components/Icon';
 
 import { alertsApi } from '../api/alertsApi';
 import { DEFAULT_NOTIFICATIONS_PAGE_SIZE } from '../constants/alerts.constant';
+import { ALERTS_TEXT } from '../constants/alertsText.constant';
 import { useOpenNotification } from '../hooks/useOpenNotification';
 import { groupNotificationsByDate } from '../lib/groupByDate';
 import {
@@ -111,9 +112,9 @@ export function AlertsScreen(): React.JSX.Element {
       {error ? (
         <View style={styles.centered}>
           <Icon name="cloud-offline-outline" size={40} color={colors.gray400} />
-          <Text style={styles.errorText}>{error.message || 'Could not load notifications.'}</Text>
+          <Text style={styles.errorText}>{error.message || ALERTS_TEXT.loadErrorFallback}</Text>
           <Pressable style={styles.retryBtn} onPress={handleRefresh}>
-            <Text style={styles.retryText}>Retry</Text>
+            <Text style={styles.retryText}>{ALERTS_TEXT.retryLabel}</Text>
           </Pressable>
         </View>
       ) : (
@@ -145,7 +146,7 @@ export function AlertsScreen(): React.JSX.Element {
                 {isLoadingMore ? (
                   <ActivityIndicator color={colors.teal} />
                 ) : (
-                  <Text style={styles.loadMoreText}>Load more</Text>
+                  <Text style={styles.loadMoreText}>{ALERTS_TEXT.loadMoreLabel}</Text>
                 )}
               </Pressable>
             ) : null
@@ -154,12 +155,10 @@ export function AlertsScreen(): React.JSX.Element {
             <View style={styles.centered}>
               <Icon name="notifications-off-outline" size={48} color={colors.gray300} />
               <Text style={styles.emptyTitle}>
-                {showUnreadOnly ? "You're all caught up" : 'No alerts yet'}
+                {showUnreadOnly ? ALERTS_TEXT.allCaughtUpTitle : ALERTS_TEXT.noAlertsTitle}
               </Text>
               <Text style={styles.emptySub}>
-                {showUnreadOnly
-                  ? 'No unread notifications right now.'
-                  : 'Sample assignments and result updates will appear here.'}
+                {showUnreadOnly ? ALERTS_TEXT.noUnreadNotificationsSub : ALERTS_TEXT.noAlertsSub}
               </Text>
             </View>
           }
