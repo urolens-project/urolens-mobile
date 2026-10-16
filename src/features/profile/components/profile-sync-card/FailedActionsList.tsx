@@ -4,6 +4,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { PROFILE_TEXT } from '../../constants/profileText.constant';
 import { useFailedActions } from '../../hooks/useFailedActions';
 import type { FailedActionUi } from '../../types';
 import { InfoRowSeparator } from '../InfoRowSeparator';
@@ -23,23 +24,19 @@ export function FailedActionsList(): React.JSX.Element | null {
       <View style={styles.header}>
         <Icon name="alert-circle-outline" size={18} color={colors.red600} />
         <Text style={styles.headerText}>
-          {items.length === 1
-            ? "1 change couldn't be sent"
-            : `${items.length} changes couldn't be sent`}
+          {PROFILE_TEXT.getFailedActionsHeaderText(items.length)}
         </Text>
         <TouchableOpacity
           style={[styles.dismissBtn, isDismissing && styles.dismissBtnDisabled]}
           onPress={dismissAll}
           disabled={isDismissing}
-          accessibilityLabel="Dismiss changes that couldn't be sent"
+          accessibilityLabel={PROFILE_TEXT.failedActionsDismissAccessibilityLabel}
           accessibilityRole="button"
         >
-          <Text style={styles.dismissBtnText}>Dismiss</Text>
+          <Text style={styles.dismissBtnText}>{PROFILE_TEXT.failedActionsDismissButtonText}</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.explanation}>
-        The server did not accept these, so they were not saved. The app shows what the server has.
-      </Text>
+      <Text style={styles.explanation}>{PROFILE_TEXT.failedActionsExplanation}</Text>
       {items.map((item) => (
         <FailedActionRow key={item.id} item={item} />
       ))}
