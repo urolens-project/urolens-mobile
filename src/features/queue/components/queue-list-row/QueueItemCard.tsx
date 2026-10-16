@@ -8,6 +8,7 @@ import { Icon } from '@components/Icon';
 import { PulseDot } from '@components/PulseDot';
 
 import { QUEUE_STATUS_STYLES } from '../../constants';
+import { formatReturnReasonLabel, QUEUE_TEXT } from '../../constants/queueText.constant';
 import { getQueueStatus } from '../../status';
 import { ITEM_HEIGHT } from '../../scrollEffects';
 import type { QueueItem } from '../../types';
@@ -51,7 +52,7 @@ function QueueItemCardComponent({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected }}
-      accessibilityHint="Select sample, then use Proceed or Continue to open its details."
+      accessibilityHint={QUEUE_TEXT.itemCard.selectHint}
     >
       <View
         style={[
@@ -91,8 +92,12 @@ function QueueItemCardComponent({
         <Text style={styles.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
           {item.sampleUid} · {formatShortDateTime(item.receivedAt)}
         </Text>
-        {isReturned && <Text style={styles.returnLabel}>Returned for correction</Text>}
-        {hasReturnReason && <Text style={styles.returnReason}>Reason: {item.returnReason}</Text>}
+        {isReturned && (
+          <Text style={styles.returnLabel}>{QUEUE_TEXT.itemCard.returnedForCorrection}</Text>
+        )}
+        {hasReturnReason && (
+          <Text style={styles.returnReason}>{formatReturnReasonLabel(item.returnReason)}</Text>
+        )}
       </View>
       <Icon name="chevron-forward" size={spacing.lg} color={accent} />
     </TouchableOpacity>

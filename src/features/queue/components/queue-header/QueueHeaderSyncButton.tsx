@@ -5,6 +5,8 @@ import { colors, radius, spacing } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { QUEUE_TEXT } from '../../constants/queueText.constant';
+
 export interface QueueHeaderSyncButtonProps {
   syncing: boolean;
   syncDisabled: boolean;
@@ -54,7 +56,7 @@ export function QueueHeaderSyncButton({
   return (
     <TouchableOpacity
       style={styles.iconBtn}
-      accessibilityLabel="Sync"
+      accessibilityLabel={QUEUE_TEXT.header.syncAccessibilityLabel}
       accessibilityRole="button"
       onPress={onSync}
       disabled={syncDisabled}

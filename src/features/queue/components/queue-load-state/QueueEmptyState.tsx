@@ -5,6 +5,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { QUEUE_TEXT } from '../../constants/queueText.constant';
 import type { FilterOption } from '../../types';
 
 interface EmptyStateDescription {
@@ -27,23 +28,23 @@ function describe({
     return {
       icon: 'cloud-offline-outline',
       color: colors.amber600,
-      title: "You're offline",
-      sub: 'Connect to sync your latest queue.',
+      title: QUEUE_TEXT.emptyState.offlineTitle,
+      sub: QUEUE_TEXT.emptyState.offlineSub,
     };
   }
   if (filter !== 'ALL') {
     return {
       icon: 'filter-outline',
       color: colors.gray500,
-      title: 'No matches',
-      sub: 'Try selecting a different filter.',
+      title: QUEUE_TEXT.emptyState.noMatchesTitle,
+      sub: QUEUE_TEXT.emptyState.noMatchesSub,
     };
   }
   return {
     icon: 'checkmark-circle-outline',
     color: colors.teal,
-    title: 'You’re all caught up',
-    sub: 'No samples are currently waiting on you.',
+    title: QUEUE_TEXT.emptyState.caughtUpTitle,
+    sub: QUEUE_TEXT.emptyState.caughtUpSub,
   };
 }
 

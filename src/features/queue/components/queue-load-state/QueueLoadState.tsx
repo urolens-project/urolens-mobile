@@ -5,6 +5,7 @@ import { colors, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { QueueEmptyState } from './QueueEmptyState';
+import { QUEUE_TEXT } from '../../constants/queueText.constant';
 import type { FilterOption } from '../../types';
 
 export interface QueueLoadStateProps {
@@ -34,20 +35,20 @@ export function QueueLoadState({
 }: QueueLoadStateProps): React.JSX.Element | null {
   if (error) {
     const message = hasItems
-      ? 'Showing saved samples. Refresh to try again.'
-      : 'Your queue could not be loaded. Please try again.';
+      ? QUEUE_TEXT.loadState.errorWithCache
+      : QUEUE_TEXT.loadState.errorNoCache;
     return (
       <View style={styles.container} accessibilityRole="alert" accessibilityLiveRegion="polite">
         <Icon name="alert-circle-outline" color={colors.red700} />
-        <Text style={styles.title}>Couldn’t load queue</Text>
+        <Text style={styles.title}>{QUEUE_TEXT.loadState.errorTitle}</Text>
         <Text style={styles.message}>{message}</Text>
         <Pressable
           style={styles.button}
           onPress={onRetry}
           accessibilityRole="button"
-          accessibilityLabel="Retry loading queue"
+          accessibilityLabel={QUEUE_TEXT.loadState.retryAccessibilityLabel}
         >
-          <Text style={styles.buttonText}>Try again</Text>
+          <Text style={styles.buttonText}>{QUEUE_TEXT.loadState.retryButton}</Text>
         </Pressable>
       </View>
     );
@@ -57,7 +58,7 @@ export function QueueLoadState({
     return (
       <View style={styles.container} accessibilityLiveRegion="polite">
         <ActivityIndicator color={colors.teal} />
-        <Text style={styles.message}>Loading your queue…</Text>
+        <Text style={styles.message}>{QUEUE_TEXT.loadState.loading}</Text>
       </View>
     );
   }

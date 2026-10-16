@@ -4,6 +4,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { QUEUE_TEXT } from '../../constants/queueText.constant';
 import type { FilterOption } from '../../types';
 
 export interface QueueFilterMainChipsProps {
@@ -47,7 +48,9 @@ export function QueueFilterMainChips({
           accessibilityRole="button"
           accessibilityState={{ selected: isAllActive }}
         >
-          <Text style={[styles.chipText, isAllActive && styles.chipTextActive]}>All</Text>
+          <Text style={[styles.chipText, isAllActive && styles.chipTextActive]}>
+            {QUEUE_TEXT.filterChips.all}
+          </Text>
           {counts?.ALL !== undefined && (
             <View style={[styles.countBadge, isAllActive && styles.countBadgeActive]}>
               <Text style={[styles.countText, isAllActive && styles.countTextActive]}>
@@ -68,7 +71,9 @@ export function QueueFilterMainChips({
             size={14}
             color={isDateActive ? colors.white : colors.gray500}
           />
-          <Text style={[styles.chipText, isDateActive && styles.chipTextActive]}>Date</Text>
+          <Text style={[styles.chipText, isDateActive && styles.chipTextActive]}>
+            {QUEUE_TEXT.filterChips.date}
+          </Text>
           <Icon
             name={expandedGroup === 'date' ? 'chevron-up' : 'chevron-down'}
             size={13}
@@ -82,7 +87,9 @@ export function QueueFilterMainChips({
           accessibilityRole="button"
           accessibilityState={{ selected: isStatusActive }}
         >
-          <Text style={[styles.chipText, isStatusActive && styles.chipTextActive]}>Status</Text>
+          <Text style={[styles.chipText, isStatusActive && styles.chipTextActive]}>
+            {QUEUE_TEXT.filterChips.status}
+          </Text>
           <Icon
             name={expandedGroup === 'status' ? 'chevron-up' : 'chevron-down'}
             size={13}
