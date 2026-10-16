@@ -7,6 +7,7 @@ import { colors, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { REPORT_CATEGORY_STYLES } from '../../constants';
+import { REPORTS_TEXT } from '../../constants/reportsText.constant';
 import type { ReportItem } from '../../types';
 
 export interface ReportItemCardProps {
@@ -29,7 +30,10 @@ function ReportItemCardComponent({ item, onPress }: ReportItemCardProps): React.
       onPress={() => onPress(item.id)}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={`Sample ${item.sampleUid}, patient ${item.patientUid}`}
+      accessibilityLabel={REPORTS_TEXT.getReportItemAccessibilityLabel(
+        item.sampleUid,
+        item.patientUid,
+      )}
     >
       <View style={[styles.accent, { backgroundColor: style.color }]} />
 

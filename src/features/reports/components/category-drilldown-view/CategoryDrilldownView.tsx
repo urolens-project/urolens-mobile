@@ -27,6 +27,7 @@ import {
   REPORT_HISTORY_LOAD_MORE_THRESHOLD,
   REPORT_ITEM_STAGGER_MS,
 } from '../../constants/reportHistory.constant';
+import { REPORTS_TEXT } from '../../constants/reportsText.constant';
 import { useReportFilters } from '../../hooks/useReportFilters';
 import { mapHistoryItemToReportItem } from '../../mappers/reportHistory.mapper';
 import type { HistoryReportCategory, ReportCategory, ReportItem, ReportSection } from '../../types';
@@ -52,10 +53,8 @@ function EmptyCategoryState({
   if (hasFilters) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>No matching samples</Text>
-        <Text style={styles.emptySub}>
-          Try another search or clear the filters to view all dates.
-        </Text>
+        <Text style={styles.emptyTitle}>{REPORTS_TEXT.emptyFilteredTitle}</Text>
+        <Text style={styles.emptySub}>{REPORTS_TEXT.emptyFilteredSubtitle}</Text>
       </View>
     );
   }
@@ -66,13 +65,13 @@ function EmptyCategoryState({
       </View>
       {isOnline ? (
         <>
-          <Text style={styles.emptyTitle}>Nothing here yet</Text>
-          <Text style={styles.emptySub}>Samples that reach this stage will show up here.</Text>
+          <Text style={styles.emptyTitle}>{REPORTS_TEXT.emptyCategoryTitle}</Text>
+          <Text style={styles.emptySub}>{REPORTS_TEXT.emptyCategorySubtitle}</Text>
         </>
       ) : (
         <>
-          <Text style={styles.emptyTitle}>You&apos;re offline</Text>
-          <Text style={styles.emptySub}>Connect to sync your finished samples.</Text>
+          <Text style={styles.emptyTitle}>{REPORTS_TEXT.emptyOfflineTitle}</Text>
+          <Text style={styles.emptySub}>{REPORTS_TEXT.emptyOfflineSubtitle}</Text>
         </>
       )}
     </View>
@@ -269,7 +268,7 @@ export function CategoryDrilldownView({
                 <ActivityIndicator color={style.color} />
               ) : (
                 <Text style={[styles.loadOlderText, { color: style.color }]}>
-                  Load older samples
+                  {REPORTS_TEXT.loadOlderSamplesLabel}
                 </Text>
               )}
             </Pressable>

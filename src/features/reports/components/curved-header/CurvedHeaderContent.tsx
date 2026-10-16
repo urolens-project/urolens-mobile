@@ -6,6 +6,8 @@ import { colors, spacing } from '@src/theme';
 
 import { TEAL } from '@components/HeaderWaves';
 
+import { REPORTS_TEXT } from '../../constants/reportsText.constant';
+
 // Matches whatever Animated.View's own `style` prop accepts, since contentStyle is
 // an object built from Animated.Value.interpolate() calls, not a plain ViewStyle.
 type AnimatedViewStyle = ComponentProps<typeof Animated.View>['style'];
@@ -38,24 +40,24 @@ export function CurvedHeaderContent({
         </View>
         <View style={styles.identity}>
           <Text style={styles.name} numberOfLines={1}>
-            {username ?? 'MedTech'}
+            {username ?? REPORTS_TEXT.defaultMedtechName}
           </Text>
-          <Text style={styles.role}>Medical Technologist</Text>
+          <Text style={styles.role}>{REPORTS_TEXT.medtechRoleLabel}</Text>
         </View>
         <View
           style={styles.totalCircle}
           accessible
-          accessibilityLabel={`${totalCount} finished sample${totalCount === 1 ? '' : 's'} in total`}
+          accessibilityLabel={REPORTS_TEXT.getTotalSamplesAccessibilityLabel(totalCount)}
         >
           <Text style={styles.totalNumber}>{totalCount}</Text>
-          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalLabel}>{REPORTS_TEXT.totalLabel}</Text>
         </View>
       </View>
 
       <Text style={styles.title} accessibilityRole="header">
-        Reports
+        {REPORTS_TEXT.headerTitle}
       </Text>
-      <Text style={styles.subtitle}>Finished samples, read-only</Text>
+      <Text style={styles.subtitle}>{REPORTS_TEXT.headerSubtitle}</Text>
     </Animated.View>
   );
 }

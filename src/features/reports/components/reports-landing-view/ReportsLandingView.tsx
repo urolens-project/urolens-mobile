@@ -10,6 +10,7 @@ import { CurvedHeader } from '../curved-header';
 import { ReportDataNotice } from '../ReportDataNotice';
 import { CARD_RADIUS, ReportCategoryCard } from './ReportCategoryCard';
 import { REPORT_CATEGORY_STYLES } from '../../constants';
+import { REPORTS_TEXT } from '../../constants/reportsText.constant';
 import type { ReportCategory, ReportSection } from '../../types';
 
 export interface ReportsLandingViewProps {
@@ -105,7 +106,7 @@ export function ReportsLandingView({
         {!isOnline && (
           <View style={styles.offlineNote}>
             <Icon name="cloud-offline-outline" size={16} color={colors.amber800} />
-            <Text style={styles.offlineNoteText}>Offline — showing cached data</Text>
+            <Text style={styles.offlineNoteText}>{REPORTS_TEXT.offlineCachedDataNotice}</Text>
           </View>
         )}
       </ScrollView>

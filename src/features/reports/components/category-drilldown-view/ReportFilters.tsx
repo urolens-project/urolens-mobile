@@ -5,6 +5,7 @@ import { colors, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { REPORT_PERIOD_OPTIONS } from '../../constants/reportHistory.constant';
+import { REPORTS_TEXT } from '../../constants/reportsText.constant';
 import type { ReportPeriod } from '../../types';
 
 interface ReportFiltersProps {
@@ -33,7 +34,7 @@ export function ReportFilters({
   onChangePeriod,
   onReset,
 }: ReportFiltersProps): React.JSX.Element {
-  const countLabel = `${visibleCount} of ${totalCount} samples`;
+  const countLabel = REPORTS_TEXT.getVisibleSampleCountLabel(visibleCount, totalCount);
 
   return (
     <View style={styles.container}>
@@ -43,15 +44,15 @@ export function ReportFilters({
           style={styles.input}
           value={searchQuery}
           onChangeText={onChangeSearch}
-          placeholder="Sample ID, patient ID, or test type"
+          placeholder={REPORTS_TEXT.searchPlaceholder}
           placeholderTextColor={colors.gray500}
-          accessibilityLabel="Search reports"
+          accessibilityLabel={REPORTS_TEXT.searchAccessibilityLabel}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
         />
       </View>
-      <Text style={styles.caption}>Filter by received date</Text>
+      <Text style={styles.caption}>{REPORTS_TEXT.filterCaption}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.periods}>
           {REPORT_PERIOD_OPTIONS.map((option): React.JSX.Element => {
@@ -79,7 +80,7 @@ export function ReportFilters({
         </Text>
         {hasFilters && (
           <Pressable onPress={onReset} accessibilityRole="button">
-            <Text style={styles.reset}>Clear filters</Text>
+            <Text style={styles.reset}>{REPORTS_TEXT.clearFiltersLabel}</Text>
           </Pressable>
         )}
       </View>
