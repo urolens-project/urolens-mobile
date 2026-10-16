@@ -20,6 +20,7 @@ import { Icon } from '@components/Icon';
 
 import { useRejectSpecimen } from '../hooks/useRejectSpecimen';
 import { useSpecimenRejectionInfo } from '../hooks/useSpecimenRejectionInfo';
+import { SPECIMEN_REJECTION_TEXT } from '../constants/specimenRejectionText.constant';
 import { BlockedRejectionCard } from './BlockedRejectionCard';
 import { RejectionReasonModal } from './rejection-reason-modal';
 import { SpecimenInfoCard } from './SpecimenInfoCard';
@@ -55,13 +56,13 @@ export function RejectSpecimenScreen({ specimenId }: RejectSpecimenScreenProps):
     if (outcome.status === 'rejected') {
       if (outcome.isQueued) {
         Alert.alert(
-          'Rejection queued',
-          'This specimen was rejected on this device. The rejection will be submitted when you are back online.',
+          SPECIMEN_REJECTION_TEXT.queuedAlertTitle,
+          SPECIMEN_REJECTION_TEXT.queuedAlertMessage,
         );
       }
       router.replace(`/(medtech)/sample/${specimenId}`);
     } else if (outcome.status === 'failed') {
-      Alert.alert('Rejection Failed', outcome.message);
+      Alert.alert(SPECIMEN_REJECTION_TEXT.failedAlertTitle, outcome.message);
     }
   }, [
     selectedReason,
@@ -100,13 +101,13 @@ export function RejectSpecimenScreen({ specimenId }: RejectSpecimenScreenProps):
           style={styles.backBtn}
           onPress={handleBack}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel={SPECIMEN_REJECTION_TEXT.backLabel}
           disabled={isRejecting}
           accessibilityState={{ disabled: isRejecting }}
         >
           <Icon name="chevron-back" size={spacing.xxl} color={colors.gray700} />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Reject Specimen</Text>
+        <Text style={styles.topBarTitle}>{SPECIMEN_REJECTION_TEXT.screenTitle}</Text>
         {/* Spacer to center title */}
         <View style={styles.backBtn} />
       </View>
