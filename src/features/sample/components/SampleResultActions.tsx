@@ -2,6 +2,8 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
+import { SAMPLE_TEXT } from '../constants/sampleText.constant';
+
 export interface SampleResultActionsProps {
   canConfirm: boolean;
   canRetake: boolean;
@@ -36,12 +38,12 @@ export function SampleResultActions({
           onPress={onConfirm}
           disabled={isConfirming}
           accessibilityRole="button"
-          accessibilityLabel="Confirm analysis result"
+          accessibilityLabel={SAMPLE_TEXT.confirmAnalysisResultAccessibilityLabel}
         >
           {isConfirming ? (
             <ActivityIndicator size="small" color={colors.white} />
           ) : (
-            <Text style={styles.confirmBtnText}>Confirm Result</Text>
+            <Text style={styles.confirmBtnText}>{SAMPLE_TEXT.confirmResult}</Text>
           )}
         </TouchableOpacity>
       )}
@@ -50,9 +52,9 @@ export function SampleResultActions({
           style={styles.retakeBtn}
           onPress={onRetake}
           accessibilityRole="button"
-          accessibilityLabel="Retake image"
+          accessibilityLabel={SAMPLE_TEXT.retakeImageAccessibilityLabel}
         >
-          <Text style={styles.retakeBtnText}>Retake Image</Text>
+          <Text style={styles.retakeBtnText}>{SAMPLE_TEXT.retakeImage}</Text>
         </TouchableOpacity>
       )}
     </View>
