@@ -6,6 +6,7 @@ import { useUserId } from '@lib/auth/authStore';
 import { getErrorMessage } from '@lib/errorMessage';
 
 import { resultReviewApi } from '../api/resultReviewApi';
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
 import { mapResultReviewDetail } from '../mappers/resultReview.mapper';
 import type { ResultReviewDetail } from '../types';
 
@@ -42,7 +43,9 @@ export function useResultReviewDetail(
         if (!signal.aborted)
           setLoaded({ detail: mapResultReviewDetail(dto), localRevision, userId });
       } catch (error: unknown) {
-        throw new Error(getErrorMessage(error, 'Could not load the result details. Please retry.'));
+        throw new Error(
+          getErrorMessage(error, RESULT_CONFIRMATION_TEXT.resultDetailLoadErrorMessage),
+        );
       }
     },
     [isOnline, localRevision, resultId, userId],

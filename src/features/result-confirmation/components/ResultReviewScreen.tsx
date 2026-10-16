@@ -19,6 +19,7 @@ import { OfflineBanner } from '@components/OfflineBanner';
 import type { QueueItem } from '@features/queue/types';
 import { getSampleActions, getSampleStatusLabel } from '@features/queue/lib/sampleState';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
 import { useResultConfirmation } from '../hooks/useResultConfirmation';
 import { useResultReviewDetail } from '../hooks/useResultReviewDetail';
 import { useResultReviewActions } from '../hooks/useResultReviewActions';
@@ -76,8 +77,8 @@ export function ResultReviewScreen({
   const isReturned = status === 'RETURNED_FOR_CORRECTION';
   const isBusy = isConfirming;
   const isConfirmed = !canEdit;
-  let subtitle = 'Pending your confirmation';
-  if (isReturned) subtitle = 'Returned for Correction';
+  let subtitle = RESULT_CONFIRMATION_TEXT.pendingConfirmationSubtitle;
+  if (isReturned) subtitle = RESULT_CONFIRMATION_TEXT.returnedForCorrectionLabel;
   else if (isConfirmed)
     subtitle = getSampleStatusLabel(specimen?.status ?? 'PROCESSING', status as `${ResultStatus}`);
   const canReject =
@@ -110,10 +111,10 @@ export function ResultReviewScreen({
     return (
       <View style={styles.centered}>
         <Icon name="document-outline" color={colors.warmGray200} />
-        <Text style={styles.title}>Result not found</Text>
-        <Text style={styles.body}>This result may not have synced yet.</Text>
+        <Text style={styles.title}>{RESULT_CONFIRMATION_TEXT.resultNotFound.title}</Text>
+        <Text style={styles.body}>{RESULT_CONFIRMATION_TEXT.resultNotFound.body}</Text>
         <Pressable accessibilityRole="button" onPress={handleBack}>
-          <Text style={styles.link}>Back to Confirmation Queue</Text>
+          <Text style={styles.link}>{RESULT_CONFIRMATION_TEXT.backToQueueLabel}</Text>
         </Pressable>
       </View>
     );
@@ -141,7 +142,7 @@ export function ResultReviewScreen({
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            accessibilityLabel="Refresh result details"
+            accessibilityLabel={RESULT_CONFIRMATION_TEXT.refreshAccessibilityLabel}
             refreshing={isDetailLoading}
             enabled={!isBusy}
             tintColor={colors.teal}
@@ -162,7 +163,10 @@ export function ResultReviewScreen({
           />
         </View>
         {isDetailLoading && (
-          <ActivityIndicator color={colors.teal} accessibilityLabel="Loading result details" />
+          <ActivityIndicator
+            color={colors.teal}
+            accessibilityLabel={RESULT_CONFIRMATION_TEXT.loadingAccessibilityLabel}
+          />
         )}
         {detailError && (
           <Text accessibilityRole="alert" style={styles.errorText}>
@@ -190,7 +194,9 @@ export function ResultReviewScreen({
             disabled={isBusy}
             onPress={handleReject}
           >
-            <Text style={styles.rejectButtonText}>Reject Specimen</Text>
+            <Text style={styles.rejectButtonText}>
+              {RESULT_CONFIRMATION_TEXT.rejectSpecimenLabel}
+            </Text>
           </Pressable>
         )}
         {error && (

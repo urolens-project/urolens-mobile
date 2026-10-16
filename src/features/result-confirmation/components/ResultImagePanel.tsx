@@ -5,6 +5,8 @@ import { colors, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
+
 const DEFAULT_IMAGE_ASPECT_RATIO = 4 / 3;
 
 export interface ResultImagePanelProps {
@@ -25,7 +27,7 @@ export function ResultImagePanel({ imageUrl }: ResultImagePanelProps): React.JSX
       <View style={styles.header}>
         <Icon name="image-outline" size={16} color={colors.teal} />
         <Text accessibilityRole="header" style={styles.title}>
-          Sample Image
+          {RESULT_CONFIRMATION_TEXT.resultImage.title}
         </Text>
       </View>
       <View style={styles.content}>
@@ -34,7 +36,7 @@ export function ResultImagePanel({ imageUrl }: ResultImagePanelProps): React.JSX
             source={{ uri: imageUrl }}
             style={[styles.image, { aspectRatio }]}
             resizeMode="contain"
-            accessibilityLabel="Microscopy image"
+            accessibilityLabel={RESULT_CONFIRMATION_TEXT.resultImage.accessibilityLabel}
             onLoad={(event): void => {
               const { width, height } = event.nativeEvent.source;
               if (width > 0 && height > 0) setAspectRatio(width / height);
@@ -43,7 +45,7 @@ export function ResultImagePanel({ imageUrl }: ResultImagePanelProps): React.JSX
           />
         ) : (
           <Text style={styles.message}>
-            Microscopy image unavailable. Connect and pull down to refresh.
+            {RESULT_CONFIRMATION_TEXT.resultImage.unavailableMessage}
           </Text>
         )}
       </View>

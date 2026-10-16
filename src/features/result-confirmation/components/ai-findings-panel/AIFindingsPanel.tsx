@@ -9,6 +9,7 @@ import { colors, radius, spacing } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { ParameterRow } from './ParameterRow';
+import { RESULT_CONFIRMATION_TEXT } from '../../constants/resultConfirmationText.constant';
 import type { AIFindingEntry } from '../../types';
 
 export interface AIFindingsPanelProps {
@@ -60,12 +61,12 @@ function AIFindingsPanelComponent({
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Icon name="eye-outline" size={16} color={colors.teal} />
-          <Text style={styles.title}>AI Findings</Text>
+          <Text style={styles.title}>{RESULT_CONFIRMATION_TEXT.aiFindings.title}</Text>
         </View>
         {anomalousCount > 0 && (
           <View style={styles.anomalousPill}>
             <Text style={styles.anomalousPillText}>
-              {anomalousCount} anomal{anomalousCount === 1 ? 'y' : 'ies'}
+              {RESULT_CONFIRMATION_TEXT.aiFindings.anomalousCountLabel(anomalousCount)}
             </Text>
           </View>
         )}
@@ -74,8 +75,8 @@ function AIFindingsPanelComponent({
       {findings.length === 0 ? (
         <View style={styles.empty}>
           <Icon name="flask-outline" size={32} color={colors.warmGray200} />
-          <Text style={styles.emptyTitle}>No particles detected</Text>
-          <Text style={styles.emptyBody}>AI analysis returned no findings for this image.</Text>
+          <Text style={styles.emptyTitle}>{RESULT_CONFIRMATION_TEXT.aiFindings.emptyTitle}</Text>
+          <Text style={styles.emptyBody}>{RESULT_CONFIRMATION_TEXT.aiFindings.emptyBody}</Text>
         </View>
       ) : (
         <View style={styles.list}>
