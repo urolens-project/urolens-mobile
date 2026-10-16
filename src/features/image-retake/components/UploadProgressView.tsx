@@ -3,6 +3,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, spacing, typography } from '@src/theme';
 
+import { IMAGE_RETAKE_TEXT } from '../constants/imageRetakeText.constant';
+
 export interface UploadProgressViewProps {
   progress: number;
 }
@@ -14,9 +16,9 @@ export function UploadProgressView({ progress }: UploadProgressViewProps): React
   return (
     <SafeAreaView style={[styles.container, styles.centered]}>
       <ActivityIndicator size="large" color={colors.teal} />
-      <Text style={styles.uploadingTitle}>Uploading image…</Text>
+      <Text style={styles.uploadingTitle}>{IMAGE_RETAKE_TEXT.uploadingImageTitle}</Text>
       <Text style={styles.uploadingProgress}>{progress}%</Text>
-      <Text style={styles.uploadingSubtitle}>AI analysis will begin automatically</Text>
+      <Text style={styles.uploadingSubtitle}>{IMAGE_RETAKE_TEXT.uploadSubtitle}</Text>
     </SafeAreaView>
   );
 }

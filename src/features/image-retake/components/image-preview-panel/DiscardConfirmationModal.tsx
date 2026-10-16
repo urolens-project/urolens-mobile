@@ -21,6 +21,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { IMAGE_RETAKE_TEXT } from '../../constants/imageRetakeText.constant';
+
 export interface DiscardConfirmationModalProps {
   visible: boolean;
   isLoading: boolean;
@@ -58,11 +60,8 @@ export function DiscardConfirmationModal({
           </View>
 
           {/* ── Copy ── */}
-          <Text style={styles.title}>Discard this image?</Text>
-          <Text style={styles.body}>
-            The current image and its AI analysis will be discarded. You will need to recapture a
-            new specimen image. This action cannot be undone.
-          </Text>
+          <Text style={styles.title}>{IMAGE_RETAKE_TEXT.discardModalTitle}</Text>
+          <Text style={styles.body}>{IMAGE_RETAKE_TEXT.discardModalBody}</Text>
 
           {/* ── Actions ── */}
           <View style={styles.actions}>
@@ -71,9 +70,9 @@ export function DiscardConfirmationModal({
               onPress={onCancel}
               disabled={isLoading}
               accessibilityRole="button"
-              accessibilityLabel="Cancel — keep current image"
+              accessibilityLabel={IMAGE_RETAKE_TEXT.cancelDiscardA11yLabel}
             >
-              <Text style={styles.cancelLabel}>Keep Image</Text>
+              <Text style={styles.cancelLabel}>{IMAGE_RETAKE_TEXT.keepImageLabel}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -81,12 +80,12 @@ export function DiscardConfirmationModal({
               onPress={onConfirm}
               disabled={isLoading}
               accessibilityRole="button"
-              accessibilityLabel="Confirm discard and retake"
+              accessibilityLabel={IMAGE_RETAKE_TEXT.confirmDiscardA11yLabel}
             >
               {isLoading ? (
                 <ActivityIndicator color={colors.white} size="small" />
               ) : (
-                <Text style={styles.confirmLabel}>Discard &amp; Retake</Text>
+                <Text style={styles.confirmLabel}>{IMAGE_RETAKE_TEXT.discardAndRetakeLabel}</Text>
               )}
             </TouchableOpacity>
           </View>
