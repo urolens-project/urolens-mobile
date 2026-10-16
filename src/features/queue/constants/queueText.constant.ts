@@ -32,7 +32,7 @@ export const QUEUE_TEXT = {
     loading: 'Loading your queue…',
   },
   emptyState: {
-    offlineTitle: 'You’re offline',
+    offlineTitle: "You're offline",
     offlineSub: 'Connect to sync your latest queue.',
     noMatchesTitle: 'No matches',
     noMatchesSub: 'Try selecting a different filter.',
