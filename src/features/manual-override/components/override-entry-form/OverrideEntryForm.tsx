@@ -18,6 +18,7 @@ import { OfflineBanner } from '@components/OfflineBanner';
 
 import { useManualOverride } from '../../hooks/useManualOverride';
 import { useOverrideContext } from '../../hooks/useOverrideContext';
+import { OVERRIDE_TEXT } from '../../constants/overrideText.constant';
 import { getOverrideValidationError, parseOverrideCount } from '../../lib/overrideValidation';
 import { OverrideFormTitleBar } from './OverrideFormTitleBar';
 import { OverrideFormFields } from './OverrideFormFields';
@@ -66,11 +67,7 @@ export function OverrideEntryForm({
       rationale: rationale.trim(),
     });
     if (!success) return;
-    if (!isOnline)
-      Alert.alert(
-        'Override queued',
-        'Your correction is saved on this device and will be submitted when it syncs.',
-      );
+    if (!isOnline) Alert.alert(OVERRIDE_TEXT.queuedAlertTitle, OVERRIDE_TEXT.queuedAlertMessage);
     returnToResult();
   }, [
     isValid,
@@ -90,17 +87,16 @@ export function OverrideEntryForm({
       returnToResult();
       return;
     }
-    Alert.alert('Unsaved correction', 'Leave without saving this correction?', [
-      { text: 'Keep editing', style: 'cancel' },
-      { text: 'Discard changes', style: 'destructive', onPress: returnToResult },
+    Alert.alert(OVERRIDE_TEXT.discardAlertTitle, OVERRIDE_TEXT.discardAlertMessage, [
+      { text: OVERRIDE_TEXT.keepEditingLabel, style: 'cancel' },
+      { text: OVERRIDE_TEXT.discardChangesLabel, style: 'destructive', onPress: returnToResult },
     ]);
   }, [isSubmitting, isDirty, returnToResult]);
 
   let blockedMessage = contextError;
   if (!blockedMessage && !isLoading && originalAiValue === null)
-    blockedMessage = 'The original AI finding is unavailable. Return to the result and retry.';
-  if (!blockedMessage && !specimenId)
-    blockedMessage = 'The sample identifier is missing. Return to the queue and reopen the result.';
+    blockedMessage = OVERRIDE_TEXT.missingAiFindingError;
+  if (!blockedMessage && !specimenId) blockedMessage = OVERRIDE_TEXT.missingSpecimenError;
 
   return (
     <View style={styles.container}>
@@ -111,7 +107,10 @@ export function OverrideEntryForm({
         isSubmitting={isSubmitting}
       />
       {isLoading && (
-        <ActivityIndicator accessibilityLabel="Loading original AI finding" color={colors.teal} />
+        <ActivityIndicator
+          accessibilityLabel={OVERRIDE_TEXT.loadingAccessibilityLabel}
+          color={colors.teal}
+        />
       )}
       {blockedMessage && (
         <Text accessibilityRole="alert" style={styles.error}>
@@ -130,7 +129,7 @@ export function OverrideEntryForm({
           >
             {!context.canEdit && (
               <Text accessibilityRole="alert" style={styles.error}>
-                This result is no longer editable. Return to the result to see its current status.
+                {OVERRIDE_TEXT.notEditableError}
               </Text>
             )}
             <OverrideFormFields

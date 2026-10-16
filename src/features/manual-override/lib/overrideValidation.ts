@@ -1,4 +1,5 @@
 import { MAX_OVERRIDE_COUNT, MAX_OVERRIDE_RATIONALE_LENGTH } from '../constants/override.constant';
+import { OVERRIDE_TEXT } from '../constants/overrideText.constant';
 
 /**
  * @description Rejects partial numeric strings and counts the backend cannot accept, including offline edits.
@@ -23,10 +24,10 @@ export function getOverrideValidationError(
   currentValue: number | null,
 ): string | null {
   if (count === null || !Number.isSafeInteger(count) || count < 0 || count > MAX_OVERRIDE_COUNT)
-    return `Enter a whole number from 0 to ${MAX_OVERRIDE_COUNT}.`;
-  if (count === currentValue) return 'The corrected value must differ from the current value.';
-  if (!rationale.trim()) return 'Enter a rationale for this correction.';
+    return OVERRIDE_TEXT.getCorrectedValueRangeError(MAX_OVERRIDE_COUNT);
+  if (count === currentValue) return OVERRIDE_TEXT.valueUnchangedError;
+  if (!rationale.trim()) return OVERRIDE_TEXT.rationaleRequiredError;
   if (rationale.trim().length > MAX_OVERRIDE_RATIONALE_LENGTH)
-    return `Keep the rationale within ${MAX_OVERRIDE_RATIONALE_LENGTH} characters.`;
+    return OVERRIDE_TEXT.getRationaleLengthError(MAX_OVERRIDE_RATIONALE_LENGTH);
   return null;
 }
