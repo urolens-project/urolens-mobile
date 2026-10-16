@@ -5,6 +5,7 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { useAsyncAction } from '@hooks/useAsyncAction';
 import { getErrorMessage } from '@lib/errorMessage';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
 import { confirmResultCore } from '../lib/confirmResultCore';
 
 // What a confirm attempt came to. The failure message is returned rather than only
@@ -45,7 +46,7 @@ export function useConfirmAction(): UseConfirmActionReturn {
         if (signal.aborted) return { status: 'busy' };
         return { status: 'confirmed' };
       } catch (error: unknown) {
-        const message = getErrorMessage(error, 'Failed to confirm result');
+        const message = getErrorMessage(error, RESULT_CONFIRMATION_TEXT.confirmDefaultErrorMessage);
         console.error('[ResultConfirmation]', error);
         setError(message);
         return { status: 'failed', message };

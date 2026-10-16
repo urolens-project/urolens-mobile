@@ -4,6 +4,7 @@ import { colors, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
 import type { SmartDiagnosisResult } from '../types';
 import { SmartDiagnosisRows } from './SmartDiagnosisRows';
 
@@ -24,6 +25,7 @@ export function SmartDiagnosisPanel({
   emptyMessage,
   isPreview = false,
 }: SmartDiagnosisPanelProps): React.JSX.Element {
+  const panelText = RESULT_CONFIRMATION_TEXT.smartDiagnosisPanel;
   let content: React.JSX.Element;
   if (unavailable || !smartDiagnosis) {
     content = (
@@ -31,17 +33,15 @@ export function SmartDiagnosisPanel({
         <Icon name="information-circle-outline" color={colors.teal} />
         <View style={styles.noticeText}>
           <Text style={styles.title}>
-            {unavailable ? 'Diagnosis unavailable' : 'Smart Diagnosis'}
+            {unavailable ? panelText.unavailableTitle : panelText.title}
           </Text>
-          <Text style={styles.body}>
-            {emptyMessage || 'Smart Diagnosis is unavailable for this sample.'}
-          </Text>
+          <Text style={styles.body}>{emptyMessage || panelText.unavailableBody}</Text>
         </View>
       </View>
     );
   } else if (smartDiagnosis.noSignificantIndicators) {
     content = (
-      <Text style={[styles.body, styles.message]}>No significant diagnostic indicators found.</Text>
+      <Text style={[styles.body, styles.message]}>{panelText.noSignificantIndicators}</Text>
     );
   } else {
     content = <SmartDiagnosisRows smartDiagnosis={smartDiagnosis} />;
@@ -50,8 +50,10 @@ export function SmartDiagnosisPanel({
     <View style={styles.container}>
       <View style={styles.header}>
         <Icon name="trending-up" size={16} color={colors.teal} />
-        <Text style={styles.title}>Smart Diagnosis</Text>
-        <Text style={styles.caption}>{isPreview ? 'Preview' : 'Supervisor review'}</Text>
+        <Text style={styles.title}>{panelText.title}</Text>
+        <Text style={styles.caption}>
+          {isPreview ? panelText.previewCaption : panelText.supervisorReviewCaption}
+        </Text>
       </View>
       {content}
     </View>

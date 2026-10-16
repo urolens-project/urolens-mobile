@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 import { colors, radius, spacing } from '@src/theme';
 
+import { RESULT_CONFIRMATION_TEXT } from '../../constants/resultConfirmationText.constant';
 import type { AIFindingEntry } from '../../types';
 
 export interface ParameterRowProps {
@@ -39,12 +40,16 @@ function ParameterRowComponent({
         <View style={styles.badges}>
           {finding.isAnomalous && (
             <View style={styles.anomalousBadge}>
-              <Text style={styles.anomalousBadgeText}>Anomalous</Text>
+              <Text style={styles.anomalousBadgeText}>
+                {RESULT_CONFIRMATION_TEXT.parameterRow.anomalousBadge}
+              </Text>
             </View>
           )}
           {isOverridden && (
             <View style={styles.overriddenBadge}>
-              <Text style={styles.overriddenBadgeText}>Overridden · AI: {finding.count}</Text>
+              <Text style={styles.overriddenBadgeText}>
+                {RESULT_CONFIRMATION_TEXT.parameterRow.overriddenBadgeLabel(finding.count)}
+              </Text>
             </View>
           )}
         </View>
@@ -58,10 +63,14 @@ function ParameterRowComponent({
           <TouchableOpacity
             style={styles.overrideButton}
             onPress={() => onOverride(finding.parameter, finding.count)}
-            accessibilityLabel={`Override ${finding.parameter}`}
+            accessibilityLabel={RESULT_CONFIRMATION_TEXT.parameterRow.overrideAccessibilityLabel(
+              finding.parameter,
+            )}
             accessibilityRole="button"
           >
-            <Text style={styles.overrideButtonText}>Override</Text>
+            <Text style={styles.overrideButtonText}>
+              {RESULT_CONFIRMATION_TEXT.parameterRow.overrideButton}
+            </Text>
           </TouchableOpacity>
         )}
       </View>

@@ -7,6 +7,7 @@ import { Icon } from '@components/Icon';
 import type { QueueItem } from '@features/queue/types';
 import { DetailRow } from '@features/sample/components/DetailRow';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
 import type { ResultReviewDetail } from '../types';
 
 export interface ResultPatientSummaryProps {
@@ -27,35 +28,52 @@ export function ResultPatientSummary({
       <View style={styles.header}>
         <Icon name="person-outline" size={16} color={colors.teal} />
         <Text accessibilityRole="header" style={styles.title}>
-          Patient & Sample
+          {RESULT_CONFIRMATION_TEXT.patientSummary.title}
         </Text>
       </View>
       <View style={styles.content}>
         <DetailRow
-          label="Patient UID"
-          value={detail?.patientUid || specimen?.patientUid || 'Unavailable'}
+          label={RESULT_CONFIRMATION_TEXT.patientSummary.labels.patientUid}
+          value={
+            detail?.patientUid ||
+            specimen?.patientUid ||
+            RESULT_CONFIRMATION_TEXT.patientSummary.unavailableValue
+          }
         />
         <View style={styles.divider} />
         <DetailRow
-          label="Sample ID"
-          value={detail?.sampleUid || specimen?.sampleUid || 'Unavailable'}
+          label={RESULT_CONFIRMATION_TEXT.patientSummary.labels.sampleId}
+          value={
+            detail?.sampleUid ||
+            specimen?.sampleUid ||
+            RESULT_CONFIRMATION_TEXT.patientSummary.unavailableValue
+          }
         />
         {detail?.patientAge != null && (
           <View>
             <View style={styles.divider} />
-            <DetailRow label="Age" value={String(detail.patientAge)} />
+            <DetailRow
+              label={RESULT_CONFIRMATION_TEXT.patientSummary.labels.age}
+              value={String(detail.patientAge)}
+            />
           </View>
         )}
         {detail?.patientSex && (
           <View>
             <View style={styles.divider} />
-            <DetailRow label="Sex" value={detail.patientSex} />
+            <DetailRow
+              label={RESULT_CONFIRMATION_TEXT.patientSummary.labels.sex}
+              value={detail.patientSex}
+            />
           </View>
         )}
         {specimen && (
           <View>
             <View style={styles.divider} />
-            <DetailRow label="Test" value={specimen.testType} />
+            <DetailRow
+              label={RESULT_CONFIRMATION_TEXT.patientSummary.labels.test}
+              value={specimen.testType}
+            />
           </View>
         )}
       </View>
