@@ -5,6 +5,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { IMAGE_RETAKE_TEXT } from '../constants/imageRetakeText.constant';
+
 export interface CameraPermissionRequestProps {
   validationError: string | null;
   onRequestPermission: () => void;
@@ -28,15 +30,13 @@ export function CameraPermissionRequest({
         style={styles.backButton}
         onPress={onGoBack}
         accessibilityRole="button"
-        accessibilityLabel="Leave capture"
+        accessibilityLabel={IMAGE_RETAKE_TEXT.leaveCaptureA11yLabel}
       >
         <Icon name="close" size={24} color={colors.white} />
       </TouchableOpacity>
       <View style={styles.permissionBox}>
-        <Text style={styles.permissionTitle}>Camera Access Required</Text>
-        <Text style={styles.permissionBody}>
-          UroLens needs camera access to photograph specimens for AI analysis.
-        </Text>
+        <Text style={styles.permissionTitle}>{IMAGE_RETAKE_TEXT.cameraPermissionTitle}</Text>
+        <Text style={styles.permissionBody}>{IMAGE_RETAKE_TEXT.cameraPermissionBody}</Text>
         {validationError && (
           <View style={styles.errorBanner} accessibilityRole="alert">
             <Icon name="alert-circle-outline" size={16} color={colors.red700} />
@@ -44,10 +44,10 @@ export function CameraPermissionRequest({
           </View>
         )}
         <TouchableOpacity style={styles.primaryButton} onPress={onRequestPermission}>
-          <Text style={styles.primaryLabel}>Grant Permission</Text>
+          <Text style={styles.primaryLabel}>{IMAGE_RETAKE_TEXT.grantPermissionLabel}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondaryButton} onPress={onGalleryPick}>
-          <Text style={styles.secondaryLabel}>Upload from Gallery Instead</Text>
+          <Text style={styles.secondaryLabel}>{IMAGE_RETAKE_TEXT.uploadFromGalleryLabel}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -73,7 +73,12 @@ const styles = StyleSheet.create({
     color: colors.white,
     textAlign: 'center',
   },
-  permissionBody: { ...typography.bodyLg, color: colors.gray400, textAlign: 'center', lineHeight: 20 },
+  permissionBody: {
+    ...typography.bodyLg,
+    color: colors.gray400,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   primaryButton: {
     backgroundColor: colors.teal,
     paddingVertical: spacing.mlg,

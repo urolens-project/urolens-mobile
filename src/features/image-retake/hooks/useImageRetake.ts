@@ -31,6 +31,8 @@ import type { ProcessedImage } from '@lib/camera/imageUtils';
 import { uploadImageViaXhr } from '@lib/camera/uploadImage';
 import type { UploadImageResponse } from '@lib/camera/uploadImage';
 
+import { IMAGE_RETAKE_TEXT } from '../constants/imageRetakeText.constant';
+
 export type UploadState =
   | { phase: 'idle' }
   | { phase: 'processing' } // EXIF strip + validation
@@ -94,7 +96,7 @@ export function useImageRetake(): UseImageRetakeReturn {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        throw new Error('Photo library permission is required. Please enable it in Settings.');
+        throw new Error(IMAGE_RETAKE_TEXT.galleryPermissionRequiredMessage);
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -122,7 +124,7 @@ export function useImageRetake(): UseImageRetakeReturn {
   const confirmUpload = useCallback(
     async (specimenId: string): Promise<UploadImageResponse> => {
       if (!capturedImage) {
-        throw new Error('No image has been captured yet.');
+        throw new Error(IMAGE_RETAKE_TEXT.noImageCapturedMessage);
       }
 
       setState({ phase: 'uploading', progress: 0 });
@@ -187,5 +189,5 @@ function extractMessage(err: unknown): string {
     if (axiosData?.error?.message) return axiosData.error.message;
     return err.message;
   }
-  return 'An unexpected error occurred. Please try again.';
+  return IMAGE_RETAKE_TEXT.unexpectedErrorMessage;
 }

@@ -5,6 +5,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { IMAGE_RETAKE_TEXT } from '../constants/imageRetakeText.constant';
+
 export interface CameraUnavailableViewProps {
   message: string;
   validationError: string | null;
@@ -28,12 +30,12 @@ export function CameraUnavailableView({
         style={styles.backButton}
         onPress={onGoBack}
         accessibilityRole="button"
-        accessibilityLabel="Leave capture"
+        accessibilityLabel={IMAGE_RETAKE_TEXT.leaveCaptureA11yLabel}
       >
         <Icon name="close" size={24} color={colors.white} />
       </TouchableOpacity>
       <View style={styles.permissionBox}>
-        <Text style={styles.permissionTitle}>Camera Unavailable</Text>
+        <Text style={styles.permissionTitle}>{IMAGE_RETAKE_TEXT.cameraUnavailableTitle}</Text>
         <Text style={styles.permissionBody}>{message}</Text>
         {validationError && (
           <View style={styles.errorBanner} accessibilityRole="alert">
@@ -42,7 +44,7 @@ export function CameraUnavailableView({
           </View>
         )}
         <TouchableOpacity style={styles.secondaryButton} onPress={onGalleryPick}>
-          <Text style={styles.secondaryLabel}>Upload from Gallery Instead</Text>
+          <Text style={styles.secondaryLabel}>{IMAGE_RETAKE_TEXT.uploadFromGalleryLabel}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -68,7 +70,12 @@ const styles = StyleSheet.create({
     color: colors.white,
     textAlign: 'center',
   },
-  permissionBody: { ...typography.bodyLg, color: colors.gray400, textAlign: 'center', lineHeight: 20 },
+  permissionBody: {
+    ...typography.bodyLg,
+    color: colors.gray400,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   secondaryButton: { paddingVertical: spacing.smd },
   secondaryLabel: { ...typography.bodyLg, color: colors.tealAlt },
   errorBanner: {

@@ -6,6 +6,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { IMAGE_RETAKE_TEXT } from '../../constants/imageRetakeText.constant';
 import { DiscardConfirmationModal } from './DiscardConfirmationModal';
 
 export interface ImagePreviewPanelProps {
@@ -43,11 +44,11 @@ export function ImagePreviewPanel({
             style={styles.backButton}
             onPress={onGoBack}
             accessibilityRole="button"
-            accessibilityLabel="Leave capture"
+            accessibilityLabel={IMAGE_RETAKE_TEXT.leaveCaptureA11yLabel}
           >
             <Icon name="close" size={24} color={colors.white} />
           </TouchableOpacity>
-          <Text style={styles.previewTitle}>Image Preview</Text>
+          <Text style={styles.previewTitle}>{IMAGE_RETAKE_TEXT.imagePreviewTitle}</Text>
           <View style={styles.headerSpacer} />
         </View>
         <Text style={styles.previewMeta}>
@@ -73,7 +74,7 @@ export function ImagePreviewPanel({
           testID="retake-button"
         >
           <Icon name="camera-reverse-outline" size={18} color={colors.gray300} />
-          <Text style={styles.retakeLabel}>Retake</Text>
+          <Text style={styles.retakeLabel}>{IMAGE_RETAKE_TEXT.retakeLabel}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.previewBtn, styles.useBtn]}
@@ -81,7 +82,7 @@ export function ImagePreviewPanel({
           testID="use-image-button"
         >
           <Icon name="checkmark-circle-outline" size={18} color={colors.white} />
-          <Text style={styles.useLabel}>Use This Image</Text>
+          <Text style={styles.useLabel}>{IMAGE_RETAKE_TEXT.useThisImageLabel}</Text>
         </TouchableOpacity>
       </View>
 
