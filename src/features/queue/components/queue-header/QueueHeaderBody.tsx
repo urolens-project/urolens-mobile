@@ -6,6 +6,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { QueueHeaderSyncButton } from './QueueHeaderSyncButton';
+import { formatActiveSamplesLabel, QUEUE_TEXT } from '../../constants/queueText.constant';
 
 export interface QueueHeaderBodyProps {
   username: string | null;
@@ -44,9 +45,9 @@ export function QueueHeaderBody({
         <View style={styles.heading}>
           <View style={styles.brandRow}>
             <Icon name="flask" size={spacing.md} color={colors.white} />
-            <Text style={styles.appName}>UroLens</Text>
+            <Text style={styles.appName}>{QUEUE_TEXT.header.appName}</Text>
             <Text style={styles.appSubtitle} numberOfLines={1}>
-              Laboratory Diagnostics
+              {QUEUE_TEXT.header.appSubtitle}
             </Text>
           </View>
           <Text
@@ -56,7 +57,7 @@ export function QueueHeaderBody({
             minimumFontScale={0.85}
             accessibilityRole="header"
           >
-            My Sample Queue
+            {QUEUE_TEXT.header.title}
           </Text>
         </View>
         <View style={styles.actions}>
@@ -68,7 +69,7 @@ export function QueueHeaderBody({
           />
           <TouchableOpacity
             style={styles.iconButton}
-            accessibilityLabel="Notifications"
+            accessibilityLabel={QUEUE_TEXT.header.notificationsAccessibilityLabel}
             accessibilityRole="button"
           >
             <View>
@@ -81,9 +82,9 @@ export function QueueHeaderBody({
 
       <View style={styles.metaRow}>
         <View style={styles.summary}>
-          <Text style={styles.countText}>{activeCount} Active Samples</Text>
+          <Text style={styles.countText}>{formatActiveSamplesLabel(activeCount)}</Text>
           <Text style={styles.role} numberOfLines={1}>
-            Medical Technologist
+            {QUEUE_TEXT.header.role}
           </Text>
         </View>
         <View style={styles.context}>

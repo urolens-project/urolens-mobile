@@ -20,6 +20,7 @@ import { useReduceMotion } from '@components/DropReveal';
 
 import { useQueue } from './useQueue';
 import type { UseQueueResult } from './useQueue';
+import { QUEUE_TEXT } from '../constants/queueText.constant';
 import { getQueueStatus } from '../status';
 import { getSyncPill } from '../syncPill';
 import type { SyncPill } from '../syncPill';
@@ -96,8 +97,8 @@ export function useQueuePresentation(): UseQueuePresentationResult {
   const selectedStatus = selectedItem ? getQueueStatus(selectedItem) : null;
   const proceedLabel =
     selectedStatus === 'PROCESSING' || selectedStatus === 'RETURNED'
-      ? 'Continue'
-      : 'Proceed to Analysis';
+      ? QUEUE_TEXT.proceedLabels.continue
+      : QUEUE_TEXT.proceedLabels.proceedToAnalysis;
   const canRejectSelected =
     !!selectedItem &&
     getSampleActions(
