@@ -9,6 +9,7 @@ import type { ApiError } from '@app-types/domain';
 import type { UserRole } from '@app-types/enums';
 
 import { authApi } from '../api/authApi';
+import { AUTH_TEXT } from '../constants/authText.constant';
 import type { LogoutReason } from '../types';
 
 export interface UseAuthResult {
@@ -28,7 +29,7 @@ export interface UseAuthResult {
  */
 function describeLoginError(apiError: ApiError): string {
   if (apiError.status !== undefined && apiError.status >= 500) {
-    return 'The server could not complete login. Please try again later.';
+    return AUTH_TEXT.loginErrorMessages.serverError;
   }
 
   switch (apiError.code) {
@@ -37,15 +38,15 @@ function describeLoginError(apiError: ApiError): string {
     case 'TOO_MANY_LOGIN_ATTEMPTS':
       return apiError.message;
     case 'ACCOUNT_INACTIVE':
-      return 'Your account is inactive. Contact an administrator.';
+      return AUTH_TEXT.loginErrorMessages.accountInactive;
     case 'NETWORK_ERROR':
-      return 'Cannot reach the server. Check your connection and try again.';
+      return AUTH_TEXT.loginErrorMessages.networkError;
     case 'TIMEOUT':
-      return 'The server took too long to respond. Please try again.';
+      return AUTH_TEXT.loginErrorMessages.timeout;
     case 'INVALID_CREDENTIALS':
-      return 'Invalid username or password.';
+      return AUTH_TEXT.loginErrorMessages.invalidCredentials;
     default:
-      return 'Login failed. Please try again.';
+      return AUTH_TEXT.loginErrorMessages.default;
   }
 }
 
@@ -75,7 +76,7 @@ export function useAuth(): UseAuthResult {
       keepLoggedIn: boolean,
     ): Promise<void> => {
       if (!username.trim() || !password.trim()) {
-        throw new Error('Username and password are required.');
+        throw new Error(AUTH_TEXT.loginRequiredFieldsError);
       }
       try {
         const data = await authApi.login(username, password, keepLoggedIn);

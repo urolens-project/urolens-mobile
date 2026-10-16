@@ -12,6 +12,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { AUTH_TEXT } from '../../constants/authText.constant';
+
 export interface LoginCredentialsCardProps {
   username: string;
   onUsernameChange: (value: string) => void;
@@ -56,7 +58,7 @@ export function LoginCredentialsCard({
   return (
     <View style={styles.card}>
       {/* Username */}
-      <Text style={styles.label}>Username</Text>
+      <Text style={styles.label}>{AUTH_TEXT.loginUsernameLabel}</Text>
       <View style={styles.inputRow}>
         <Icon name="person-outline" size={18} color={colors.gray400} style={styles.inputIcon} />
         <TextInput
@@ -70,23 +72,23 @@ export function LoginCredentialsCard({
           returnKeyType="next"
           blurOnSubmit={false}
           onSubmitEditing={onUsernameSubmit}
-          placeholder="Enter laboratory ID"
+          placeholder={AUTH_TEXT.loginUsernamePlaceholder}
           placeholderTextColor={colors.gray400}
           editable={!isSubmitting}
-          accessibilityLabel="Username"
+          accessibilityLabel={AUTH_TEXT.loginUsernameAccessibilityLabel}
         />
       </View>
 
       {/* Password */}
       <View style={styles.passwordLabelRow}>
-        <Text style={styles.label}>Password</Text>
+        <Text style={styles.label}>{AUTH_TEXT.loginPasswordLabel}</Text>
         <TouchableOpacity
           onPress={onForgotPassword}
           accessibilityRole="button"
-          accessibilityLabel="Forgot password"
-          accessibilityHint="Shows how to reset your password through your lab administrator"
+          accessibilityLabel={AUTH_TEXT.loginForgotPasswordAccessibilityLabel}
+          accessibilityHint={AUTH_TEXT.loginForgotPasswordAccessibilityHint}
         >
-          <Text style={styles.forgotText}>Forgot password?</Text>
+          <Text style={styles.forgotText}>{AUTH_TEXT.loginForgotPasswordText}</Text>
         </TouchableOpacity>
       </View>
       <View style={[styles.inputRow, error ? styles.inputRowError : null]}>
@@ -107,17 +109,21 @@ export function LoginCredentialsCard({
           autoComplete="current-password"
           textContentType="password"
           returnKeyType="go"
-          placeholder="Enter password"
+          placeholder={AUTH_TEXT.loginPasswordPlaceholder}
           placeholderTextColor={colors.gray400}
           editable={!isSubmitting}
           onSubmitEditing={onSubmit}
-          accessibilityLabel="Password"
+          accessibilityLabel={AUTH_TEXT.loginPasswordAccessibilityLabel}
         />
         <TouchableOpacity
           onPress={onTogglePassword}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          accessibilityLabel={
+            showPassword
+              ? AUTH_TEXT.loginHidePasswordAccessibilityLabel
+              : AUTH_TEXT.loginShowPasswordAccessibilityLabel
+          }
         >
           <Icon
             name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -141,13 +147,13 @@ export function LoginCredentialsCard({
         onPress={onToggleKeepLoggedIn}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: keepLoggedIn }}
-        accessibilityHint="Stay signed in after the app is closed"
+        accessibilityHint={AUTH_TEXT.loginKeepLoggedInAccessibilityHint}
         disabled={isSubmitting}
       >
         <View style={[styles.checkbox, keepLoggedIn && styles.checkboxChecked]}>
           {keepLoggedIn && <Icon name="checkmark" size={12} color={colors.white} />}
         </View>
-        <Text style={styles.keepText}>Keep me logged in for this shift</Text>
+        <Text style={styles.keepText}>{AUTH_TEXT.loginKeepLoggedInText}</Text>
       </TouchableOpacity>
 
       {/* Login button */}
@@ -156,13 +162,13 @@ export function LoginCredentialsCard({
         onPress={onSubmit}
         disabled={isDisabled}
         accessibilityRole="button"
-        accessibilityLabel="Login"
-        accessibilityHint="Signs in with the entered username and password"
+        accessibilityLabel={AUTH_TEXT.loginButtonAccessibilityLabel}
+        accessibilityHint={AUTH_TEXT.loginButtonAccessibilityHint}
       >
         {isSubmitting ? (
           <ActivityIndicator color={colors.white} />
         ) : (
-          <Text style={styles.buttonText}>Login →</Text>
+          <Text style={styles.buttonText}>{AUTH_TEXT.loginButtonText}</Text>
         )}
       </TouchableOpacity>
     </View>

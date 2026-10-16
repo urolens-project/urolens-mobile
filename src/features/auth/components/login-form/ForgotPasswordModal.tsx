@@ -4,6 +4,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { AUTH_TEXT } from '../../constants/authText.constant';
+
 export interface ForgotPasswordModalProps {
   visible: boolean;
   onClose: () => void;
@@ -34,25 +36,22 @@ export function ForgotPasswordModal({
             <Icon name="help-circle-outline" size={26} color={colors.blue800} />
           </View>
 
-          <Text style={styles.title}>Forgot your password?</Text>
+          <Text style={styles.title}>{AUTH_TEXT.forgotPasswordModalTitle}</Text>
           {/*
             TODO(API): copy is generic because the lab administrator's contact details
             (email/phone) aren't available to the app yet. If the backend exposes a
             per-lab support contact (e.g. GET /auth/support-contact), surface it here
             instead of this static text.
           */}
-          <Text style={styles.body}>
-            Password resets must be handled by your lab administrator. Contact them directly to have
-            your password reset and regain access to your account.
-          </Text>
+          <Text style={styles.body}>{AUTH_TEXT.forgotPasswordModalBody}</Text>
 
           <TouchableOpacity
             style={styles.button}
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel="Got it, close dialog"
+            accessibilityLabel={AUTH_TEXT.forgotPasswordModalCloseAccessibilityLabel}
           >
-            <Text style={styles.buttonText}>Got it</Text>
+            <Text style={styles.buttonText}>{AUTH_TEXT.forgotPasswordModalButtonText}</Text>
           </TouchableOpacity>
         </View>
       </View>
