@@ -6,6 +6,7 @@ import {
   MAX_OVERRIDE_COUNT,
   MAX_OVERRIDE_RATIONALE_LENGTH,
 } from '../../constants/override.constant';
+import { OVERRIDE_TEXT } from '../../constants/overrideText.constant';
 import { parseOverrideCount } from '../../lib/overrideValidation';
 
 export interface OverrideFormFieldsProps {
@@ -43,44 +44,48 @@ export function OverrideFormFields({
     <>
       {/* Original AI value — always read-only */}
       <View style={styles.container}>
-        <Text style={styles.fieldLabel}>AI-generated value</Text>
+        <Text style={styles.fieldLabel}>{OVERRIDE_TEXT.aiValueLabel}</Text>
         <View style={styles.readOnlyField}>
           <Text
-            accessibilityLabel={`Original AI value: ${originalAiValue}`}
+            accessibilityLabel={OVERRIDE_TEXT.getOriginalAiValueAccessibilityLabel(originalAiValue)}
             style={styles.readOnlyValue}
           >
             {originalAiValue}
           </Text>
-          <Text style={styles.readOnlyNote}>Read-only — original preserved</Text>
+          <Text style={styles.readOnlyNote}>{OVERRIDE_TEXT.aiValueReadonlyNote}</Text>
         </View>
       </View>
       {currentValue !== null && currentValue !== originalAiValue && (
-        <Text style={styles.helper}>Current corrected value: {currentValue}</Text>
+        <Text style={styles.helper}>
+          {OVERRIDE_TEXT.currentValuePrefix} {currentValue}
+        </Text>
       )}
 
       {/* Corrected value input */}
       <View style={styles.container}>
         <Text style={styles.fieldLabel}>
-          Corrected value <Text style={styles.required}>*</Text>
+          {OVERRIDE_TEXT.correctedValueLabel} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           style={[styles.input, correctedNum !== null && styles.inputValid]}
           value={correctedValue}
           onChangeText={onCorrectedValueChange}
           editable={isEditable}
-          placeholder="Enter corrected count"
+          placeholder={OVERRIDE_TEXT.correctedValuePlaceholder}
           placeholderTextColor={colors.warmGray400}
           keyboardType="number-pad"
           returnKeyType="next"
-          accessibilityLabel="Corrected value"
+          accessibilityLabel={OVERRIDE_TEXT.correctedValueAccessibilityLabel}
         />
-        <Text style={styles.helper}>Required: a whole number from 0 to {MAX_OVERRIDE_COUNT}.</Text>
+        <Text style={styles.helper}>
+          {OVERRIDE_TEXT.getCorrectedValueRangeHelper(MAX_OVERRIDE_COUNT)}
+        </Text>
       </View>
 
       {/* Rationale input — required */}
       <View style={styles.container}>
         <Text style={styles.fieldLabel}>
-          Rationale <Text style={styles.required}>*</Text>
+          {OVERRIDE_TEXT.rationaleLabel} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           style={[styles.input, styles.textArea]}
@@ -88,16 +93,16 @@ export function OverrideFormFields({
           onChangeText={onRationaleChange}
           editable={isEditable}
           maxLength={MAX_OVERRIDE_RATIONALE_LENGTH}
-          placeholder="Explain why you are overriding this value (required)"
+          placeholder={OVERRIDE_TEXT.rationalePlaceholder}
           placeholderTextColor={colors.warmGray400}
           multiline
           numberOfLines={4}
           returnKeyType="done"
           submitBehavior="blurAndSubmit"
-          accessibilityLabel="Rationale for override"
+          accessibilityLabel={OVERRIDE_TEXT.rationaleAccessibilityLabel}
         />
         <Text style={styles.charCount}>
-          {rationale.length}/{MAX_OVERRIDE_RATIONALE_LENGTH} characters
+          {OVERRIDE_TEXT.getCharCountLabel(rationale.length, MAX_OVERRIDE_RATIONALE_LENGTH)}
         </Text>
       </View>
     </>

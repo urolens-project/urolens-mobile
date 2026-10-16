@@ -6,6 +6,8 @@ import { Icon } from '@components/Icon';
 
 import { formatParticleName } from '@features/result-confirmation/lib/findingRows';
 
+import { OVERRIDE_TEXT } from '../../constants/overrideText.constant';
+
 export interface OverrideFormTitleBarProps {
   parameter: string;
   onBack: () => void;
@@ -29,13 +31,13 @@ export function OverrideFormTitleBar({
         onPress={onBack}
         disabled={isSubmitting}
         style={styles.backButton}
-        accessibilityLabel="Go back to Analysis Result"
+        accessibilityLabel={OVERRIDE_TEXT.backAccessibilityLabel}
         accessibilityRole="button"
       >
         <Icon name="chevron-back" color={colors.teal} />
       </TouchableOpacity>
       <View style={styles.titleContent}>
-        <Text style={styles.titleText}>Override Parameter</Text>
+        <Text style={styles.titleText}>{OVERRIDE_TEXT.title}</Text>
         <View style={styles.paramPill}>
           <Text style={styles.paramPillText}>{formatParticleName(parameter)}</Text>
         </View>

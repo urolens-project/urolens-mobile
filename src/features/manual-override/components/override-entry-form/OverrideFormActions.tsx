@@ -4,6 +4,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { OVERRIDE_TEXT } from '../../constants/overrideText.constant';
+
 export interface OverrideFormActionsProps {
   originalAiValue: number;
   error: string | null;
@@ -36,14 +38,13 @@ export function OverrideFormActions({
   onSubmit,
   onCancel,
 }: OverrideFormActionsProps): React.JSX.Element {
-  const submitLabel = isOnline ? 'Submit Override' : 'Queue Override';
+  const submitLabel = OVERRIDE_TEXT.getSubmitLabel(isOnline);
   return (
     <>
       <View style={styles.notice}>
         <Icon name="information-circle-outline" color={colors.teal} />
         <Text style={styles.noticeText}>
-          Both the original AI value ({originalAiValue}) and your corrected value will be stored and
-          visible to the Supervisor.
+          {OVERRIDE_TEXT.getOverrideNoticeText(originalAiValue)}
         </Text>
       </View>
 
@@ -71,7 +72,7 @@ export function OverrideFormActions({
       >
         {isSubmitting ? (
           <ActivityIndicator
-            accessibilityLabel="Saving override"
+            accessibilityLabel={OVERRIDE_TEXT.savingAccessibilityLabel}
             size="small"
             color={colors.white}
           />
@@ -84,10 +85,10 @@ export function OverrideFormActions({
         style={styles.cancelButton}
         onPress={onCancel}
         disabled={isSubmitting}
-        accessibilityLabel="Cancel and go back to Analysis Result"
+        accessibilityLabel={OVERRIDE_TEXT.cancelAccessibilityLabel}
         accessibilityRole="button"
       >
-        <Text style={styles.cancelButtonText}>Cancel</Text>
+        <Text style={styles.cancelButtonText}>{OVERRIDE_TEXT.cancelButtonText}</Text>
       </TouchableOpacity>
     </>
   );
