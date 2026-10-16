@@ -16,6 +16,7 @@ import type { RejectionReason } from '@app-types/enums';
 
 import { REJECTION_REASONS } from '../../constants/rejectionReason.constant';
 import { MAX_REJECTION_NOTE_LENGTH } from '../../constants/specimenRejection.constant';
+import { SPECIMEN_REJECTION_TEXT } from '../../constants/specimenRejectionText.constant';
 import { RejectionReasonCard } from './RejectionReasonCard';
 
 export interface RejectionReasonModalProps {
@@ -62,13 +63,11 @@ export function RejectionReasonModal({
       {/* Warning banner */}
       <View style={styles.warningBanner}>
         <Icon name="warning-outline" size={spacing.xl} color={colors.amber800} />
-        <Text style={styles.warningText}>
-          Rejecting a specimen is permanent and cannot be undone.
-        </Text>
+        <Text style={styles.warningText}>{SPECIMEN_REJECTION_TEXT.warningText}</Text>
       </View>
 
       {/* Reason selection */}
-      <Text style={styles.sectionTitle}>Select Rejection Reason</Text>
+      <Text style={styles.sectionTitle}>{SPECIMEN_REJECTION_TEXT.reasonSectionTitle}</Text>
       <View style={styles.reasonList}>
         {REJECTION_REASONS.map((r) => (
           <RejectionReasonCard
@@ -82,19 +81,19 @@ export function RejectionReasonModal({
       </View>
 
       {/* Optional note */}
-      <Text style={styles.sectionTitle}>Notes (Optional)</Text>
+      <Text style={styles.sectionTitle}>{SPECIMEN_REJECTION_TEXT.notesSectionTitle}</Text>
       <TextInput
         style={styles.noteInput}
         value={note}
         onChangeText={onNoteChange}
-        placeholder="Add additional context or details..."
+        placeholder={SPECIMEN_REJECTION_TEXT.notePlaceholder}
         placeholderTextColor={colors.gray400}
         multiline
         numberOfLines={3}
         maxLength={MAX_REJECTION_NOTE_LENGTH}
         editable={!isFormLocked}
         textAlignVertical="top"
-        accessibilityLabel="Additional notes"
+        accessibilityLabel={SPECIMEN_REJECTION_TEXT.noteAccessibilityLabel}
         onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
       />
       <Text style={styles.charCount}>
@@ -108,7 +107,11 @@ export function RejectionReasonModal({
         disabled={isConfirmDisabled}
         activeOpacity={0.8}
         accessibilityRole="button"
-        accessibilityLabel={isReadOnly ? 'Retry saving rejection' : 'Confirm rejection'}
+        accessibilityLabel={
+          isReadOnly
+            ? SPECIMEN_REJECTION_TEXT.retryAccessibilityLabel
+            : SPECIMEN_REJECTION_TEXT.confirmAccessibilityLabel
+        }
         accessibilityState={{ disabled: isConfirmDisabled, busy: isLoading }}
       >
         {isLoading ? (
@@ -117,7 +120,9 @@ export function RejectionReasonModal({
           <>
             <Icon name="close-circle-outline" size={spacing.xl} color={colors.white} />
             <Text style={styles.confirmBtnText}>
-              {isReadOnly ? 'Retry Saving Rejection' : 'Confirm Rejection'}
+              {isReadOnly
+                ? SPECIMEN_REJECTION_TEXT.retryButtonLabel
+                : SPECIMEN_REJECTION_TEXT.confirmButtonLabel}
             </Text>
           </>
         )}

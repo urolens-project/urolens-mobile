@@ -12,6 +12,7 @@ import {
   RESULT_REJECTION_COLUMNS,
   SPECIMEN_REJECTION_COLUMNS,
 } from '../constants/specimenRejection.constant';
+import { SPECIMEN_REJECTION_TEXT } from '../constants/specimenRejectionText.constant';
 import { getRejectionEligibilityMessage } from '../lib/rejectionEligibility';
 import { mapSpecimenToRejectionInfo } from '../mappers/specimenRejection.mapper';
 import type { SpecimenInfo } from '../types';
@@ -52,10 +53,7 @@ export function useSpecimenRejectionInfo(specimenId: string): UseSpecimenRejecti
       publish({
         specimenInfo: null,
         isLoadingSpecimen: false,
-        blockedReason: getErrorMessage(
-          error,
-          'Unable to load this specimen. Return to the queue and try again.',
-        ),
+        blockedReason: getErrorMessage(error, SPECIMEN_REJECTION_TEXT.infoLoadFailedMessage),
       });
     };
     if (!specimenId) {

@@ -4,6 +4,8 @@ import type { SpecimenStatus } from '@app-types/enums';
 
 import { getRejectBlockedReason } from '@features/queue/lib/sampleState';
 
+import { SPECIMEN_REJECTION_TEXT } from '../constants/specimenRejectionText.constant';
+
 /**
  * @description Checks assignment and workflow before exposing or submitting a rejection.
  * @param specimen - Local specimen to reject, if it still exists.
@@ -15,10 +17,10 @@ export function getRejectionEligibilityMessage(
   userId: string | null,
   resultStatus: AnalysisResult['status'] | null,
 ): string | null {
-  if (!specimen) return 'This specimen could not be found. Return to the queue and try again.';
+  if (!specimen) return SPECIMEN_REJECTION_TEXT.specimenNotFoundMessage;
   if (!userId || specimen.medtechId !== userId) {
-    return 'You can only reject a specimen assigned to you.';
+    return SPECIMEN_REJECTION_TEXT.notAssignedMessage;
   }
-  if (!specimen.serverId) return 'Specimen has not been synced to the server yet.';
+  if (!specimen.serverId) return SPECIMEN_REJECTION_TEXT.notSyncedMessage;
   return getRejectBlockedReason(specimen.status as SpecimenStatus, resultStatus);
 }
