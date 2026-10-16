@@ -4,6 +4,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { AUTH_TEXT } from '../../constants/authText.constant';
+
 export interface SessionExpiryWarningModalProps {
   visible: boolean;
   onStaySignedIn: () => void;
@@ -38,19 +40,16 @@ export function SessionExpiryWarningModal({
             <Icon name="time-outline" size={26} color={colors.amber800} />
           </View>
 
-          <Text style={styles.title}>Session Expiring Soon</Text>
-          <Text style={styles.body}>
-            Your session will expire in {warningMinutes} minutes due to inactivity. Tap anywhere or
-            press the button below to stay signed in.
-          </Text>
+          <Text style={styles.title}>{AUTH_TEXT.sessionExpiryModalTitle}</Text>
+          <Text style={styles.body}>{AUTH_TEXT.getSessionExpiryModalBody(warningMinutes)}</Text>
 
           <TouchableOpacity
             style={styles.button}
             onPress={onStaySignedIn}
             accessibilityRole="button"
-            accessibilityLabel="Stay signed in"
+            accessibilityLabel={AUTH_TEXT.sessionExpiryStaySignedInAccessibilityLabel}
           >
-            <Text style={styles.buttonText}>Stay Signed In</Text>
+            <Text style={styles.buttonText}>{AUTH_TEXT.sessionExpiryStaySignedInButtonText}</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -4,6 +4,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { AUTH_TEXT } from '../../constants/authText.constant';
+
 export interface InactivityBannerProps {
   onDismiss: () => void;
 }
@@ -19,14 +21,12 @@ export function InactivityBanner({ onDismiss }: InactivityBannerProps): React.JS
   return (
     <View style={styles.banner} accessibilityRole="alert" accessibilityLiveRegion="polite">
       <Icon name="time-outline" size={16} color={colors.amber800} style={styles.icon} />
-      <Text style={styles.text}>
-        You were signed out due to inactivity. Please sign in again to continue.
-      </Text>
+      <Text style={styles.text}>{AUTH_TEXT.inactivityBannerMessage}</Text>
       <TouchableOpacity
         onPress={onDismiss}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         accessibilityRole="button"
-        accessibilityLabel="Dismiss"
+        accessibilityLabel={AUTH_TEXT.inactivityBannerDismissAccessibilityLabel}
       >
         <Icon name="close" size={16} color={colors.amber800} />
       </TouchableOpacity>
