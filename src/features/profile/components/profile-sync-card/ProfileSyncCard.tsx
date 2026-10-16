@@ -10,6 +10,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { PROFILE_TEXT } from '../../constants/profileText.constant';
 import { FailedActionsList } from './FailedActionsList';
 import { InfoRow } from '../InfoRow';
 import { InfoRowSeparator } from '../InfoRowSeparator';
@@ -21,15 +22,15 @@ const LAST_SYNC_KEY = 'urolens_last_sync_at';
  * @param iso - ISO 8601 timestamp of the last successful sync, or null if never synced.
  */
 function formatSyncTime(iso: string | null): string {
-  if (!iso) return 'Never';
+  if (!iso) return PROFILE_TEXT.syncNeverLabel;
   const d = new Date(iso);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return PROFILE_TEXT.syncJustNowLabel;
+  if (diffMin < 60) return PROFILE_TEXT.getSyncMinutesAgoLabel(diffMin);
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffHr < 24) return PROFILE_TEXT.getSyncHoursAgoLabel(diffHr);
   return formatShortDateTime(iso);
 }
 
@@ -59,32 +60,36 @@ export function ProfileSyncCard(): React.JSX.Element {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Data</Text>
+      <Text style={styles.cardTitle}>{PROFILE_TEXT.syncCardTitle}</Text>
       <View style={styles.syncRow}>
         <View style={styles.infoIconWrap}>
           <Icon name="sync-outline" size={18} color={colors.teal} />
         </View>
         <View style={styles.infoText}>
-          <Text style={styles.infoLabel}>Last Synced</Text>
+          <Text style={styles.infoLabel}>{PROFILE_TEXT.lastSyncedLabel}</Text>
           <Text style={styles.infoValue}>{formatSyncTime(lastSync)}</Text>
         </View>
         <TouchableOpacity
           style={[styles.syncBtn, syncing && styles.syncBtnDisabled]}
           onPress={handleSyncNow}
           disabled={syncing}
-          accessibilityLabel="Sync now"
+          accessibilityLabel={PROFILE_TEXT.syncNowAccessibilityLabel}
           accessibilityRole="button"
         >
           {syncing ? (
             <ActivityIndicator size="small" color={colors.teal} />
           ) : (
-            <Text style={styles.syncBtnText}>Sync now</Text>
+            <Text style={styles.syncBtnText}>{PROFILE_TEXT.syncNowButtonText}</Text>
           )}
         </TouchableOpacity>
       </View>
       <FailedActionsList />
       <InfoRowSeparator />
-      <InfoRow icon="phone-portrait-outline" label="App Version" value={appInfo.version} />
+      <InfoRow
+        icon="phone-portrait-outline"
+        label={PROFILE_TEXT.appVersionLabel}
+        value={appInfo.version}
+      />
     </View>
   );
 }
