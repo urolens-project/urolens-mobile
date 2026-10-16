@@ -6,6 +6,7 @@ import { colors, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { REPORT_CATEGORY_STYLES } from '../../constants';
+import { REPORTS_TEXT } from '../../constants/reportsText.constant';
 import { REPORT_CATEGORY_DESCRIPTIONS } from '../../types';
 import type { ReportCategory } from '../../types';
 import { ReportIllustration } from '../report-illustration';
@@ -39,7 +40,7 @@ function ReportCategoryCardComponent({
 }: ReportCategoryCardProps): React.JSX.Element {
   const style = REPORT_CATEGORY_STYLES[category];
   const isEmpty = count === 0;
-  const countLabel = `${count} sample${count === 1 ? '' : 's'}`;
+  const countLabel = REPORTS_TEXT.getSampleCountLabel(count);
 
   return (
     <TouchableOpacity
@@ -61,7 +62,7 @@ function ReportCategoryCardComponent({
           <Text style={[styles.pillCount, { color: isEmpty ? colors.gray400 : style.color }]}>
             {count}
           </Text>
-          <Text style={styles.pillLabel}>{count === 1 ? 'sample' : 'samples'}</Text>
+          <Text style={styles.pillLabel}>{REPORTS_TEXT.getSampleUnitLabel(count)}</Text>
           <Icon name="chevron-forward" size={14} color={colors.gray500} />
         </View>
       </View>
