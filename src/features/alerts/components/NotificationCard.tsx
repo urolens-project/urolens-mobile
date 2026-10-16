@@ -6,6 +6,7 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { ALERTS_TEXT } from '../constants/alertsText.constant';
 import type { NotificationItem } from '../types';
 
 /**
@@ -32,22 +33,7 @@ function notificationIcon(type: string): ComponentProps<typeof Ionicons>['name']
  * @param type - Raw `notificationType` field from the API.
  */
 function notificationTitle(type: string): string {
-  switch (type) {
-    case 'SAMPLE_ASSIGNED':
-      return 'Sample Assigned';
-    case 'RESULT_RETURNED':
-      return 'Result Returned';
-    case 'RESULT_READY_FOR_REVIEW':
-      return 'Ready for Review';
-    case 'SMART_DIAGNOSIS_UNAVAILABLE':
-      return 'Smart Diagnosis Unavailable';
-    case 'RESULT_RELEASED':
-      return 'Result Released';
-    case 'LAB_REQUEST_SUBMITTED':
-      return 'New Lab Request';
-    default:
-      return 'Notification';
-  }
+  return ALERTS_TEXT.notificationTypeTitles[type] ?? ALERTS_TEXT.defaultNotificationTitle;
 }
 
 /**
@@ -57,11 +43,11 @@ function notificationTitle(type: string): string {
 function formatTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return ALERTS_TEXT.justNowLabel;
+  if (mins < 60) return ALERTS_TEXT.formatMinutesAgo(mins);
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24) return ALERTS_TEXT.formatHoursAgo(hrs);
+  return ALERTS_TEXT.formatDaysAgo(Math.floor(hrs / 24));
 }
 
 export interface NotificationCardProps {
