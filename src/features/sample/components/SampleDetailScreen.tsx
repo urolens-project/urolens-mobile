@@ -28,6 +28,7 @@ import { confirmRetake } from '@features/image-retake/lib/confirmRetake';
 import { startAnalysis } from '@features/queue/lib/startAnalysis';
 import { getSampleActions } from '@features/queue/lib/sampleState';
 
+import { SAMPLE_TEXT } from '../constants/sampleText.constant';
 import { useSampleDetail } from '../hooks/useSampleDetail';
 import { AIFindingsSection } from './AIFindingsSection';
 import { RejectionDetailsCard } from './RejectionDetailsCard';
@@ -63,17 +64,14 @@ export function SampleDetailScreen({
     if (isReadOnly || !analysisResult) return;
     const outcome = await confirmAction(analysisResult);
     if (outcome.status === 'failed') {
-      Alert.alert('Confirmation Failed', outcome.message);
+      Alert.alert(SAMPLE_TEXT.confirmationFailedTitle, outcome.message);
     }
   }, [isReadOnly, analysisResult, confirmAction]);
 
   const handleBeginAnalysis = useCallback(async (): Promise<void> => {
     if (isReadOnly) return;
     if (!specimen?.serverId) {
-      Alert.alert(
-        'Not Synced',
-        'This specimen has not been synced with the server yet. Please wait or pull to refresh.',
-      );
+      Alert.alert(SAMPLE_TEXT.notSyncedTitle, SAMPLE_TEXT.specimenNotSyncedMessage);
       return;
     }
 
@@ -90,7 +88,7 @@ export function SampleDetailScreen({
           isOnline,
         });
         if (!outcome.started) {
-          Alert.alert('Cannot Begin Analysis', outcome.message);
+          Alert.alert(SAMPLE_TEXT.cannotBeginAnalysisTitle, outcome.message);
           return;
         }
       } catch (err: unknown) {
@@ -108,7 +106,7 @@ export function SampleDetailScreen({
   const handleRetakeImage = useCallback((): void => {
     if (isReadOnly) return;
     if (!specimen?.serverId) {
-      Alert.alert('Not Synced', 'Specimen has not synced yet. Please wait.');
+      Alert.alert(SAMPLE_TEXT.notSyncedTitle, SAMPLE_TEXT.retakeNotSyncedMessage);
       return;
     }
     const serverId = specimen.serverId;
@@ -158,9 +156,9 @@ export function SampleDetailScreen({
   if (notFound || !specimen) {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.notFoundText}>Sample not found.</Text>
+        <Text style={styles.notFoundText}>{SAMPLE_TEXT.notFound}</Text>
         <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>Go back</Text>
+          <Text style={styles.backBtnText}>{SAMPLE_TEXT.goBack}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -193,30 +191,30 @@ export function SampleDetailScreen({
           style={styles.topBackBtn}
           onPress={handleBack}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel={SAMPLE_TEXT.goBack}
         >
           <Icon name="chevron-back" size={24} color={colors.gray700} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle} accessibilityRole="header">
-          Sample Detail
+          {SAMPLE_TEXT.detailTitle}
         </Text>
         <View style={styles.topBackBtn} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {isReadOnly && <Text style={styles.emptyResultText}>Read-only report</Text>}
+        {isReadOnly && <Text style={styles.emptyResultText}>{SAMPLE_TEXT.readOnlyReport}</Text>}
         <SpecimenSummaryCard specimen={specimen} resultStatus={resultStatus} />
 
         {isRejected && <RejectionDetailsCard specimen={specimen} />}
 
         {analysisResult && (
           <View style={styles.resultsSection}>
-            <Text style={styles.sectionTitle}>Analysis Results</Text>
+            <Text style={styles.sectionTitle}>{SAMPLE_TEXT.analysisResultsTitle}</Text>
 
             <View style={styles.card}>
               <View style={styles.sectionHeader}>
                 <Icon name="analytics-outline" size={16} color={colors.teal} />
-                <Text style={styles.sectionSubTitle}>Smart Diagnosis</Text>
+                <Text style={styles.sectionSubTitle}>{SAMPLE_TEXT.smartDiagnosisSectionTitle}</Text>
               </View>
               {smartDiagnosis && diagnosisState === 'READY' ? (
                 <SmartDiagnosisSection diagnosis={smartDiagnosis} />
@@ -234,12 +232,12 @@ export function SampleDetailScreen({
             <View style={styles.card}>
               <View style={styles.sectionHeader}>
                 <Icon name="eye-outline" size={16} color={colors.teal} />
-                <Text style={styles.sectionSubTitle}>AI Findings</Text>
+                <Text style={styles.sectionSubTitle}>{SAMPLE_TEXT.aiFindingsSectionTitle}</Text>
               </View>
               {findingRows.length > 0 ? (
                 <AIFindingsSection rows={findingRows} />
               ) : (
-                <Text style={styles.emptyResultText}>No particles detected.</Text>
+                <Text style={styles.emptyResultText}>{SAMPLE_TEXT.noParticlesDetected}</Text>
               )}
             </View>
 
@@ -248,24 +246,24 @@ export function SampleDetailScreen({
             {isRejected && (
               <ResultStatusBanner
                 variant="rejected"
-                title="Specimen Rejected"
-                body="This result cannot be confirmed and will not be sent for supervisor approval."
+                title={SAMPLE_TEXT.specimenRejectedTitle}
+                body={SAMPLE_TEXT.specimenRejectedBody}
               />
             )}
 
             {isReturnedForCorrection && (
               <ResultStatusBanner
                 variant="correction"
-                title="Returned for Correction"
-                body="The supervisor has returned this result. Please retake the image and re-confirm."
+                title={SAMPLE_TEXT.returnedForCorrectionTitle}
+                body={SAMPLE_TEXT.returnedForCorrectionBody}
               />
             )}
 
             {isEscalated && (
               <ResultStatusBanner
                 variant="escalated"
-                title="Critical / Escalated"
-                body="The supervisor has escalated this result for urgent review. No further action is needed from you."
+                title={SAMPLE_TEXT.criticalEscalatedTitle}
+                body={SAMPLE_TEXT.criticalEscalatedBody}
               />
             )}
 
@@ -280,22 +278,25 @@ export function SampleDetailScreen({
             )}
 
             {isPendingApproval && (
-              <ResultStatusBanner variant="pending" title="Awaiting supervisor review." />
+              <ResultStatusBanner
+                variant="pending"
+                title={SAMPLE_TEXT.awaitingSupervisorReviewTitle}
+              />
             )}
 
             {isApproved && (
               <ResultStatusBanner
                 variant="approved"
-                title="Approved by Supervisor"
-                body="This result has been reviewed and approved. It is ready for release."
+                title={SAMPLE_TEXT.approvedBySupervisorTitle}
+                body={SAMPLE_TEXT.approvedBySupervisorBody}
               />
             )}
 
             {isReleased && (
               <ResultStatusBanner
                 variant="released"
-                title="Result Released"
-                body="This result has been released to the patient."
+                title={SAMPLE_TEXT.resultReleasedTitle}
+                body={SAMPLE_TEXT.resultReleasedBody}
               />
             )}
           </View>

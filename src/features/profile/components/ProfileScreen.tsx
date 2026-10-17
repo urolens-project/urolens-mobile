@@ -8,17 +8,10 @@ import { Icon } from '@components/Icon';
 
 import { useAuth } from '@features/auth/hooks/useAuth';
 
+import { PROFILE_TEXT } from '../constants/profileText.constant';
 import { ProfileAccountCard } from './ProfileAccountCard';
 import { ProfileHeader } from './ProfileHeader';
-import { ProfileSyncCard } from './ProfileSyncCard';
-
-const ROLE_LABELS: Record<string, string> = {
-  MEDTECH: 'Medical Technologist',
-  SUPERVISOR: 'Supervisor',
-  RECEPTIONIST: 'Receptionist',
-  PHYSICIAN: 'Physician',
-  ADMINISTRATOR: 'Administrator',
-};
+import { ProfileSyncCard } from './profile-sync-card';
 
 /**
  * @description Profile tab: account details, last-sync status with a manual sync
@@ -28,7 +21,7 @@ export function ProfileScreen(): React.JSX.Element {
   const { logout } = useAuth();
   const { username, role, userId } = useAuthStore();
 
-  const roleLabel = role ? (ROLE_LABELS[role] ?? role) : '—';
+  const roleLabel = role ? (PROFILE_TEXT.roleLabels[role] ?? role) : '—';
   const shortId = userId ? `${userId.slice(0, 8)}…` : '—';
 
   return (
@@ -45,11 +38,11 @@ export function ProfileScreen(): React.JSX.Element {
         <TouchableOpacity
           style={styles.logoutBtn}
           onPress={() => void logout()}
-          accessibilityLabel="Log out"
+          accessibilityLabel={PROFILE_TEXT.logoutAccessibilityLabel}
           accessibilityRole="button"
         >
           <Icon name="log-out-outline" size={20} color={colors.red600} />
-          <Text style={styles.logoutText}>Log Out</Text>
+          <Text style={styles.logoutText}>{PROFILE_TEXT.logoutButtonText}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

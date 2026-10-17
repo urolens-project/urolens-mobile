@@ -18,7 +18,7 @@ jest.mock('@src/features/specimen-rejection/hooks/useRejectSpecimen', () => ({
   useRejectSpecimen: jest.fn(),
 }));
 // The reason form is covered on its own; here it only needs to drive the screen's handler.
-jest.mock('@src/features/specimen-rejection/components/RejectionReasonModal', () => {
+jest.mock('@src/features/specimen-rejection/components/rejection-reason-modal', () => {
   const React = require('react');
   return {
     RejectionReasonModal: ({

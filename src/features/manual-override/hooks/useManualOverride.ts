@@ -10,6 +10,7 @@ import { useUserId } from '@lib/auth/authStore';
 import { getErrorMessage } from '@lib/errorMessage';
 
 import { manualOverrideApi } from '../api/manualOverrideApi';
+import { OVERRIDE_TEXT } from '../constants/overrideText.constant';
 import { getOverrideValidationError } from '../lib/overrideValidation';
 import { persistOverride } from '../lib/persistOverride';
 import { mapManualOverride, mapOverrideContext } from '../mappers/manualOverride.mapper';
@@ -38,7 +39,7 @@ export function useManualOverride(): UseManualOverrideResult {
   const performSubmit = useCallback(
     async (signal: AbortSignal, resultId: string, payload: OverridePayload): Promise<boolean> => {
       try {
-        if (!userId) throw new Error('Sign in again before submitting a correction.');
+        if (!userId) throw new Error(OVERRIDE_TEXT.signInAgainError);
         const fingerprint = JSON.stringify([userId, resultId, payload]);
         // A retry after local storage failure must not create another server override.
         if (acceptedRef.current?.fingerprint === fingerprint) {
@@ -64,14 +65,8 @@ export function useManualOverride(): UseManualOverrideResult {
           overrides[0] ?? null,
           payload.parameter,
         );
-        if (context.originalAiValue === null)
-          throw new Error(
-            'The original AI finding is unavailable. Return to the result and retry.',
-          );
-        if (!context.canEdit)
-          throw new Error(
-            'This result is no longer editable. Return to the result to see its current status.',
-          );
+        if (context.originalAiValue === null) throw new Error(OVERRIDE_TEXT.missingAiFindingError);
+        if (!context.canEdit) throw new Error(OVERRIDE_TEXT.notEditableError);
         const validationError = getOverrideValidationError(
           payload.correctedValue,
           payload.rationale,
@@ -107,7 +102,7 @@ export function useManualOverride(): UseManualOverrideResult {
         }
         return !signal.aborted;
       } catch (cause: unknown) {
-        throw new Error(getErrorMessage(cause, 'Failed to submit override. Please retry.'));
+        throw new Error(getErrorMessage(cause, OVERRIDE_TEXT.submitFailedError));
       }
     },
     [isOnline, userId],

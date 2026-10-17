@@ -1,7 +1,7 @@
 // Path: urolens-mobile/tests/unit/features/RejectionReasonModal.test.tsx
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
-import { RejectionReasonModal } from '@features/specimen-rejection/components/RejectionReasonModal';
+import { RejectionReasonModal } from '@features/specimen-rejection/components/rejection-reason-modal';
 import { RejectionReason } from '@/types/enums';
 
 const defaultProps = {

@@ -2,6 +2,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing, typography } from '@src/theme';
 
+import { REPORTS_TEXT } from '../constants/reportsText.constant';
+
 interface ReportDataNoticeProps {
   isLoading: boolean;
   hasError: boolean;
@@ -20,7 +22,7 @@ export function ReportDataNotice({
     return (
       <View style={styles.container}>
         <Text style={styles.error} accessibilityRole="alert">
-          Reports could not be updated. Showing available records. Pull down to try syncing again.
+          {REPORTS_TEXT.syncErrorMessage}
         </Text>
       </View>
     );
@@ -28,8 +30,11 @@ export function ReportDataNotice({
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator color={colors.teal} accessibilityLabel="Loading reports" />
-        <Text style={styles.caption}>Loading reports…</Text>
+        <ActivityIndicator
+          color={colors.teal}
+          accessibilityLabel={REPORTS_TEXT.loadingAccessibilityLabel}
+        />
+        <Text style={styles.caption}>{REPORTS_TEXT.loadingCaption}</Text>
       </View>
     );
   }

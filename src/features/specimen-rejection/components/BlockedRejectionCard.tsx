@@ -4,6 +4,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { SPECIMEN_REJECTION_TEXT } from '../constants/specimenRejectionText.constant';
+
 export interface BlockedRejectionCardProps {
   reason: string;
   onBackToSample: () => void;
@@ -23,10 +25,14 @@ export function BlockedRejectionCard({
     <View style={styles.blockedCard} accessibilityRole="alert">
       <Icon name="information-circle-outline" size={20} color={colors.amber800} />
       <View style={styles.blockedText}>
-        <Text style={styles.blockedTitle}>Cannot reject this specimen</Text>
+        <Text style={styles.blockedTitle}>{SPECIMEN_REJECTION_TEXT.blockedTitle}</Text>
         <Text style={styles.blockedBody}>{reason}</Text>
-        <TouchableOpacity style={styles.blockedBtn} onPress={onBackToSample} accessibilityRole="button">
-          <Text style={styles.blockedBtnText}>Back to sample</Text>
+        <TouchableOpacity
+          style={styles.blockedBtn}
+          onPress={onBackToSample}
+          accessibilityRole="button"
+        >
+          <Text style={styles.blockedBtnText}>{SPECIMEN_REJECTION_TEXT.blockedBackToSample}</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -7,6 +7,8 @@ import { colors, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { IMAGE_RETAKE_TEXT } from '../constants/imageRetakeText.constant';
+
 export interface CameraLiveViewProps {
   cameraRef: RefObject<CameraView | null>;
   validationError: string | null;
@@ -46,18 +48,16 @@ export function CameraLiveView({
             onPress={onGoBack}
             style={styles.backButton}
             accessibilityRole="button"
-            accessibilityLabel="Leave capture"
+            accessibilityLabel={IMAGE_RETAKE_TEXT.leaveCaptureA11yLabel}
           >
             <Icon name="close" size={22} color="rgba(255,255,255,0.9)" />
           </TouchableOpacity>
-          <Text style={styles.cameraTitle}>Specimen Capture</Text>
+          <Text style={styles.cameraTitle}>{IMAGE_RETAKE_TEXT.cameraTitle}</Text>
           <View style={styles.headerSpacer} />
         </View>
 
         <View style={styles.instructionBanner}>
-          <Text style={styles.instructionText}>
-            Position the microscope eyepiece over the camera lens. Min. resolution: 640 × 480.
-          </Text>
+          <Text style={styles.instructionText}>{IMAGE_RETAKE_TEXT.cameraInstructionText}</Text>
         </View>
 
         {validationError && (
@@ -70,7 +70,7 @@ export function CameraLiveView({
         <View style={styles.cameraControls}>
           <TouchableOpacity style={styles.galleryButton} onPress={onGalleryPick}>
             <Icon name="images-outline" size={28} color="rgba(255,255,255,0.85)" />
-            <Text style={styles.galleryLabel}>Gallery</Text>
+            <Text style={styles.galleryLabel}>{IMAGE_RETAKE_TEXT.galleryButtonLabel}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.captureRing} onPress={onCapture} testID="capture-button">
@@ -115,7 +115,12 @@ const styles = StyleSheet.create({
     padding: spacing.smd,
     marginTop: spacing.sm,
   },
-  instructionText: { ...typography.caption, color: colors.gray200, textAlign: 'center', lineHeight: 17 },
+  instructionText: {
+    ...typography.caption,
+    color: colors.gray200,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
   // space-between with equal-width gallery + spacer perfectly centers the capture ring
   cameraControls: {
     position: 'absolute',

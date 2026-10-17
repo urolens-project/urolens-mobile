@@ -2,6 +2,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '@src/theme';
 
+import { SAMPLE_TEXT } from '../constants/sampleText.constant';
+
 export interface SampleActionBarProps {
   canBeginAnalysis: boolean;
   canReject: boolean;
@@ -35,7 +37,7 @@ export function SampleActionBar({
           accessibilityRole="button"
         >
           <Text style={styles.actionBtnPrimaryText}>
-            {isProcessing ? 'Continue Analysis' : 'Begin Analysis'}
+            {isProcessing ? SAMPLE_TEXT.continueAnalysis : SAMPLE_TEXT.beginAnalysis}
           </Text>
         </TouchableOpacity>
       )}
@@ -45,7 +47,7 @@ export function SampleActionBar({
           onPress={onReject}
           accessibilityRole="button"
         >
-          <Text style={styles.actionBtnDangerText}>Reject Specimen</Text>
+          <Text style={styles.actionBtnDangerText}>{SAMPLE_TEXT.rejectSpecimen}</Text>
         </TouchableOpacity>
       )}
     </View>

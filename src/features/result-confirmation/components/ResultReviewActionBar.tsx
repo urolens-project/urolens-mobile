@@ -2,6 +2,8 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 
 import { colors, radius, spacing, typography } from '@src/theme';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
+
 export interface ResultReviewActionBarProps {
   bottomInset: number;
   isOnline: boolean;
@@ -27,9 +29,10 @@ export function ResultReviewActionBar({
   onConfirm,
   onContinue,
 }: ResultReviewActionBarProps): React.JSX.Element {
-  let confirmLabel = isOnline ? 'Confirm Result' : 'Queue Confirmation';
-  if (isReturned) confirmLabel = 'Re-confirm & Submit';
-  if (isConfirming) confirmLabel = 'Saving & submitting…';
+  const actionText = RESULT_CONFIRMATION_TEXT.actionBar;
+  let confirmLabel = isOnline ? actionText.confirmOnline : actionText.confirmOffline;
+  if (isReturned) confirmLabel = actionText.reconfirm;
+  if (isConfirming) confirmLabel = actionText.saving;
   return (
     <View style={[styles.container, { paddingBottom: bottomInset + spacing.lg }]}>
       {!isConfirmed && (
@@ -37,20 +40,20 @@ export function ResultReviewActionBar({
           style={styles.retakeButton}
           onPress={onRetake}
           disabled={isConfirming}
-          accessibilityLabel="Retake image"
+          accessibilityLabel={actionText.retakeAccessibility}
           accessibilityRole="button"
         >
-          <Text style={styles.retakeText}>Retake Image</Text>
+          <Text style={styles.retakeText}>{actionText.retake}</Text>
         </TouchableOpacity>
       )}
       {isConfirmed ? (
         <TouchableOpacity
           style={styles.confirmButton}
           onPress={onContinue}
-          accessibilityLabel="Back to Confirmation Queue"
+          accessibilityLabel={RESULT_CONFIRMATION_TEXT.backToQueueLabel}
           accessibilityRole="button"
         >
-          <Text style={styles.confirmText}>Continue</Text>
+          <Text style={styles.confirmText}>{actionText.continueLabel}</Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity

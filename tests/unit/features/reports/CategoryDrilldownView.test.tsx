@@ -4,7 +4,7 @@ import { act, render } from '@testing-library/react-native';
 
 import apiClient from '@lib/apiClient';
 
-import { CategoryDrilldownView } from '@features/reports/components/CategoryDrilldownView';
+import { CategoryDrilldownView } from '@features/reports/components/category-drilldown-view';
 import type { ReportItem, ReportSection } from '@features/reports/types';
 
 jest.mock('@lib/apiClient', () => ({

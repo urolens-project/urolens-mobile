@@ -1,5 +1,7 @@
 import { Alert } from 'react-native';
 
+import { IMAGE_RETAKE_TEXT } from '../constants/imageRetakeText.constant';
+
 /**
  * @description Confirms before a retake when it would discard manual overrides. A retake
  * runs a new AI analysis and the backend reuses the same result row, so any manual
@@ -15,12 +17,8 @@ export function confirmRetake(hasOverrides: boolean, onRetake: () => void): void
     return;
   }
 
-  Alert.alert(
-    'Discard Overrides?',
-    'Retaking the image will run a new AI analysis. Your existing manual overrides will be removed.',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Retake', style: 'destructive', onPress: onRetake },
-    ],
-  );
+  Alert.alert(IMAGE_RETAKE_TEXT.discardOverridesTitle, IMAGE_RETAKE_TEXT.discardOverridesMessage, [
+    { text: IMAGE_RETAKE_TEXT.cancelLabel, style: 'cancel' },
+    { text: IMAGE_RETAKE_TEXT.retakeLabel, style: 'destructive', onPress: onRetake },
+  ]);
 }

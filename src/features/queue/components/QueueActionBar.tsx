@@ -7,6 +7,7 @@ import { Icon } from '@components/Icon';
 import { formatShortDateTime } from '@lib/dateTime';
 
 import { QUEUE_STATUS_STYLES } from '../constants';
+import { formatSelectedSampleLabel, QUEUE_TEXT } from '../constants/queueText.constant';
 import { getQueueStatus } from '../status';
 import type { QueueItem } from '../types';
 
@@ -100,7 +101,7 @@ export function QueueActionBar({
         </View>
         <View style={styles.infoText}>
           <Text style={styles.title} numberOfLines={1}>
-            Selected: {shown.sampleUid}
+            {formatSelectedSampleLabel(shown.sampleUid)}
           </Text>
           <Text style={styles.sub} numberOfLines={1}>
             {shown.patientUid} • {formatShortDateTime(shown.receivedAt)}
@@ -111,7 +112,7 @@ export function QueueActionBar({
       <View style={styles.buttons}>
         {canReject && (
           <TouchableOpacity style={styles.rejectBtn} onPress={onReject} activeOpacity={0.8}>
-            <Text style={styles.rejectText}>Reject</Text>
+            <Text style={styles.rejectText}>{QUEUE_TEXT.actionBar.reject}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={styles.proceedBtn} onPress={onProceed} activeOpacity={0.85}>

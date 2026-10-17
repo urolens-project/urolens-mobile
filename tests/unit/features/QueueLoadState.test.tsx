@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
-import { QueueLoadState } from '@features/queue/components/QueueLoadState';
+import { QueueLoadState } from '@features/queue/components/queue-load-state';
 import { QueuePagination } from '@features/queue/components/QueuePagination';
 
 describe('queue load feedback', () => {

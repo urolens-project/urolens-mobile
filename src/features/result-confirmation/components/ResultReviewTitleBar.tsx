@@ -4,6 +4,8 @@ import { colors, spacing, typography, fontWeight } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
+
 export interface ResultReviewTitleBarProps {
   topInset: number;
   isConfirmed: boolean;
@@ -31,15 +33,17 @@ export function ResultReviewTitleBar({
         style={styles.titleBarBack}
         onPress={onBack}
         accessibilityRole="button"
-        accessibilityLabel="Back to Confirmation Queue"
+        accessibilityLabel={RESULT_CONFIRMATION_TEXT.backToQueueLabel}
       >
         <Icon name="chevron-back" size={26} color={colors.teal} />
       </TouchableOpacity>
       <View style={styles.titleBarContent}>
-        <Text style={styles.titleBarText}>Analysis Result</Text>
+        <Text style={styles.titleBarText}>{RESULT_CONFIRMATION_TEXT.titleBarTitle}</Text>
         <Text style={styles.titleBarSub}>
           {subtitle ??
-            (isConfirmed ? 'Submitted for Supervisor approval' : 'Pending your confirmation')}
+            (isConfirmed
+              ? RESULT_CONFIRMATION_TEXT.submittedForApprovalSubtitle
+              : RESULT_CONFIRMATION_TEXT.pendingConfirmationSubtitle)}
         </Text>
       </View>
     </View>

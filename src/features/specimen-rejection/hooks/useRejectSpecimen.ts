@@ -13,6 +13,7 @@ import { RejectionReason } from '@app-types/enums';
 
 import { specimenRejectionApi } from '../api/specimenRejectionApi';
 import { MAX_REJECTION_NOTE_LENGTH } from '../constants/specimenRejection.constant';
+import { SPECIMEN_REJECTION_TEXT } from '../constants/specimenRejectionText.constant';
 import { getRejectionEligibilityMessage } from '../lib/rejectionEligibility';
 import { persistRejection } from '../lib/persistRejection';
 import { mapRejectionToReceipt } from '../mappers/specimenRejection.mapper';
@@ -51,7 +52,7 @@ export function useRejectSpecimen(specimenId: string): UseRejectSpecimenResult {
         const accepted = acceptedRef.current;
         if (accepted) {
           if (accepted.localSpecimenId !== specimenId || accepted.userId !== userId) {
-            throw new Error('Return to the queue to refresh this specimen.');
+            throw new Error(SPECIMEN_REJECTION_TEXT.staleSpecimenMessage);
           }
           await persistRejection(specimen, accepted.payload, accepted.receipt, false);
           acceptedRef.current = null;
@@ -75,9 +76,9 @@ export function useRejectSpecimen(specimenId: string): UseRejectSpecimenResult {
         );
         if (blockedReason) throw new Error(blockedReason);
         if (!Object.values(RejectionReason).includes(reason))
-          throw new Error('Select a rejection reason.');
+          throw new Error(SPECIMEN_REJECTION_TEXT.reasonRequiredMessage);
         if (note.length > MAX_REJECTION_NOTE_LENGTH) {
-          throw new Error(`Notes must be ${MAX_REJECTION_NOTE_LENGTH} characters or fewer.`);
+          throw new Error(SPECIMEN_REJECTION_TEXT.noteTooLongMessage(MAX_REJECTION_NOTE_LENGTH));
         }
         const payload: SpecimenRejectRequest = { reasonCode: reason };
         if (note.trim()) payload.freeTextNote = note.trim();
@@ -103,8 +104,8 @@ export function useRejectSpecimen(specimenId: string): UseRejectSpecimenResult {
         if (signal.aborted) return { status: 'busy' };
         console.error('[SpecimenRejection] Failed to reject specimen', error);
         const message = acceptedRef.current
-          ? 'The server accepted this rejection, but this device could not save it. Retry to update this device.'
-          : getErrorMessage(error, 'Failed to reject specimen. Please try again.');
+          ? SPECIMEN_REJECTION_TEXT.localSaveFailedMessage
+          : getErrorMessage(error, SPECIMEN_REJECTION_TEXT.genericFailedMessage);
         return { status: 'failed', message };
       }
     },

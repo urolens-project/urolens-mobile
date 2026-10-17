@@ -18,6 +18,7 @@ import { COMPACT_WAVES, HeaderWaves } from '@components/HeaderWaves';
 import { Icon } from '@components/Icon';
 
 import { REPORT_CATEGORY_STYLES } from '../constants';
+import { REPORTS_TEXT } from '../constants/reportsText.constant';
 import type { ReportCategory } from '../types';
 
 // Deliberately much shorter than the Reports landing header (172): this is a
@@ -140,7 +141,7 @@ export function CategoryHeader({
     ],
   };
 
-  const countLabel = `${count} sample${count === 1 ? '' : 's'}`;
+  const subtitle = REPORTS_TEXT.getCategoryHeaderSubtitle(count);
 
   return (
     <View style={[styles.wrap, { width, height }]}>
@@ -163,7 +164,7 @@ export function CategoryHeader({
           style={styles.backBtn}
           onPress={onBack}
           accessibilityRole="button"
-          accessibilityLabel="Back to Reports"
+          accessibilityLabel={REPORTS_TEXT.categoryHeaderBackLabel}
         >
           <Icon name="chevron-back" size={24} color={colors.white} />
         </TouchableOpacity>
@@ -172,7 +173,7 @@ export function CategoryHeader({
           <Text style={styles.title} numberOfLines={2} accessibilityRole="header">
             {title}
           </Text>
-          <Text style={styles.subtitle}>{countLabel} · Read-only</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
 
         <Animated.View style={[styles.chip, chipStyle]} accessibilityElementsHidden>

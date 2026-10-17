@@ -7,6 +7,7 @@ import type AnalysisResult from '@db/models/AnalysisResult';
 import { confirmRetake } from '@features/image-retake/lib/confirmRetake';
 import { useHasManualOverrides } from '@features/manual-override/hooks/useHasManualOverrides';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
 import type { ConfirmActionResult } from './useConfirmAction';
 
 interface ResultReviewActionsInput {
@@ -77,19 +78,18 @@ export function useResultReviewActions({
   const handleConfirm = useCallback(async (): Promise<void> => {
     if (!canEdit || isBusy) return;
     const outcome = await confirmResult();
+    const alertsText = RESULT_CONFIRMATION_TEXT.confirmAlerts;
     if (outcome.status === 'failed') {
-      Alert.alert('Confirmation Failed', outcome.message);
+      Alert.alert(alertsText.confirmationFailedTitle, outcome.message);
       return;
     }
     if (outcome.status !== 'confirmed') return;
-    let message = isReturned
-      ? 'The result has been re-submitted for supervisor approval.'
-      : 'The result has been submitted for supervisor approval.';
+    let message = isReturned ? alertsText.resubmittedMessage : alertsText.confirmedMessage;
     if (!isOnline)
       message = isReturned
-        ? 'Your re-confirmation is queued and will be re-submitted for supervisor approval when the device syncs.'
-        : 'Your confirmation is queued and will be sent for supervisor approval when the device syncs.';
-    Alert.alert(isReturned ? 'Result Re-submitted' : 'Result Confirmed', message);
+        ? alertsText.resubmittedQueuedMessage
+        : alertsText.confirmedQueuedMessage;
+    Alert.alert(isReturned ? alertsText.resubmittedTitle : alertsText.confirmedTitle, message);
     router.replace('/(medtech)/queue');
   }, [canEdit, confirmResult, isBusy, isOnline, isReturned]);
 

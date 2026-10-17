@@ -9,6 +9,7 @@ import { Icon } from '@components/Icon';
 import { getSampleStatusLabel } from '@features/queue/lib/sampleState';
 import type { QueueItem } from '@features/queue/types';
 
+import { SAMPLE_TEXT } from '../constants/sampleText.constant';
 import { DetailRow } from './DetailRow';
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -55,17 +56,23 @@ export function SpecimenSummaryCard({
         <View style={styles.detailsHeader}>
           <Icon name="person-outline" size={16} color={colors.teal} />
           <Text accessibilityRole="header" style={styles.title}>
-            Patient & Sample
+            {SAMPLE_TEXT.patientSampleTitle}
           </Text>
         </View>
         <View style={styles.detailsBody}>
-          <DetailRow label="Patient UID" value={specimen.patientUid} />
+          <DetailRow label={SAMPLE_TEXT.patientUidLabel} value={specimen.patientUid} />
           <View style={styles.divider} />
-          <DetailRow label="Test Type" value={specimen.testType} />
+          <DetailRow label={SAMPLE_TEXT.testTypeLabel} value={specimen.testType} />
           <View style={styles.divider} />
-          <DetailRow label="Status" value={getSampleStatusLabel(specimen.status, resultStatus)} />
+          <DetailRow
+            label={SAMPLE_TEXT.statusLabel}
+            value={getSampleStatusLabel(specimen.status, resultStatus)}
+          />
           <View style={styles.divider} />
-          <DetailRow label="Received" value={formatDateTime(specimen.receivedAt)} />
+          <DetailRow
+            label={SAMPLE_TEXT.receivedLabel}
+            value={formatDateTime(specimen.receivedAt)}
+          />
         </View>
       </View>
     </>
