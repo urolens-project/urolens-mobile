@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 
 import { colors, radius, spacing } from '@src/theme';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
+
 /**
  * @description Mandatory compliance notice per SRS. Must appear at the top of
  * ResultReviewScreen; never conditionally hide or remove it.
@@ -13,13 +15,13 @@ export function AIDisclaimer(): React.JSX.Element {
       style={styles.container}
       accessible={true}
       accessibilityRole="text"
-      accessibilityLabel="AI disclaimer"
+      accessibilityLabel={RESULT_CONFIRMATION_TEXT.aiDisclaimer.accessibilityLabel}
     >
-      <Text style={styles.label} accessible={false}>Clinical Decision Support</Text>
+      <Text style={styles.label} accessible={false}>
+        {RESULT_CONFIRMATION_TEXT.aiDisclaimer.label}
+      </Text>
       <Text style={styles.body} accessible={false}>
-        UroLens is a clinical decision-support tool. AI-generated findings and Smart Diagnosis
-        indicators are not substitutes for professional medical judgment. All results must be
-        reviewed and confirmed by a licensed Medical Technologist and Laboratory Supervisor.
+        {RESULT_CONFIRMATION_TEXT.aiDisclaimer.body}
       </Text>
     </View>
   );

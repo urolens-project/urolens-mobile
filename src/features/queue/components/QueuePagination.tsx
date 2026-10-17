@@ -3,6 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, spacing, typography } from '@src/theme';
 
 import { QUEUE_PAGE_SIZE } from '../constants/queue.constant';
+import {
+  formatPageIndicator,
+  formatPaginationSummary,
+  QUEUE_TEXT,
+} from '../constants/queueText.constant';
 
 export interface QueuePaginationProps {
   page: number;
@@ -31,7 +36,7 @@ export function QueuePagination({
   return (
     <View style={styles.container}>
       <Text style={styles.summary} accessibilityLiveRegion="polite">
-        Showing {firstItem}–{lastItem} of {totalItems}
+        {formatPaginationSummary(firstItem, lastItem, totalItems)}
       </Text>
       {pageCount > 1 && (
         <View style={styles.controls}>
@@ -39,24 +44,22 @@ export function QueuePagination({
             style={[styles.button, isPreviousDisabled && styles.buttonDisabled]}
             disabled={isPreviousDisabled}
             accessibilityRole="button"
-            accessibilityLabel="Previous queue page"
+            accessibilityLabel={QUEUE_TEXT.pagination.previousAccessibilityLabel}
             accessibilityState={{ disabled: isPreviousDisabled }}
             onPress={onPrevious}
           >
-            <Text style={styles.buttonText}>Previous</Text>
+            <Text style={styles.buttonText}>{QUEUE_TEXT.pagination.previous}</Text>
           </Pressable>
-          <Text style={styles.summary}>
-            Page {page} of {pageCount}
-          </Text>
+          <Text style={styles.summary}>{formatPageIndicator(page, pageCount)}</Text>
           <Pressable
             style={[styles.button, isNextDisabled && styles.buttonDisabled]}
             disabled={isNextDisabled}
             accessibilityRole="button"
-            accessibilityLabel="Next queue page"
+            accessibilityLabel={QUEUE_TEXT.pagination.nextAccessibilityLabel}
             accessibilityState={{ disabled: isNextDisabled }}
             onPress={onNext}
           >
-            <Text style={styles.buttonText}>Next</Text>
+            <Text style={styles.buttonText}>{QUEUE_TEXT.pagination.next}</Text>
           </Pressable>
         </View>
       )}

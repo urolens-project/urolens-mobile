@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
+import { PROFILE_TEXT } from '../constants/profileText.constant';
 import { InfoRow } from './InfoRow';
 import { InfoRowSeparator } from './InfoRowSeparator';
 
@@ -24,14 +25,18 @@ export function ProfileAccountCard({
 }: ProfileAccountCardProps): React.JSX.Element {
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Account</Text>
-      <InfoRow icon="person-outline" label="Username" value={username ?? '—'} />
+      <Text style={styles.cardTitle}>{PROFILE_TEXT.accountCardTitle}</Text>
+      <InfoRow icon="person-outline" label={PROFILE_TEXT.usernameLabel} value={username ?? '—'} />
       <InfoRowSeparator />
-      <InfoRow icon="shield-checkmark-outline" label="Role" value={roleLabel} />
+      <InfoRow icon="shield-checkmark-outline" label={PROFILE_TEXT.roleLabel} value={roleLabel} />
       <InfoRowSeparator />
-      <InfoRow icon="key-outline" label="User ID" value={shortId} />
+      <InfoRow icon="key-outline" label={PROFILE_TEXT.userIdLabel} value={shortId} />
       <InfoRowSeparator />
-      <InfoRow icon="checkmark-circle-outline" label="Status" value="Active" />
+      <InfoRow
+        icon="checkmark-circle-outline"
+        label={PROFILE_TEXT.statusLabel}
+        value={PROFILE_TEXT.statusActive}
+      />
     </View>
   );
 }

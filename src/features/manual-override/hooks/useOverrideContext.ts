@@ -8,6 +8,7 @@ import type { Unsubscribable } from '@db/observeQuery';
 import { getErrorMessage } from '@lib/errorMessage';
 
 import { OVERRIDE_COLUMNS, OVERRIDE_RESULT_COLUMNS } from '../constants/override.constant';
+import { OVERRIDE_TEXT } from '../constants/overrideText.constant';
 import { mapOverrideContext } from '../mappers/manualOverride.mapper';
 import type { OverrideContext } from '../types';
 
@@ -44,12 +45,7 @@ export function useOverrideContext(resultId: string, parameter: string): UseOver
     const subscriptions: Unsubscribable[] = [];
     const handleError = (cause: unknown): void => {
       console.error('[OverrideContext]', cause);
-      setError(
-        getErrorMessage(
-          cause,
-          'Could not load the original AI finding. Return to the result and retry.',
-        ),
-      );
+      setError(getErrorMessage(cause, OVERRIDE_TEXT.loadContextError));
     };
     try {
       subscriptions.push(

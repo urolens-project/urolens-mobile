@@ -10,7 +10,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 jest.mock('@features/profile/hooks/useFailedActions', () => ({ useFailedActions: jest.fn() }));
 
-import { FailedActionsList } from '../../../src/features/profile/components/FailedActionsList';
+import { FailedActionsList } from '../../../src/features/profile/components/profile-sync-card/FailedActionsList';
 import { useFailedActions } from '../../../src/features/profile/hooks/useFailedActions';
 import type { FailedActionUi } from '../../../src/features/profile/types';
 

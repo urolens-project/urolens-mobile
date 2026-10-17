@@ -8,6 +8,8 @@ import { Icon } from '@components/Icon';
 import { SmartDiagnosisRows } from '@features/result-confirmation/components/SmartDiagnosisRows';
 import { mapSmartDiagnosis } from '@features/result-confirmation/mappers/resultReview.mapper';
 
+import { SAMPLE_TEXT } from '../constants/sampleText.constant';
+
 export interface SmartDiagnosisSectionProps {
   diagnosis: SmartDiagnosisJson;
 }
@@ -24,7 +26,7 @@ export function SmartDiagnosisSection({
     return (
       <View style={styles.container}>
         <Icon name="checkmark-circle-outline" size={16} color={colors.emerald800} />
-        <Text style={styles.message}>No significant diagnostic indicators found.</Text>
+        <Text style={styles.message}>{SAMPLE_TEXT.noSignificantDiagnosticIndicators}</Text>
       </View>
     );
   }

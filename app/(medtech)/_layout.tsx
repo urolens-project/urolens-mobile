@@ -17,7 +17,7 @@ import { Icon } from '@components/Icon';
 import { NotificationBadge } from '@components/NotificationBadge';
 
 import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
-import { SessionActivityGate } from '@features/auth/components/SessionActivityGate';
+import { SessionActivityGate } from '@features/auth/components/session-activity-gate';
 import { NotificationsPreview } from '@features/alerts/components/NotificationsPreview';
 import {
   refreshNotifications,

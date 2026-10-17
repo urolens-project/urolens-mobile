@@ -4,6 +4,8 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import type { FindingRow } from '@features/result-confirmation/lib/findingRows';
 
+import { SAMPLE_TEXT } from '../constants/sampleText.constant';
+
 export interface AIFindingsSectionProps {
   rows: FindingRow[];
 }
@@ -23,7 +25,9 @@ export function AIFindingsSection({ rows }: AIFindingsSectionProps): React.JSX.E
             <Text style={styles.findingName}>{row.label}</Text>
             {row.isOverridden && (
               <View style={styles.overriddenBadge}>
-                <Text style={styles.overriddenBadgeText}>Overridden · AI: {row.aiCount}</Text>
+                <Text style={styles.overriddenBadgeText}>
+                  {SAMPLE_TEXT.getOverriddenBadgeLabel(row.aiCount)}
+                </Text>
               </View>
             )}
           </View>
@@ -58,5 +62,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxs,
     borderRadius: radius.xs,
   },
-  overriddenBadgeText: { ...typography.micro, fontWeight: fontWeight.medium, color: colors.violet800 },
+  overriddenBadgeText: {
+    ...typography.micro,
+    fontWeight: fontWeight.medium,
+    color: colors.violet800,
+  },
 });

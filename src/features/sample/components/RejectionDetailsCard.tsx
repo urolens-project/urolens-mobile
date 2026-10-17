@@ -7,6 +7,7 @@ import { Icon } from '@components/Icon';
 
 import type { QueueItem } from '@features/queue/types';
 
+import { SAMPLE_TEXT } from '../constants/sampleText.constant';
 import { DetailRow } from './DetailRow';
 
 export interface RejectionDetailsCardProps {
@@ -23,21 +24,27 @@ export function RejectionDetailsCard({ specimen }: RejectionDetailsCardProps): R
     <View style={styles.rejectionCard}>
       <View style={styles.rejectionHeader}>
         <Icon name="close-circle" size={16} color={colors.red700} />
-        <Text style={styles.rejectionTitle}>Specimen Rejected</Text>
+        <Text style={styles.rejectionTitle}>{SAMPLE_TEXT.specimenRejectedTitle}</Text>
       </View>
       {specimen.rejectionReason && (
-        <DetailRow label="Reason" value={specimen.rejectionReason.replace(/_/g, ' ')} />
+        <DetailRow
+          label={SAMPLE_TEXT.rejectionReasonLabel}
+          value={specimen.rejectionReason.replace(/_/g, ' ')}
+        />
       )}
       {specimen.rejectionNote ? (
         <>
           <View style={styles.divider} />
-          <DetailRow label="Note" value={specimen.rejectionNote} />
+          <DetailRow label={SAMPLE_TEXT.rejectionNoteLabel} value={specimen.rejectionNote} />
         </>
       ) : null}
       {specimen.rejectedAt && (
         <>
           <View style={styles.divider} />
-          <DetailRow label="Rejected At" value={formatDateTime(specimen.rejectedAt)} />
+          <DetailRow
+            label={SAMPLE_TEXT.rejectedAtLabel}
+            value={formatDateTime(specimen.rejectedAt)}
+          />
         </>
       )}
     </View>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import { ReportIllustration } from '../../../../src/features/reports/components/ReportIllustration';
+import { ReportIllustration } from '../../../../src/features/reports/components/report-illustration';
 import type { ReportCategory } from '../../../../src/features/reports/types';
 
 function iconNames(category: ReportCategory): string[] {

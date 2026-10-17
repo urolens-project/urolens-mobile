@@ -6,6 +6,7 @@ import type AnalysisResult from '@db/models/AnalysisResult';
 
 import { RESULT_COLUMNS } from '@features/sample/constants';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
 import { useConfirmAction } from './useConfirmAction';
 import type { ConfirmActionResult } from './useConfirmAction';
 import type { AIFindingEntry } from '../types';
@@ -66,7 +67,8 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
   }, [resultId]);
 
   const confirmResult = useCallback(async (): Promise<ConfirmActionResult> => {
-    if (!result) return { status: 'failed', message: 'Result not found. Please retry.' };
+    if (!result)
+      return { status: 'failed', message: RESULT_CONFIRMATION_TEXT.resultNotFoundRetryMessage };
     return confirmAction(result);
   }, [result, confirmAction]);
 

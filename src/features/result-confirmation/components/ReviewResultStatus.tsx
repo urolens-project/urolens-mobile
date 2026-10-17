@@ -1,5 +1,7 @@
 import { ResultStatusBanner } from '@features/sample/components/ResultStatusBanner';
 
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
+
 export interface ReviewResultStatusProps {
   status: string;
   returnReason: string | null;
@@ -15,41 +17,42 @@ export function ReviewResultStatus({
   returnReason,
   isDetailAvailable,
 }: ReviewResultStatusProps): React.JSX.Element | null {
+  const reviewStatusText = RESULT_CONFIRMATION_TEXT.reviewStatus;
   const missingReason = isDetailAvailable
-    ? 'The supervisor returned this result without a reason. Contact the supervisor before correcting it.'
-    : 'Connect and pull down to refresh to view the supervisor’s correction reason.';
+    ? reviewStatusText.missingReasonWithDetail
+    : reviewStatusText.missingReasonWithoutDetail;
   if (status === 'RETURNED_FOR_CORRECTION')
     return (
       <ResultStatusBanner
         variant="correction"
-        title="Returned for Correction"
+        title={reviewStatusText.returnedForCorrectionTitle}
         body={returnReason || missingReason}
       />
     );
   if (status === 'PENDING_SUPERVISOR_APPROVAL')
-    return <ResultStatusBanner variant="pending" title="Awaiting supervisor review." />;
+    return <ResultStatusBanner variant="pending" title={reviewStatusText.pendingSupervisorTitle} />;
   if (status === 'APPROVED')
     return (
       <ResultStatusBanner
         variant="approved"
-        title="Approved by Supervisor"
-        body="This result is ready for release."
+        title={reviewStatusText.approvedTitle}
+        body={reviewStatusText.approvedBody}
       />
     );
   if (status === 'RELEASED')
     return (
       <ResultStatusBanner
         variant="released"
-        title="Result Released"
-        body="This result has been released to the patient."
+        title={reviewStatusText.releasedTitle}
+        body={reviewStatusText.releasedBody}
       />
     );
   if (status === 'CRITICAL_ESCALATED')
     return (
       <ResultStatusBanner
         variant="escalated"
-        title="Critical / Escalated"
-        body="The supervisor has escalated this result for urgent review."
+        title={reviewStatusText.escalatedTitle}
+        body={reviewStatusText.escalatedBody}
       />
     );
   return null;

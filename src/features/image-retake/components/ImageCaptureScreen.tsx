@@ -35,8 +35,9 @@ import { colors } from '@src/theme';
 import { CameraPermissionRequest } from './CameraPermissionRequest';
 import { CameraUnavailableView } from './CameraUnavailableView';
 import { CameraLiveView } from './CameraLiveView';
-import { ImagePreviewPanel } from './ImagePreviewPanel';
+import { ImagePreviewPanel } from './image-preview-panel';
 import { UploadProgressView } from './UploadProgressView';
+import { IMAGE_RETAKE_TEXT } from '../constants/imageRetakeText.constant';
 import { saveUploadedResult } from '../lib/saveUploadedResult';
 
 type ScreenPhase = 'idle' | 'previewing' | 'uploading' | 'discarding';
@@ -88,7 +89,7 @@ export function ImageCaptureScreen({
       if (isImageValidationError(err)) {
         setValidationError(err.message);
       } else {
-        setValidationError('Failed to capture image. Please try again.');
+        setValidationError(IMAGE_RETAKE_TEXT.captureFailedMessage);
       }
     }
   }, []);
@@ -101,8 +102,8 @@ export function ImageCaptureScreen({
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
-          'Gallery Access Denied',
-          'UroLens could not access your photo library. Allow Photos access in Settings, or take a photo instead.',
+          IMAGE_RETAKE_TEXT.galleryAccessDeniedTitle,
+          IMAGE_RETAKE_TEXT.galleryAccessDeniedMessage,
         );
         return;
       }
@@ -123,7 +124,7 @@ export function ImageCaptureScreen({
       if (isImageValidationError(err)) {
         setValidationError(err.message);
       } else {
-        setValidationError('Could not process the selected image. Please try another.');
+        setValidationError(IMAGE_RETAKE_TEXT.galleryPickFailedMessage);
       }
     }
   }, []);
@@ -134,14 +135,14 @@ export function ImageCaptureScreen({
     if (!processed) return;
     if (!specimenId) {
       Alert.alert(
-        'Missing Specimen ID',
-        'The specimen server ID was not passed to this screen. Go back and try again.',
+        IMAGE_RETAKE_TEXT.missingSpecimenIdTitle,
+        IMAGE_RETAKE_TEXT.missingSpecimenIdMessage,
       );
       return;
     }
 
     if (!isOnline) {
-      setValidationError('A connection is required to upload this image. Connect and try again.');
+      setValidationError(IMAGE_RETAKE_TEXT.offlineUploadBlockedMessage);
       return;
     }
 
@@ -164,7 +165,7 @@ export function ImageCaptureScreen({
       });
     } catch (err: unknown) {
       const msg = getUploadErrorMessage(err);
-      Alert.alert('Upload Failed', msg);
+      Alert.alert(IMAGE_RETAKE_TEXT.uploadFailedTitle, msg);
       setValidationError(msg);
       setPhase('previewing');
     }
@@ -196,7 +197,7 @@ export function ImageCaptureScreen({
     } catch {
       setShowDiscardModal(false);
       setPhase('previewing');
-      Alert.alert('Error', 'Could not discard the image. Please try again.');
+      Alert.alert(IMAGE_RETAKE_TEXT.discardFailedTitle, IMAGE_RETAKE_TEXT.discardFailedMessage);
     }
   }, [existingImageId]);
 
@@ -209,9 +210,7 @@ export function ImageCaptureScreen({
   }, []);
 
   const handleCameraMountError = useCallback((): void => {
-    setCameraError(
-      'The camera could not be started on this device. You can still upload an image from the gallery.',
-    );
+    setCameraError(IMAGE_RETAKE_TEXT.cameraMountErrorMessage);
   }, []);
 
   // ── Permission gate ───────────────────────────────────────────────────────
@@ -285,7 +284,7 @@ function getUploadErrorMessage(err: unknown): string {
     const message = (err as { message?: unknown }).message;
     if (typeof message === 'string' && message) return message;
   }
-  return 'Upload failed. Please check your connection and try again.';
+  return IMAGE_RETAKE_TEXT.uploadFailedFallbackMessage;
 }
 
 const styles = StyleSheet.create({

@@ -2,6 +2,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
+import { ALERTS_TEXT } from '../constants/alertsText.constant';
+
 export interface AlertsHeaderProps {
   unreadCount: number;
   showUnreadOnly: boolean;
@@ -26,7 +28,7 @@ export function AlertsHeader({
   return (
     <View style={styles.header}>
       <View style={styles.titleRow}>
-        <Text style={styles.headerTitle}>Alerts</Text>
+        <Text style={styles.headerTitle}>{ALERTS_TEXT.title}</Text>
         {unreadCount > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{unreadCount}</Text>
@@ -40,13 +42,13 @@ export function AlertsHeader({
           onPress={onToggleUnreadOnly}
         >
           <Text style={[styles.filterChipText, showUnreadOnly && styles.filterChipTextActive]}>
-            Unread only
+            {ALERTS_TEXT.unreadOnlyLabel}
           </Text>
         </Pressable>
 
         {unreadCount > 0 && (
           <Pressable onPress={onMarkAllRead}>
-            <Text style={styles.markAllText}>Mark all as read</Text>
+            <Text style={styles.markAllText}>{ALERTS_TEXT.markAllReadLabel}</Text>
           </Pressable>
         )}
       </View>
