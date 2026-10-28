@@ -39,7 +39,7 @@ export const IMAGE_RETAKE_TEXT = {
   discardFailedMessage: 'Could not discard the image. Please try again.',
   uploadFailedFallbackMessage: 'Upload failed. Please check your connection and try again.',
 
-  // DiscardConfirmationModal
+  // DiscardConfirmationModal — legacy single-image retake path only (existingImageId set)
   discardModalTitle: 'Discard this image?',
   discardModalBody:
     'The current image and its AI analysis will be discarded. You will need to recapture a new specimen image. This action cannot be undone.',

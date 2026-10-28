@@ -143,6 +143,39 @@ export async function buildUploadFormData(
   return form;
 }
 
+/**
+ * @description Builds a FormData object ready for the multipart POST /fields (one
+ * captured microscope field). Same web/native Blob handling as buildUploadFormData.
+ * @param image - Processed image to upload.
+ * @param specimenId - Specimen the field belongs to.
+ * @param magnification - Objective used for this field, HPF or LPF.
+ */
+export async function buildFieldUploadFormData(
+  image: ProcessedImage,
+  specimenId: string,
+  magnification: 'HPF' | 'LPF',
+): Promise<FormData> {
+  const form = new FormData();
+  // Matches the backend's POST /fields multipart fields (api/fields.py): snake_case
+  // specimen_id, plain magnification — the same one deviation from camelCase as
+  // the single-image upload route.
+  form.append('specimen_id', specimenId);
+  form.append('magnification', magnification);
+
+  if (Platform.OS === 'web') {
+    const blob = await fetch(image.uri).then((r) => r.blob());
+    form.append('file', new File([blob], image.filename, { type: image.mimeType }));
+  } else {
+    form.append('file', {
+      uri: image.uri,
+      name: image.filename,
+      type: image.mimeType,
+    } as unknown as Blob);
+  }
+
+  return form;
+}
+
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 async function processUri(uri: string, filenameStem: string): Promise<ProcessedImage> {
