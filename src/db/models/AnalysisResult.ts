@@ -16,6 +16,26 @@ export interface AIFindings {
   [particle: string]: number;
 }
 
+/** Class name to count; see ResultField for the multi-field workflow's per-field use. */
+export type ParticleCounts = Record<string, number>;
+
+export interface FieldSummaryAggregate {
+  mean: number;
+  min: number;
+  max: number;
+  total: number;
+  fieldsSeen: number;
+  aiMean: number;
+  displayValue: string;
+  fieldsAboveNormal?: number[];
+}
+
+export interface FieldSummary {
+  fieldCount: number;
+  perClass: Record<string, FieldSummaryAggregate>;
+  focalFindings?: { particleType: string; fieldNos: number[] }[];
+}
+
 export interface ConditionScore {
   level: 'LOW' | 'MODERATE' | 'HIGH';
   weighted_score: number;
@@ -50,6 +70,10 @@ export default class AnalysisResult extends Model {
   @field('is_synced') isSynced!: boolean;
   @field('created_at') createdAt!: number;
   @field('synced_at') syncedAt!: string | null;
+  // Multi-field workflow (SDD Module 2 proposal); null/0 for a legacy
+  // single-image result.
+  @field('field_count') fieldCount!: number | null;
+  @field('field_summary_json') fieldSummaryJson!: string | null;
 
   // Computed getter — parses JSONB string safely
   get aiFindings(): AIFindings {
@@ -82,5 +106,15 @@ export default class AnalysisResult extends Model {
 
   get isConfirmed(): boolean {
     return this.status === 'PENDING_SUPERVISOR_APPROVAL' || this.status === 'APPROVED';
+  }
+
+  // Computed getter — the final per-class averages stored at confirmation, parsed safely
+  get fieldSummary(): FieldSummary | null {
+    if (!this.fieldSummaryJson) return null;
+    try {
+      return JSON.parse(this.fieldSummaryJson) as FieldSummary;
+    } catch {
+      return null;
+    }
   }
 }
