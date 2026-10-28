@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView } from 'expo-camera';
 
@@ -9,6 +9,14 @@ import { Icon } from '@components/Icon';
 
 import { IMAGE_RETAKE_TEXT } from '../constants/imageRetakeText.constant';
 
+export interface FieldSessionInfo {
+  acceptedCount: number;
+  minFields: number;
+  magnification: 'HPF' | 'LPF';
+  onToggleMagnification: () => void;
+  thumbnails: string[];
+}
+
 export interface CameraLiveViewProps {
   cameraRef: RefObject<CameraView | null>;
   validationError: string | null;
@@ -16,6 +24,10 @@ export interface CameraLiveViewProps {
   onGoBack: () => void;
   onGalleryPick: () => void;
   onCapture: () => void;
+  /** Multi-field capture session only (SDD Module 2 proposal) — field counter,
+   * magnification switch and accepted-field thumbnail strip. Omitted entirely on
+   * the legacy single-image retake path. */
+  fieldSession?: FieldSessionInfo;
 }
 
 /**
@@ -29,6 +41,7 @@ export function CameraLiveView({
   onGoBack,
   onGalleryPick,
   onCapture,
+  fieldSession,
 }: CameraLiveViewProps): React.JSX.Element {
   return (
     <SafeAreaView style={styles.container}>
@@ -53,16 +66,40 @@ export function CameraLiveView({
             <Icon name="close" size={22} color="rgba(255,255,255,0.9)" />
           </TouchableOpacity>
           <Text style={styles.cameraTitle}>{IMAGE_RETAKE_TEXT.cameraTitle}</Text>
-          <View style={styles.headerSpacer} />
+          {fieldSession ? (
+            <Text style={styles.fieldCounter}>
+              {fieldSession.acceptedCount} of {fieldSession.minFields}
+            </Text>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
         </View>
 
         <View style={styles.instructionBanner}>
           <Text style={styles.instructionText}>{IMAGE_RETAKE_TEXT.cameraInstructionText}</Text>
         </View>
 
+        {fieldSession && (
+          <TouchableOpacity
+            style={styles.magnificationSwitch}
+            onPress={fieldSession.onToggleMagnification}
+            testID="magnification-switch"
+          >
+            <Text style={styles.magnificationText}>{fieldSession.magnification}</Text>
+          </TouchableOpacity>
+        )}
+
         {validationError && (
           <View style={styles.errorBannerCamera}>
             <Text style={styles.errorText}>{validationError}</Text>
+          </View>
+        )}
+
+        {fieldSession && fieldSession.thumbnails.length > 0 && (
+          <View style={styles.thumbnailStrip}>
+            {fieldSession.thumbnails.map((uri, index) => (
+              <Image key={`${uri}-${index}`} source={{ uri }} style={styles.thumbnail} />
+            ))}
           </View>
         )}
 
@@ -108,6 +145,37 @@ const styles = StyleSheet.create({
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerSpacer: { width: 40 },
   cameraTitle: { ...typography.title, color: colors.white },
+  fieldCounter: {
+    ...typography.subtitle,
+    color: colors.tealAlt,
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  magnificationSwitch: {
+    position: 'absolute',
+    top: spacing.jumbo + spacing.xxxl,
+    right: spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  magnificationText: { ...typography.label, color: colors.white },
+  thumbnailStrip: {
+    position: 'absolute',
+    bottom: spacing.jumbo + spacing.huge + spacing.xxl,
+    left: spacing.xl,
+    right: spacing.xl,
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  thumbnail: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.xs,
+    borderWidth: 1,
+    borderColor: colors.tealAlt,
+  },
   instructionBanner: {
     backgroundColor: 'rgba(0,0,0,0.5)',
     marginHorizontal: spacing.xxl,

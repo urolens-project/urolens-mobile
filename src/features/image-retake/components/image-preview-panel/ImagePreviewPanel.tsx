@@ -9,16 +9,21 @@ import { Icon } from '@components/Icon';
 import { IMAGE_RETAKE_TEXT } from '../../constants/imageRetakeText.constant';
 import { DiscardConfirmationModal } from './DiscardConfirmationModal';
 
+// Modal is invisible when showDiscardModal is false, so this is never actually invoked.
+function noop(): void {}
+
 export interface ImagePreviewPanelProps {
   processed: ProcessedImage;
   validationError: string | null;
-  showDiscardModal: boolean;
-  isDiscarding: boolean;
+  /** Legacy single-image retake path only (existingImageId set). A fresh
+   * multi-field capture's Retake just resets to idle — no modal, no props needed. */
+  showDiscardModal?: boolean;
+  isDiscarding?: boolean;
   onGoBack: () => void;
   onRetake: () => void;
   onUseImage: () => void;
-  onDiscardConfirm: () => void;
-  onDiscardCancel: () => void;
+  onDiscardConfirm?: () => void;
+  onDiscardCancel?: () => void;
 }
 
 /**
@@ -28,8 +33,8 @@ export interface ImagePreviewPanelProps {
 export function ImagePreviewPanel({
   processed,
   validationError,
-  showDiscardModal,
-  isDiscarding,
+  showDiscardModal = false,
+  isDiscarding = false,
   onGoBack,
   onRetake,
   onUseImage,
@@ -89,8 +94,8 @@ export function ImagePreviewPanel({
       <DiscardConfirmationModal
         visible={showDiscardModal}
         isLoading={isDiscarding}
-        onConfirm={onDiscardConfirm}
-        onCancel={onDiscardCancel}
+        onConfirm={onDiscardConfirm ?? noop}
+        onCancel={onDiscardCancel ?? noop}
       />
     </SafeAreaView>
   );
