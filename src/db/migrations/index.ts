@@ -1,6 +1,7 @@
 import {
   schemaMigrations,
   addColumns,
+  createTable,
   unsafeExecuteSql,
 } from '@nozbe/watermelondb/Schema/migrations';
 
@@ -143,6 +144,54 @@ export default schemaMigrations({
         unsafeExecuteSql(
           'create index if not exists "specimens__status" on "specimens" ("_status");',
         ),
+      ],
+    },
+    {
+      toVersion: 7,
+      steps: [
+        // ── Multi-field workflow foundation (SDD Module 2 proposal) ──────────
+        // Purely additive: new tables and nullable columns only, nothing here
+        // changes existing behavior. See src/db/schema.ts for column notes.
+        addColumns({
+          table: 'analysis_results',
+          columns: [
+            { name: 'field_count', type: 'number', isOptional: true },
+            { name: 'field_summary_json', type: 'string', isOptional: true },
+          ],
+        }),
+        createTable({
+          name: 'result_fields',
+          columns: [
+            { name: 'server_id', type: 'string', isOptional: true },
+            { name: 'result_id', type: 'string' },
+            { name: 'specimen_id', type: 'string' },
+            { name: 'image_id', type: 'string', isOptional: true },
+            { name: 'field_no', type: 'number' },
+            { name: 'magnification', type: 'string' },
+            { name: 'status', type: 'string' },
+            { name: 'ai_findings_json', type: 'string' },
+            { name: 'effective_counts_json', type: 'string' },
+            { name: 'confidence_scores_json', type: 'string' },
+            { name: 'image_width', type: 'number' },
+            { name: 'image_height', type: 'number' },
+            { name: 'smart_diagnosis_json', type: 'string', isOptional: true },
+            { name: 'smart_diagnosis_unavailable', type: 'boolean' },
+            { name: 'local_image_uri', type: 'string', isOptional: true },
+            { name: 'version', type: 'number', isOptional: true },
+            { name: 'is_synced', type: 'boolean' },
+            { name: 'created_at', type: 'number' },
+            { name: 'synced_at', type: 'string', isOptional: true },
+          ],
+        }),
+        createTable({
+          name: 'field_detections',
+          columns: [
+            { name: 'field_id', type: 'string', isIndexed: true },
+            { name: 'detections_json', type: 'string' },
+            { name: 'image_width', type: 'number' },
+            { name: 'image_height', type: 'number' },
+          ],
+        }),
       ],
     },
   ],
