@@ -1,6 +1,6 @@
 import { apiClient } from '@lib/apiClient';
 
-import type { FieldActionResponseDto } from '../types';
+import type { FieldActionResponseDto, ResultStatusResponseDto } from '../types';
 
 /**
  * @description Field-lifecycle calls for the multi-field capture workflow.
@@ -31,6 +31,18 @@ export const fieldCaptureApi = {
       .post<FieldActionResponseDto>(`/fields/${fieldId}/discard`, reason ? { reason } : undefined, {
         signal,
       })
+      .then((res) => res.data);
+  },
+
+  /**
+   * @description Submit for Verification: moves the result from CAPTURING to
+   * PENDING_CONFIRM once at least the minimum fields are accepted and none left undecided.
+   * @param resultId - Server id of the result.
+   * @param signal - Aborts the request if the screen unmounts mid-flight.
+   */
+  submitFields(resultId: string, signal?: AbortSignal): Promise<ResultStatusResponseDto> {
+    return apiClient
+      .post<ResultStatusResponseDto>(`/results/${resultId}/fields/submit`, undefined, { signal })
       .then((res) => res.data);
   },
 };

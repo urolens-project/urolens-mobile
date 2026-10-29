@@ -23,4 +23,19 @@ export const FIELD_CAPTURE_TEXT = {
   offlineUploadBlockedMessage:
     'A connection is required to upload this field. Connect and try again.',
   uploadFailedFallbackMessage: 'Upload failed. Please check your connection and try again.',
+
+  // FieldListScreen
+  fieldListTitle: 'Fields',
+  captureMoreLabel: 'Capture More Fields',
+  submitForVerificationLabel: 'Submit for Verification',
+  submittingLabel: 'Submitting…',
+  undecidedFieldsBlockedMessage: (count: number): string =>
+    `${count} field${count === 1 ? '' : 's'} not reviewed.`,
+  belowMinimumBlockedMessage: (acceptedCount: number, minFields: number): string =>
+    `${acceptedCount} of ${minFields} fields accepted.`,
+  submitOfflineBlockedMessage: 'Connect to submit.',
+  submitFailedTitle: 'Submit Failed',
+  submitSucceededTitle: 'Submitted for Verification',
+  submitSucceededMessage: 'Continue on the website to verify and confirm this result.',
+  emptyFieldListMessage: 'No fields captured yet.',
 } as const;

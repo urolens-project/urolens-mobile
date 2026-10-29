@@ -14,6 +14,7 @@ export interface FieldSessionInfo {
   minFields: number;
   magnification: 'HPF' | 'LPF';
   onToggleMagnification: () => void;
+  onViewFieldList: () => void;
   thumbnails: string[];
 }
 
@@ -67,9 +68,14 @@ export function CameraLiveView({
           </TouchableOpacity>
           <Text style={styles.cameraTitle}>{IMAGE_RETAKE_TEXT.cameraTitle}</Text>
           {fieldSession ? (
-            <Text style={styles.fieldCounter}>
-              {fieldSession.acceptedCount} of {fieldSession.minFields}
-            </Text>
+            <TouchableOpacity
+              onPress={fieldSession.onViewFieldList}
+              testID="view-field-list-button"
+            >
+              <Text style={styles.fieldCounter}>
+                {fieldSession.acceptedCount} of {fieldSession.minFields}
+              </Text>
+            </TouchableOpacity>
           ) : (
             <View style={styles.headerSpacer} />
           )}
