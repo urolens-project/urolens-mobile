@@ -23,7 +23,7 @@ import {
   FINISHED_RESULT_STATUSES,
   RETURNED_RESULT_STATUS,
 } from '../lib/queueQuery';
-import { dedupeQueueItems, sameIds, specimenToQueueItem } from '../lib/queueItemMapping';
+import { dedupeQueueItems, sameIds, sameMap, specimenToQueueItem } from '../lib/queueItemMapping';
 import type { FilterOption, QueueItem } from '../types';
 
 type QueueSource = 'items' | 'totals' | 'results';
@@ -61,6 +61,12 @@ export function useQueue(): UseQueueResult {
   const [returnedServerIds, setReturnedServerIds] = useState<string[]>([]);
   const [finishedServerIds, setFinishedServerIds] = useState<string[]>([]);
   const [returnReasons, setReturnReasons] = useState<Map<string, string | null>>(new Map());
+  const [resultStatusByServerId, setResultStatusByServerId] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const [fieldCountByServerId, setFieldCountByServerId] = useState<Map<string, number | null>>(
+    new Map(),
+  );
   const pageCount = Math.max(1, Math.ceil(filteredItems.length / QUEUE_PAGE_SIZE));
   const page = Math.min(requestedPage, pageCount);
   const items = useMemo((): QueueItem[] => {
@@ -112,7 +118,15 @@ export function useQueue(): UseQueueResult {
           .query(...buildQuery(filter, returnedServerIds, finishedServerIds)),
       (specimens): void => {
         const next = dedupeQueueItems(
-          specimens.map((specimen): QueueItem => specimenToQueueItem(specimen, returnedSet)),
+          specimens.map(
+            (specimen): QueueItem =>
+              specimenToQueueItem(
+                specimen,
+                returnedSet,
+                resultStatusByServerId,
+                fieldCountByServerId,
+              ),
+          ),
         );
         setFilteredItems(filter === 'ALL' || filter === 'STATUS' ? orderByStatus(next) : next);
         handleSourceLoaded('items');
@@ -127,6 +141,8 @@ export function useQueue(): UseQueueResult {
     filter,
     returnedServerIds,
     finishedServerIds,
+    resultStatusByServerId,
+    fieldCountByServerId,
     reloadKey,
     handleSourceLoaded,
     handleSourceError,
@@ -140,7 +156,15 @@ export function useQueue(): UseQueueResult {
       (specimens): void => {
         setAllItems(
           dedupeQueueItems(
-            specimens.map((specimen): QueueItem => specimenToQueueItem(specimen, returnedSet)),
+            specimens.map(
+              (specimen): QueueItem =>
+                specimenToQueueItem(
+                  specimen,
+                  returnedSet,
+                  resultStatusByServerId,
+                  fieldCountByServerId,
+                ),
+            ),
           ),
         );
         handleSourceLoaded('totals');
@@ -151,7 +175,15 @@ export function useQueue(): UseQueueResult {
       },
     );
     return (): void => subscription.unsubscribe();
-  }, [returnedServerIds, finishedServerIds, reloadKey, handleSourceLoaded, handleSourceError]);
+  }, [
+    returnedServerIds,
+    finishedServerIds,
+    resultStatusByServerId,
+    fieldCountByServerId,
+    reloadKey,
+    handleSourceLoaded,
+    handleSourceError,
+  ]);
 
   useEffect((): (() => void) => {
     const subscription = observeQuery(
@@ -178,6 +210,20 @@ export function useQueue(): UseQueueResult {
               result.returnReason ?? null,
             ]),
           ),
+        );
+        const nextResultStatus = new Map(
+          latest.map((result): [string, string] => [result.specimenId, result.status]),
+        );
+        setResultStatusByServerId(
+          (previous): Map<string, string> =>
+            sameMap(previous, nextResultStatus) ? previous : nextResultStatus,
+        );
+        const nextFieldCount = new Map(
+          latest.map((result): [string, number | null] => [result.specimenId, result.fieldCount]),
+        );
+        setFieldCountByServerId(
+          (previous): Map<string, number | null> =>
+            sameMap(previous, nextFieldCount) ? previous : nextFieldCount,
         );
         handleSourceLoaded('results');
       },
