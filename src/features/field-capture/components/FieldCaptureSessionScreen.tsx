@@ -160,15 +160,25 @@ export function FieldCaptureSessionScreen({
     setPhase('uploading');
     setUploadProgress(0);
 
-    const field = await captureField(specimenId, processed, magnification, setUploadProgress);
-    if (!field) {
-      setValidationError(FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage);
+    const outcome = await captureField(specimenId, processed, magnification, setUploadProgress);
+    if (!outcome || outcome.status === 'failed') {
+      // A real analysis failure: keep the image, let the MedTech retry the upload
+      // without recapturing.
+      setValidationError(outcome?.message ?? FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage);
       setPhase('previewing');
       return;
     }
+    if (outcome.status === 'retake') {
+      // The engine's input gate refused this exact photo — retrying the upload
+      // would fail the same way again, so go back to the camera instead.
+      setProcessed(null);
+      setValidationError(outcome.message);
+      setPhase('idle');
+      return;
+    }
 
-    setMinFields(field.minFields);
-    setCapturedField(field);
+    setMinFields(outcome.field.minFields);
+    setCapturedField(outcome.field);
     setPhase('fieldResult');
   }, [captureField, isOnline, magnification, processed, specimenId]);
 

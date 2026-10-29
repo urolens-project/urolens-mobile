@@ -26,6 +26,7 @@ const FIELD_LIST_COLUMNS = [
   'status',
   'ai_findings_json',
   'local_image_uri',
+  'discard_reason',
 ];
 
 /**

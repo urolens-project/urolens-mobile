@@ -38,6 +38,10 @@ export default class ResultField extends Model {
   @field('is_synced') isSynced!: boolean;
   @field('created_at') createdAt!: number;
   @field('synced_at') syncedAt!: string | null;
+  // Set when the system discards a field automatically (a queued offline
+  // capture refused as IMAGE_NOT_MICROSCOPY / IMAGE_EXPOSURE); null for a
+  // MedTech's own discard decision.
+  @field('discard_reason') discardReason!: string | null;
 
   // Computed getter — parses the AI count-per-class JSON safely
   get aiFindings(): ParticleCounts {

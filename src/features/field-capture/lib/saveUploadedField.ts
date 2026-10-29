@@ -222,6 +222,26 @@ export async function createQueuedFieldUpload(
 }
 
 /**
+ * @description Resolves a queued field the engine's input gate refused outright
+ * (IMAGE_NOT_MICROSCOPY / IMAGE_EXPOSURE) — marks it DISCARDED with the reason, so
+ * it comes off the field list's backlog instead of sitting stuck with no further
+ * action possible (there is no server id to retry or discard it through).
+ * @param localFieldId - Local WatermelonDB id of the PENDING_UPLOAD placeholder row.
+ * @param reason - The engine's retake instruction, shown as the discard reason.
+ */
+export async function discardQueuedField(localFieldId: string, reason: string): Promise<void> {
+  await database.write(async () => {
+    const field = await database.get<ResultField>('result_fields').find(localFieldId);
+    await field.update((f) => {
+      f.status = 'DISCARDED';
+      f.discardReason = reason;
+      f.isSynced = true;
+      f.syncedAt = new Date().toISOString();
+    });
+  });
+}
+
+/**
  * @description Turns a PENDING_UPLOAD placeholder into a real, decidable field once its
  * queued upload succeeds (the offline-replay path, run from pushChanges.ts) — same
  * shape of write as saveUploadedField, but an update of the existing local row rather

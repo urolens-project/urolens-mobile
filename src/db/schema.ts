@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 7,
+  version: 8,
   tables: [
     tableSchema({
       name: 'specimens',
@@ -120,6 +120,11 @@ export const schema = appSchema({
         { name: 'is_synced', type: 'boolean' },
         { name: 'created_at', type: 'number' },
         { name: 'synced_at', type: 'string', isOptional: true },
+        // Set when the system discards a field automatically — a queued
+        // offline capture the engine's input gate refused (IMAGE_NOT_MICROSCOPY
+        // / IMAGE_EXPOSURE) — so the field list can show why, distinct from a
+        // MedTech's own discard decision. Null for every other discard.
+        { name: 'discard_reason', type: 'string', isOptional: true },
       ],
     }),
     // Device-only cache of one field's AI boxes, so a field shows its
