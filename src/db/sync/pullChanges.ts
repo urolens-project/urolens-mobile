@@ -5,6 +5,7 @@ import { apiClient } from '@lib/apiClient';
 
 import { resolveConflict, applyResolution } from './conflictResolver';
 import { dedupeByServerId } from './dedupeByServerId';
+import { cleanUpFinishedFields } from './fieldCleanup';
 import { throwIfSyncCancelled } from './syncCancellation';
 
 interface TableChanges {
@@ -88,6 +89,10 @@ export async function pullChanges(
     await dedupeByServerId('analysis_results');
     await dedupeByServerId('manual_overrides');
     await dedupeByServerId('result_fields');
+
+    // Multi-field workflow (SDD Module 2 proposal): frees a finished result's
+    // field images and AI boxes from local storage. No-op once already clean.
+    await cleanUpFinishedFields();
   });
 
   throwIfSyncCancelled(signal);
