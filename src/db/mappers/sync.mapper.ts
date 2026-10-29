@@ -63,6 +63,10 @@ export function mapServerToLocal(table: string, record: ServerRecord): Record<st
         approvedAt: record['approved_at'] ?? null,
         releasedAt: record['released_at'] ?? null,
         returnReason: record['return_reason'] ?? null,
+        // Multi-field workflow (SDD Module 2 proposal); absent while
+        // FIELD_WORKFLOW_ENABLED is off server-side, or for a legacy result.
+        fieldCount: record['field_count'] ?? null,
+        fieldSummaryJson: record['field_summary'] ? JSON.stringify(record['field_summary']) : null,
       };
 
     case 'manual_overrides':
@@ -78,6 +82,36 @@ export function mapServerToLocal(table: string, record: ServerRecord): Record<st
         overriddenBy: record['medtech_id'],
         isSynced: true,
         createdAt: Date.parse(record['overridden_at'] as string),
+      };
+
+    case 'result_fields':
+      // Unlike every table above, the published SyncResultField contract
+      // (sync_service.py's _fieldRow) is camelCase — the one deliberate
+      // exception, same as backend's own comment there says. It also has no
+      // top-level "id" (fieldId is the row's identity instead); pullChanges.ts
+      // aliases fieldId to id before this runs, so base.serverId is already
+      // correct. local_image_uri is never set here — a field pulled from
+      // elsewhere has no local file, and leaving the key out of this object
+      // preserves one this device already captured.
+      return {
+        ...base,
+        resultId: record['resultId'],
+        specimenId: record['specimenId'],
+        imageId: record['imageId'] ?? null,
+        fieldNo: record['fieldNo'],
+        magnification: record['magnification'],
+        status: record['status'],
+        aiFindingsJson: JSON.stringify(record['aiFindings'] ?? {}),
+        effectiveCountsJson: JSON.stringify(record['effectiveCounts'] ?? {}),
+        confidenceScoresJson: JSON.stringify(record['confidenceScores'] ?? {}),
+        imageWidth: record['imageWidth'],
+        imageHeight: record['imageHeight'],
+        smartDiagnosisJson: record['smartDiagnosisPreview']
+          ? JSON.stringify(record['smartDiagnosisPreview'])
+          : null,
+        smartDiagnosisUnavailable: record['smartDiagnosisUnavailable'] ?? false,
+        version: record['version'],
+        isSynced: true,
       };
 
     default:
