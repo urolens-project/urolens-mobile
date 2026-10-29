@@ -49,11 +49,12 @@ export interface FieldCaptureSessionScreenProps {
  * @description Runs a multi-field capture session for one specimen: capture, review
  * one field at a time (Proceed/Discard), repeat until the minimum is reached.
  * @param specimenId - Server specimen id, required to upload each field.
- * @param localSpecimenId - Local specimen id, kept for parity with the route params
- * (not yet used — Submit for Verification, a separate screen, navigates on from here).
+ * @param localSpecimenId - Local specimen id, passed through to the field list screen
+ * so Capture More Fields can return here.
  */
 export function FieldCaptureSessionScreen({
   specimenId,
+  localSpecimenId,
 }: FieldCaptureSessionScreenProps): React.JSX.Element {
   const { isOnline } = useNetworkStatus();
   const { captureField, isLoading: isUploading } = useFieldCapture();
@@ -202,6 +203,13 @@ export function FieldCaptureSessionScreen({
     setMagnification((m) => (m === 'HPF' ? 'LPF' : 'HPF'));
   }, []);
 
+  const handleViewFieldList = useCallback((): void => {
+    router.push({
+      pathname: '/(medtech)/field-list',
+      params: { specimenId, localSpecimenId, minFields: String(minFields) },
+    });
+  }, [localSpecimenId, minFields, specimenId]);
+
   const handleGoBack = useCallback((): void => {
     router.back();
   }, []);
@@ -282,6 +290,7 @@ export function FieldCaptureSessionScreen({
         minFields,
         magnification,
         onToggleMagnification: handleToggleMagnification,
+        onViewFieldList: handleViewFieldList,
         thumbnails,
       }}
     />

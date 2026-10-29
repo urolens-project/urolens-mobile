@@ -54,6 +54,27 @@ export interface FieldActionResponseDto {
   undecidedFieldCount: number;
 }
 
+/** Wire DTO for `POST /results/{id}/fields/submit` and reopen-capture. */
+export interface ResultStatusResponseDto {
+  resultId: string;
+  status: string;
+  updatedAt: string;
+}
+
+/** One row of the field list screen (SDD Module 2 proposal, transaction 2.3). */
+export interface FieldListItem {
+  /** Local WatermelonDB id of the result_fields row. */
+  localId: string;
+  fieldNo: number;
+  magnification: Magnification;
+  status: FieldStatus;
+  /** Local file, if this field was captured on this device; null for a field
+   * synced from elsewhere with no local image yet (not built until sync, Phase 3). */
+  thumbnailUri: string | null;
+  /** Sum of all AI counts for this field — a quick glance, not a full breakdown. */
+  particleCount: number;
+}
+
 /** UI model for the field a MedTech just captured, ready for Proceed/Discard. */
 export interface CapturedField {
   /** Local WatermelonDB id of the result_fields row — used for all further actions. */
