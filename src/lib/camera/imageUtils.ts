@@ -146,12 +146,15 @@ export async function buildUploadFormData(
 /**
  * @description Builds a FormData object ready for the multipart POST /fields (one
  * captured microscope field). Same web/native Blob handling as buildUploadFormData.
- * @param image - Processed image to upload.
+ * Takes only the three fields it actually uses, not the full ProcessedImage, so a
+ * queued offline capture — which only has the stored file's URI by the time it
+ * replays, not the original processing result — can call this too.
+ * @param image - The file to upload: its local URI, filename and MIME type.
  * @param specimenId - Specimen the field belongs to.
  * @param magnification - Objective used for this field, HPF or LPF.
  */
 export async function buildFieldUploadFormData(
-  image: ProcessedImage,
+  image: Pick<ProcessedImage, 'uri' | 'filename' | 'mimeType'>,
   specimenId: string,
   magnification: 'HPF' | 'LPF',
 ): Promise<FormData> {
