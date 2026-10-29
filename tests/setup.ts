@@ -143,6 +143,8 @@ jest.mock('@nozbe/watermelondb', () => {
     lte: jest.fn(noop),
     like: jest.fn(noop),
     notLike: jest.fn(noop),
+    oneOf: jest.fn(noop),
+    notIn: jest.fn(noop),
     sanitizeLikeString: jest.fn((s: string) => s),
     on: jest.fn(noop),
     relation: jest.fn(noop),
