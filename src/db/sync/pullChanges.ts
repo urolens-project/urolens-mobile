@@ -20,8 +20,19 @@ interface SyncChanges {
     queueAssignments?: TableChanges;
     analysisResults?: TableChanges;
     manualOverrides?: TableChanges;
+    /** Multi-field workflow (SDD Module 2 proposal) — absent entirely while
+     * FIELD_WORKFLOW_ENABLED is off server-side. */
+    resultFields?: TableChanges;
   };
   timestamp: string;
+}
+
+// resultFields rows have no top-level "id" — fieldId is their identity instead
+// (see sync_service.py's SyncResultField). Every other table's rows already
+// carry "id", so this alias is only needed here, right before the generic
+// create/update machinery (which reads record.id) runs on them.
+function withFieldIdAsId(records: ServerRecord[]): ServerRecord[] {
+  return records.map((record) => ({ ...record, id: record['fieldId'] as string }));
 }
 
 /**
@@ -63,6 +74,11 @@ export async function pullChanges(
       await processUpdates('manual_overrides', changes.manualOverrides.updated);
       await processDeletes('manual_overrides', changes.manualOverrides.deleted);
     }
+    if (changes.resultFields) {
+      await processCreates('result_fields', withFieldIdAsId(changes.resultFields.created));
+      await processUpdates('result_fields', withFieldIdAsId(changes.resultFields.updated));
+      await processDeletes('result_fields', changes.resultFields.deleted);
+    }
 
     // Defensive cleanup, every sync: collapses any duplicate local rows a
     // past (or future, unforeseen) sync bug may have left behind. No-op
@@ -71,6 +87,7 @@ export async function pullChanges(
     await dedupeByServerId('queue_assignments');
     await dedupeByServerId('analysis_results');
     await dedupeByServerId('manual_overrides');
+    await dedupeByServerId('result_fields');
   });
 
   throwIfSyncCancelled(signal);
