@@ -36,6 +36,7 @@ import { FieldResultScreen } from './FieldResultScreen';
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
 import { useFieldCapture } from '../hooks/useFieldCapture';
 import { useFieldActions } from '../hooks/useFieldActions';
+import { createQueuedFieldUpload } from '../lib/saveUploadedField';
 import type { CapturedField, Magnification } from '../types';
 
 type ScreenPhase = 'idle' | 'previewing' | 'uploading' | 'fieldResult';
@@ -140,8 +141,19 @@ export function FieldCaptureSessionScreen({
       );
       return;
     }
+
+    // Offline: no AI result is possible yet, so there's nothing to decide on.
+    // Queue the upload and get straight back to the camera for the next shot —
+    // this field joins the backlog on the field list once it's back online.
     if (!isOnline) {
-      setValidationError(FIELD_CAPTURE_TEXT.offlineUploadBlockedMessage);
+      await createQueuedFieldUpload(specimenId, magnification, processed.uri);
+      setProcessed(null);
+      setValidationError(null);
+      setPhase('idle');
+      Alert.alert(
+        FIELD_CAPTURE_TEXT.offlineCaptureQueuedTitle,
+        FIELD_CAPTURE_TEXT.offlineCaptureQueuedMessage,
+      );
       return;
     }
 

@@ -20,8 +20,6 @@ export const FIELD_CAPTURE_TEXT = {
   // Errors
   acceptFailedMessage: 'Could not accept this field. Please try again.',
   discardFailedMessage: 'Could not discard this field. Please try again.',
-  offlineUploadBlockedMessage:
-    'A connection is required to upload this field. Connect and try again.',
   uploadFailedFallbackMessage: 'Upload failed. Please check your connection and try again.',
 
   // FieldListScreen
@@ -38,4 +36,12 @@ export const FIELD_CAPTURE_TEXT = {
   submitSucceededTitle: 'Submitted for Verification',
   submitSucceededMessage: 'Continue on the website to verify and confirm this result.',
   emptyFieldListMessage: 'No fields captured yet.',
+  fieldDiscardedLabel: 'Discarded',
+  fieldWaitingToUploadLabel: 'Waiting to upload…',
+  fieldNeedsDecisionLabel: 'Needs your decision — tap to review',
+
+  // Offline capture backlog
+  offlineCaptureQueuedTitle: 'Saved',
+  offlineCaptureQueuedMessage:
+    'It will upload once you are back online — check the field list to decide on it then.',
 } as const;

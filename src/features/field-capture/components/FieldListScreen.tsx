@@ -3,7 +3,7 @@ import { Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import { colors, radius, spacing, typography } from '@src/theme';
+import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 import { Icon } from '@components/Icon';
@@ -51,6 +51,17 @@ export function FieldListScreen({
     });
   }, [localSpecimenId, specimenId]);
 
+  const handleOpenField = useCallback(
+    (item: FieldListItem): void => {
+      if (item.status !== 'ANALYZED') return;
+      router.push({
+        pathname: '/(medtech)/field-result',
+        params: { localFieldId: item.localId, specimenId, minFields: String(minFields) },
+      });
+    },
+    [minFields, specimenId],
+  );
+
   const handleSubmit = useCallback(async (): Promise<void> => {
     if (!resultServerId || blockingReason) return;
     const ok = await submitFields(resultServerId);
@@ -84,7 +95,7 @@ export function FieldListScreen({
       <FlatList
         data={fields}
         keyExtractor={(item) => item.localId}
-        renderItem={({ item }) => <FieldRow item={item} />}
+        renderItem={({ item }) => <FieldRow item={item} onPress={handleOpenField} />}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <Text style={styles.emptyText}>{FIELD_CAPTURE_TEXT.emptyFieldListMessage}</Text>
@@ -118,10 +129,29 @@ export function FieldListScreen({
 
 // ── Private sub-component ──────────────────────────────────────────────────────
 
-function FieldRow({ item }: { item: FieldListItem }): React.JSX.Element {
+interface FieldRowProps {
+  item: FieldListItem;
+  onPress: (item: FieldListItem) => void;
+}
+
+function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
   const isDiscarded = item.status === 'DISCARDED';
+  const isPendingUpload = item.status === 'PENDING_UPLOAD';
+  const needsDecision = item.status === 'ANALYZED';
+  const handlePress = useCallback((): void => onPress(item), [item, onPress]);
+
+  let subtitle = `${item.particleCount} particles`;
+  if (isDiscarded) subtitle = FIELD_CAPTURE_TEXT.fieldDiscardedLabel;
+  else if (isPendingUpload) subtitle = FIELD_CAPTURE_TEXT.fieldWaitingToUploadLabel;
+  else if (needsDecision) subtitle = FIELD_CAPTURE_TEXT.fieldNeedsDecisionLabel;
+
   return (
-    <View style={[styles.row, isDiscarded && styles.rowDiscarded]}>
+    <TouchableOpacity
+      style={[styles.row, isDiscarded && styles.rowDiscarded]}
+      onPress={handlePress}
+      disabled={!needsDecision}
+      activeOpacity={needsDecision ? 0.7 : 1}
+    >
       {item.thumbnailUri ? (
         <Image source={{ uri: item.thumbnailUri }} style={styles.thumbnail} />
       ) : (
@@ -131,11 +161,12 @@ function FieldRow({ item }: { item: FieldListItem }): React.JSX.Element {
         <Text style={styles.rowTitle}>
           Field {item.fieldNo} · {item.magnification}
         </Text>
-        <Text style={styles.rowSubtitle}>
-          {isDiscarded ? 'Discarded' : `${item.particleCount} particles`}
+        <Text style={[styles.rowSubtitle, needsDecision && styles.rowSubtitleAttention]}>
+          {subtitle}
         </Text>
       </View>
-    </View>
+      {needsDecision && <Icon name="chevron-forward" size={18} color={colors.indigo800} />}
+    </TouchableOpacity>
   );
 }
 
@@ -174,6 +205,7 @@ const styles = StyleSheet.create({
   rowDetails: { flex: 1 },
   rowTitle: { ...typography.label, color: colors.gray900 },
   rowSubtitle: { ...typography.caption, color: colors.gray500, marginTop: spacing.xxs },
+  rowSubtitleAttention: { color: colors.indigo800, fontWeight: fontWeight.semibold },
   footer: {
     padding: spacing.lg,
     gap: spacing.sm,

@@ -3,6 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@lib/apiClient';
 import { PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
 
+import { buildFieldUploadFormData } from '@lib/camera/imageUtils';
+import { uploadFieldViaXhr } from '@lib/camera/uploadField';
+import { applyFieldCaptureResponse } from '@features/field-capture/lib/saveUploadedField';
+import type { Magnification } from '@features/field-capture/types';
+import type ResultField from '../models/ResultField';
+
 import { database } from '../database';
 import type PendingSync from '../models/PendingSync';
 import { throwIfSyncCancelled } from './syncCancellation';
@@ -193,7 +199,49 @@ async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<
       await apiClient.post(`/images/${item.entityId}/discard`, undefined, { signal });
       break;
 
+    // Multi-field workflow (SDD Module 2 proposal). entityId is the field's
+    // server id for both — accept/discard only ever queue once a field has
+    // already uploaded (see useFieldActions.ts), so it always has one.
+    case PendingSyncAction.ACCEPT_FIELD:
+      await apiClient.post(`/fields/${item.entityId}/accept`, undefined, { signal });
+      break;
+
+    case PendingSyncAction.DISCARD_FIELD:
+      await apiClient.post(`/fields/${item.entityId}/discard`, payload, { signal });
+      break;
+
+    // Multi-field workflow: a field captured offline. Unlike every case above,
+    // entityId here is the *local* result_fields id, not a server id — there is
+    // no server id yet. See createQueuedFieldUpload (saveUploadedField.ts).
+    case PendingSyncAction.UPLOAD_IMAGE:
+      await uploadQueuedField(item, signal);
+      break;
+
     default:
       throw new Error(`[pushChanges] Unknown sync action: ${item.action}`);
   }
+}
+
+/**
+ * @description Replays a field captured while offline: uploads the file the capture
+ * screen already saved locally, then writes the response onto the same placeholder
+ * result_fields row (turning PENDING_UPLOAD into ANALYZED with real AI data), ready
+ * for the MedTech to decide on from the field list's backlog.
+ * @param item - The queued UPLOAD_IMAGE action; entityId is the local field id.
+ * @param signal - Aborts the upload if the account changes mid-sync.
+ */
+async function uploadQueuedField(item: PendingSync, signal?: AbortSignal): Promise<void> {
+  const field = await database.get<ResultField>('result_fields').find(item.entityId);
+  if (!field.localImageUri) {
+    throw new Error(`Field ${item.entityId} has no local image file to upload.`);
+  }
+
+  const filename = field.localImageUri.split('/').pop() ?? `field-${item.entityId}.jpg`;
+  const form = await buildFieldUploadFormData(
+    { uri: field.localImageUri, filename, mimeType: 'image/jpeg' },
+    field.specimenId,
+    field.magnification as Magnification,
+  );
+  const data = await uploadFieldViaXhr(form, signal ?? new AbortController().signal, () => {});
+  await applyFieldCaptureResponse(item.entityId, field.specimenId, data);
 }
