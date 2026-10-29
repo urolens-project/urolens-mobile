@@ -17,11 +17,13 @@ export const QUEUE_TEXT = {
   },
   proceedLabels: {
     continue: 'Continue',
+    continueCapturing: 'Continue Capturing',
     proceedToAnalysis: 'Proceed to Analysis',
   },
   itemCard: {
     returnedForCorrection: 'Returned for correction',
     selectHint: 'Select sample, then use Proceed or Continue to open its details.',
+    verifyOnWebsite: 'Continue on the website',
   },
   loadState: {
     errorTitle: 'Couldn’t load queue',
@@ -73,6 +75,16 @@ export function formatSelectedSampleLabel(sampleUid: string): string {
  */
 export function formatReturnReasonLabel(reason: string | null | undefined): string {
   return `Reason: ${reason ?? ''}`;
+}
+
+/**
+ * @description Formats the field progress shown on a CAPTURING queue card
+ * (SDD Module 2 proposal) — e.g. "7 of 10 fields".
+ * @param acceptedCount - Accepted field count so far.
+ * @param minFields - Minimum accepted fields required.
+ */
+export function formatFieldCounterLabel(acceptedCount: number, minFields: number): string {
+  return `${acceptedCount} of ${minFields} fields`;
 }
 
 /**
