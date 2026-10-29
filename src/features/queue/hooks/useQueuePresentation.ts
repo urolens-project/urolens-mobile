@@ -96,9 +96,13 @@ export function useQueuePresentation(): UseQueuePresentationResult {
   );
   const selectedStatus = selectedItem ? getQueueStatus(selectedItem) : null;
   const proceedLabel =
-    selectedStatus === 'PROCESSING' || selectedStatus === 'RETURNED'
-      ? QUEUE_TEXT.proceedLabels.continue
-      : QUEUE_TEXT.proceedLabels.proceedToAnalysis;
+    selectedStatus === 'CAPTURING'
+      ? QUEUE_TEXT.proceedLabels.continueCapturing
+      : selectedStatus === 'PROCESSING' ||
+          selectedStatus === 'RETURNED' ||
+          selectedStatus === 'VERIFYING'
+        ? QUEUE_TEXT.proceedLabels.continue
+        : QUEUE_TEXT.proceedLabels.proceedToAnalysis;
   const canRejectSelected =
     !!selectedItem &&
     getSampleActions(
@@ -116,7 +120,12 @@ export function useQueuePresentation(): UseQueuePresentationResult {
   const syncPill = getSyncPill({ isOnline, sync: syncStatus, lastSyncAt, failedActionCount });
   const stickyRest = getStickyRest(spacing.lg, topBlockHeight, spacing.mlg);
   const rowsTop = spacing.lg + listHeaderHeight;
-  const hasVariableRows = queue.items.some((item): boolean => item.isReturnedForCorrection);
+  // Rows that render an extra line beyond the base two (return reason, field
+  // progress, or the verify-on-website caption) need the variable-height path.
+  const hasVariableRows = queue.items.some((item): boolean => {
+    const itemStatus = getQueueStatus(item);
+    return item.isReturnedForCorrection || itemStatus === 'CAPTURING' || itemStatus === 'VERIFYING';
+  });
   const isFirstFocus = useRef(true);
   const scrollY = useRef(new Animated.Value(0)).current;
   const listRef = useRef<FlatList<QueueItem>>(null);
