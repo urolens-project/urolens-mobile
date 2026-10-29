@@ -1,29 +1,50 @@
 import type { QueueItem } from './types';
 
-export type QueueStatus = 'RETURNED' | 'PROCESSING' | 'ASSIGNED';
+export type QueueStatus = 'RETURNED' | 'CAPTURING' | 'PROCESSING' | 'ASSIGNED' | 'VERIFYING';
 
-// Display order, most in need of attention first.
+// Display order, most in need of attention first. CAPTURING ranks with the
+// legacy in-progress states (there's still work for the MedTech to do);
+// VERIFYING ranks last since nothing is left for them until web acts.
 const STATUS_RANK: Record<QueueStatus, number> = {
   RETURNED: 0,
-  PROCESSING: 1,
-  ASSIGNED: 2,
+  CAPTURING: 1,
+  PROCESSING: 2,
+  ASSIGNED: 3,
+  VERIFYING: 4,
 };
+
+// A result only ever gets a field_count once the multi-field capture flow has
+// touched it (see saveUploadedField.ts); null/0 means either no result yet or
+// a legacy single-image one, which the Queue continues to treat exactly as
+// before (SDD Module 2 proposal, section 2.1).
+function isMultiField(item: Pick<QueueItem, 'fieldCount'>): boolean {
+  return !!item.fieldCount && item.fieldCount > 0;
+}
 
 /**
  * @description The one status a Queue sample counts as. Every active sample is exactly
  * one of these, and the card badge, the stats counts, the status filters and the sort
  * order all use this same rule so they can never disagree:
- *  1. RETURNED — a Supervisor sent the result back for correction (SRS UC 3.4).
- *     That flag lives on the analysis result, and the specimen's own status is
- *     usually still ASSIGNED (or PROCESSING) at that point, so it has to win.
- *  2. PROCESSING — the MedTech has begun the analysis.
- *  3. ASSIGNED — waiting to be started.
+ *  1. RETURNED — a Supervisor sent a legacy single-image result back for correction
+ *     (SRS UC 3.4). That flag lives on the analysis result, and the specimen's own
+ *     status is usually still ASSIGNED (or PROCESSING) at that point, so it has to win.
+ *  2. CAPTURING — a multi-field result is being collected (SDD Module 2 proposal);
+ *     status CAPTURING is unambiguous, it never applies to a legacy result.
+ *  3. PROCESSING — the MedTech has begun (legacy) analysis.
+ *  4. ASSIGNED — waiting to be started.
+ *  5. VERIFYING — a multi-field result has been submitted (or returned) and is
+ *     awaiting the MedTech's check on the website; nothing to do here on mobile.
  * Anything else has no Queue status.
- * @param item - The specimen's status and correction flag.
+ * @param item - The specimen's status, correction flag, result status and field count.
  */
 export function getQueueStatus(
-  item: Pick<QueueItem, 'status' | 'isReturnedForCorrection'>,
+  item: Pick<QueueItem, 'status' | 'isReturnedForCorrection' | 'resultStatus' | 'fieldCount'>,
 ): QueueStatus | null {
+  if (item.resultStatus === 'CAPTURING') return 'CAPTURING';
+  const multiFieldAwaitingWeb =
+    isMultiField(item) &&
+    (item.resultStatus === 'PENDING_CONFIRM' || item.resultStatus === 'RETURNED_FOR_CORRECTION');
+  if (multiFieldAwaitingWeb) return 'VERIFYING';
   if (item.isReturnedForCorrection) return 'RETURNED';
   if (item.status === 'PROCESSING') return 'PROCESSING';
   if (item.status === 'ASSIGNED') return 'ASSIGNED';
@@ -41,7 +62,10 @@ function receivedTime(item: Pick<QueueItem, 'receivedAt'>): number {
  * @param items - Queue items to order; only status-related fields are read.
  */
 export function orderByStatus<
-  T extends Pick<QueueItem, 'status' | 'isReturnedForCorrection' | 'receivedAt'>,
+  T extends Pick<
+    QueueItem,
+    'status' | 'isReturnedForCorrection' | 'resultStatus' | 'fieldCount' | 'receivedAt'
+  >,
 >(items: T[]): T[] {
   const rank = (item: T): number => {
     const status = getQueueStatus(item);

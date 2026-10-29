@@ -1,8 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import { FieldListScreen } from '@features/field-capture/components/FieldListScreen';
-
-const DEFAULT_MIN_FIELDS = 10;
+import { DEFAULT_MIN_FIELDS } from '@lib/constants/fieldCapture.constant';
 
 /**
  * @description Route entry for /field-list. Expects `specimenId` (server id,

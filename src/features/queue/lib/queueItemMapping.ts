@@ -6,8 +6,15 @@ import type { PriorityLevel, QueueItem, SpecimenStatus } from '../types';
  * @description Maps a WatermelonDB Specimen model to the Queue's UI item shape.
  * @param s - Specimen model instance.
  * @param returnedServerIds - Server ids currently flagged returned-for-correction.
+ * @param resultStatusByServerId - The specimen's latest result status, by specimen server id.
+ * @param fieldCountByServerId - The specimen's latest result's accepted field count, by specimen server id.
  */
-export function specimenToQueueItem(s: Specimen, returnedServerIds: Set<string>): QueueItem {
+export function specimenToQueueItem(
+  s: Specimen,
+  returnedServerIds: Set<string>,
+  resultStatusByServerId: Map<string, string> = new Map(),
+  fieldCountByServerId: Map<string, number | null> = new Map(),
+): QueueItem {
   return {
     id: s.id,
     serverId: s.serverId,
@@ -23,6 +30,8 @@ export function specimenToQueueItem(s: Specimen, returnedServerIds: Set<string>)
     rejectedAt: s.rejectedAt,
     syncedAt: s.syncedAt,
     isReturnedForCorrection: !!s.serverId && returnedServerIds.has(s.serverId),
+    resultStatus: s.serverId ? (resultStatusByServerId.get(s.serverId) ?? null) : null,
+    fieldCount: s.serverId ? (fieldCountByServerId.get(s.serverId) ?? null) : null,
   };
 }
 
@@ -63,4 +72,20 @@ export function sameIds(a: string[], b: string[]): boolean {
   const sortedA = [...a].sort();
   const sortedB = [...b].sort();
   return sortedA.every((id, i) => id === sortedB[i]);
+}
+
+/**
+ * @description Same purpose as sameIds, for the result-status/field-count maps: lets a
+ * state setter keep a stable reference when the content hasn't actually changed, so an
+ * effect that depends on it (and re-subscribes to WatermelonDB) doesn't resubscribe on
+ * every single analysis_results emission.
+ * @param a - Previous map.
+ * @param b - Next map.
+ */
+export function sameMap<V>(a: Map<string, V>, b: Map<string, V>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [key, value] of a) {
+    if (!b.has(key) || b.get(key) !== value) return false;
+  }
+  return true;
 }

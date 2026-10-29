@@ -14,4 +14,5 @@ export const QUEUE_RESULT_COLUMNS = [
   'confirmed_at',
   'synced_at',
   'created_at',
+  'field_count',
 ];
