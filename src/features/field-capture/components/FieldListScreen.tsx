@@ -141,7 +141,7 @@ function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
   const handlePress = useCallback((): void => onPress(item), [item, onPress]);
 
   let subtitle = `${item.particleCount} particles`;
-  if (isDiscarded) subtitle = FIELD_CAPTURE_TEXT.fieldDiscardedLabel;
+  if (isDiscarded) subtitle = item.discardReason ?? FIELD_CAPTURE_TEXT.fieldDiscardedLabel;
   else if (isPendingUpload) subtitle = FIELD_CAPTURE_TEXT.fieldWaitingToUploadLabel;
   else if (needsDecision) subtitle = FIELD_CAPTURE_TEXT.fieldNeedsDecisionLabel;
 

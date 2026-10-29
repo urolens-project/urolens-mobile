@@ -13,11 +13,16 @@ import type { FieldAnalysisResponseDto } from '@features/field-capture/types';
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 
 interface UploadErrorBody {
-  error?: { message?: string };
+  error?: { code?: string; message?: string };
 }
 
-/** @description An upload failure shaped like an axios error, so callers can read `.response.data` either way. */
+/** @description An upload failure shaped like an axios error, so callers can read `.response.data` either way.
+ * `code` mirrors the backend's machine-readable error envelope (core/exceptions.py) —
+ * IMAGE_NOT_MICROSCOPY and IMAGE_EXPOSURE need a specific retake message, not the
+ * generic upload-failed one. */
 export interface UploadFieldXhrError extends Error {
+  code?: string;
+  status?: number;
   response?: { data: unknown };
 }
 
@@ -65,6 +70,8 @@ export function uploadFieldViaXhr(
         const error: UploadFieldXhrError = new Error(
           body?.error?.message ?? describeUploadStatus(xhr.status),
         );
+        error.code = body?.error?.code;
+        error.status = xhr.status;
         error.response = { data: body };
         reject(error);
       }
@@ -89,6 +96,23 @@ export function uploadFieldViaXhr(
 
     xhr.send(form);
   });
+}
+
+const RETAKE_ERROR_CODES = new Set(['IMAGE_NOT_MICROSCOPY', 'IMAGE_EXPOSURE']);
+
+/**
+ * @description True when the engine's input gate refused the photo outright (not a
+ * microscopy image, or badly exposed) — retaking the same image will always fail the
+ * same way again, so the MedTech should go back to the camera, not retry the upload.
+ * @param err - Caught value from `uploadFieldViaXhr`.
+ */
+export function isRetakeNeededError(err: unknown): err is UploadFieldXhrError {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    RETAKE_ERROR_CODES.has((err as UploadFieldXhrError).code ?? '')
+  );
 }
 
 // A refusal with no message of its own, e.g. a proxy answering before the API does.

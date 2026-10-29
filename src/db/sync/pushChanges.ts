@@ -4,8 +4,11 @@ import { apiClient } from '@lib/apiClient';
 import { PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
 
 import { buildFieldUploadFormData } from '@lib/camera/imageUtils';
-import { uploadFieldViaXhr } from '@lib/camera/uploadField';
-import { applyFieldCaptureResponse } from '@features/field-capture/lib/saveUploadedField';
+import { isRetakeNeededError, uploadFieldViaXhr } from '@lib/camera/uploadField';
+import {
+  applyFieldCaptureResponse,
+  discardQueuedField,
+} from '@features/field-capture/lib/saveUploadedField';
 import type { Magnification } from '@features/field-capture/types';
 import type ResultField from '../models/ResultField';
 
@@ -227,6 +230,12 @@ async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<
  * screen already saved locally, then writes the response onto the same placeholder
  * result_fields row (turning PENDING_UPLOAD into ANALYZED with real AI data), ready
  * for the MedTech to decide on from the field list's backlog.
+ *
+ * The engine's input gate refusing the photo outright (IMAGE_NOT_MICROSCOPY /
+ * IMAGE_EXPOSURE) is not retried — retrying would fail the same way again, every
+ * time. Resolved here instead: the field is discarded with the reason recorded,
+ * and this function returns normally, so pushChanges marks the queued action SYNCED
+ * (handled), not FAILED (stuck, visible as a refused action with nothing to retry).
  * @param item - The queued UPLOAD_IMAGE action; entityId is the local field id.
  * @param signal - Aborts the upload if the account changes mid-sync.
  */
@@ -242,6 +251,15 @@ async function uploadQueuedField(item: PendingSync, signal?: AbortSignal): Promi
     field.specimenId,
     field.magnification as Magnification,
   );
-  const data = await uploadFieldViaXhr(form, signal ?? new AbortController().signal, () => {});
-  await applyFieldCaptureResponse(item.entityId, field.specimenId, data);
+
+  try {
+    const data = await uploadFieldViaXhr(form, signal ?? new AbortController().signal, () => {});
+    await applyFieldCaptureResponse(item.entityId, field.specimenId, data);
+  } catch (err) {
+    if (isRetakeNeededError(err)) {
+      await discardQueuedField(item.entityId, err.message);
+      return;
+    }
+    throw err;
+  }
 }

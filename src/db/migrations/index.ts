@@ -194,5 +194,17 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 8,
+      steps: [
+        // Distinguishes a field the system discarded automatically (a queued
+        // offline capture refused as IMAGE_NOT_MICROSCOPY / IMAGE_EXPOSURE)
+        // from one the MedTech discarded themselves. Null for the latter.
+        addColumns({
+          table: 'result_fields',
+          columns: [{ name: 'discard_reason', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
   ],
 });
