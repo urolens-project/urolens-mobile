@@ -34,13 +34,15 @@ export function FieldListScreen({
   minFields,
 }: FieldListScreenProps): React.JSX.Element {
   const { isOnline } = useNetworkStatus();
-  const { fields, acceptedCount, undecidedCount, resultServerId } = useFieldList(specimenId);
+  const { fields, acceptedCount, undecidedCount, pendingDecisionsCount, resultServerId } =
+    useFieldList(specimenId);
   const { submitFields, isLoading: isSubmitting, error } = useSubmitFields();
 
   const blockingReason = getSubmitBlockingReason({
     acceptedCount,
     minFields,
     undecidedCount,
+    pendingDecisionsCount,
     isOnline,
   });
 
