@@ -33,6 +33,7 @@ export const FIELD_CAPTURE_TEXT = {
   belowMinimumBlockedMessage: (acceptedCount: number, minFields: number): string =>
     `${acceptedCount} of ${minFields} fields accepted.`,
   submitOfflineBlockedMessage: 'Connect to submit.',
+  sendingDecisionsBlockedMessage: 'Sending your decisions…',
   submitFailedTitle: 'Submit Failed',
   submitSucceededTitle: 'Submitted for Verification',
   submitSucceededMessage: 'Continue on the website to verify and confirm this result.',
