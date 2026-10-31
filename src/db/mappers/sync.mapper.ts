@@ -63,10 +63,15 @@ export function mapServerToLocal(table: string, record: ServerRecord): Record<st
         approvedAt: record['approved_at'] ?? null,
         releasedAt: record['released_at'] ?? null,
         returnReason: record['return_reason'] ?? null,
-        // Multi-field workflow (SDD Module 2 proposal); absent while
-        // FIELD_WORKFLOW_ENABLED is off server-side, or for a legacy result.
-        fieldCount: record['field_count'] ?? null,
-        fieldSummaryJson: record['field_summary'] ? JSON.stringify(record['field_summary']) : null,
+        // field_count/field_summary deliberately NOT mapped here: the
+        // backend's synced analysis_results rows have never carried either
+        // key (see mobile PR #55 review, 3.1), so reading them wrote null
+        // over the locally-tracked accepted count on every pull. Leaving
+        // these two keys out of the returned object means processUpdates
+        // (pullChanges.ts) never touches the local columns, so the
+        // locally-tracked value survives. Anything showing an accepted
+        // count reads it live off result_fields instead (which does sync
+        // fully) rather than off this column.
       };
 
     case 'manual_overrides':

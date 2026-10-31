@@ -60,7 +60,8 @@ export function SampleDetailScreen({
 }: SampleDetailScreenProps): React.JSX.Element {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
-  const { specimen, analysisResult, overrides, isLoading, notFound } = useSampleDetail(specimenId);
+  const { specimen, analysisResult, overrides, acceptedFieldCount, isLoading, notFound } =
+    useSampleDetail(specimenId);
 
   const { confirmResult: confirmAction, isConfirming } = useConfirmAction();
 
@@ -142,12 +143,14 @@ export function SampleDetailScreen({
 
   const handleBack = useCallback((): void => router.back(), [router]);
 
-  // Multi-field workflow (SDD Module 2 proposal): a result only ever gets a
-  // fieldCount once it's gone through the capture flow; null/0 means either no
-  // result yet or a legacy single-image one, which this screen (and
-  // ResultReviewScreen) continues to handle exactly as before.
+  // Multi-field workflow (SDD Module 2 proposal): a result only ever has
+  // accepted result_fields rows once it's gone through the capture flow; 0
+  // means either no result yet or a legacy single-image one, which this
+  // screen (and ResultReviewScreen) continues to handle exactly as before.
+  // Counted live off result_fields rather than analysisResult.fieldCount —
+  // that column is never synced by the backend (mobile PR #55 review, 3.1).
   const resultStatusValue = analysisResult?.status ?? null;
-  const isMultiFieldResult = (analysisResult?.fieldCount ?? 0) > 0;
+  const isMultiFieldResult = acceptedFieldCount > 0;
   const isCapturingFields = resultStatusValue === 'CAPTURING';
   const isAwaitingWebVerification =
     isMultiFieldResult &&
@@ -183,10 +186,7 @@ export function SampleDetailScreen({
   if (canShowCapturingFields) {
     return (
       <SampleDetailShell specimen={specimen} resultStatus={resultStatusValue} onBack={handleBack}>
-        <CapturingFieldsCard
-          acceptedCount={analysisResult?.fieldCount ?? 0}
-          minFields={DEFAULT_MIN_FIELDS}
-        />
+        <CapturingFieldsCard acceptedCount={acceptedFieldCount} minFields={DEFAULT_MIN_FIELDS} />
         <SampleActionBar
           canBeginAnalysis={false}
           canContinueCapturing

@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Q } from '@nozbe/watermelondb';
 import type { Query } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import { observeQuery } from '@db/observeQuery';
 import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
 import type Specimen from '@db/models/Specimen';
 import type AnalysisResult from '@db/models/AnalysisResult';
+import type ResultField from '@db/models/ResultField';
 import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
 import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 import {
+  QUEUE_FIELD_COLUMNS,
   QUEUE_PAGE_SIZE,
   QUEUE_RESULT_COLUMNS,
   QUEUE_SPECIMEN_COLUMNS,
@@ -218,17 +221,36 @@ export function useQueue(): UseQueueResult {
           (previous): Map<string, string> =>
             sameMap(previous, nextResultStatus) ? previous : nextResultStatus,
         );
-        const nextFieldCount = new Map(
-          latest.map((result): [string, number | null] => [result.specimenId, result.fieldCount]),
-        );
-        setFieldCountByServerId(
-          (previous): Map<string, number | null> =>
-            sameMap(previous, nextFieldCount) ? previous : nextFieldCount,
-        );
         handleSourceLoaded('results');
       },
       {
         columns: QUEUE_RESULT_COLUMNS,
+        onError: (error): void => handleSourceError('results', error),
+      },
+    );
+    return (): void => subscription.unsubscribe();
+  }, [reloadKey, handleSourceLoaded, handleSourceError]);
+
+  // Accepted field count per specimen, counted off result_fields directly rather
+  // than read from analysis_results.field_count: the backend never syncs that
+  // column, so every pull reset it to null (mobile PR #55 review, 3.1). This
+  // table syncs fully regardless of which device captured a field.
+  useEffect((): (() => void) => {
+    const subscription = observeQuery(
+      (): Query<ResultField> =>
+        database.get<ResultField>('result_fields').query(Q.where('status', 'ACCEPTED')),
+      (fields): void => {
+        const nextFieldCount = new Map<string, number>();
+        for (const f of fields) {
+          nextFieldCount.set(f.specimenId, (nextFieldCount.get(f.specimenId) ?? 0) + 1);
+        }
+        setFieldCountByServerId(
+          (previous): Map<string, number | null> =>
+            sameMap(previous, nextFieldCount) ? previous : nextFieldCount,
+        );
+      },
+      {
+        columns: QUEUE_FIELD_COLUMNS,
         onError: (error): void => handleSourceError('results', error),
       },
     );
