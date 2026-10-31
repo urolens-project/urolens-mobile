@@ -55,7 +55,9 @@ export function FieldListScreen({
 
   const handleOpenField = useCallback(
     (item: FieldListItem): void => {
-      if (item.status !== 'ANALYZED') return;
+      // ACCEPTED opens read-only (Discard only) — see FieldResultScreen's isReadOnly
+      // (mobile PR #55 review, 3.7).
+      if (item.status !== 'ANALYZED' && item.status !== 'ACCEPTED') return;
       router.push({
         pathname: '/(medtech)/field-result',
         params: { localFieldId: item.localId, specimenId, minFields: String(minFields) },
@@ -139,7 +141,11 @@ interface FieldRowProps {
 function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
   const isDiscarded = item.status === 'DISCARDED';
   const isPendingUpload = item.status === 'PENDING_UPLOAD';
+  const isAccepted = item.status === 'ACCEPTED';
   const needsDecision = item.status === 'ANALYZED';
+  // ACCEPTED reopens read-only (view-and-Discard) — see FieldResultScreen's
+  // isReadOnly (mobile PR #55 review, 3.7).
+  const isOpenable = needsDecision || isAccepted;
   const handlePress = useCallback((): void => onPress(item), [item, onPress]);
 
   let subtitle = `${item.particleCount} particles`;
@@ -151,8 +157,8 @@ function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
     <TouchableOpacity
       style={[styles.row, isDiscarded && styles.rowDiscarded]}
       onPress={handlePress}
-      disabled={!needsDecision}
-      activeOpacity={needsDecision ? 0.7 : 1}
+      disabled={!isOpenable}
+      activeOpacity={isOpenable ? 0.7 : 1}
     >
       {item.thumbnailUri ? (
         <Image source={{ uri: item.thumbnailUri }} style={styles.thumbnail} />
@@ -167,7 +173,7 @@ function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
           {subtitle}
         </Text>
       </View>
-      {needsDecision && <Icon name="chevron-forward" size={18} color={colors.indigo800} />}
+      {isOpenable && <Icon name="chevron-forward" size={18} color={colors.indigo800} />}
     </TouchableOpacity>
   );
 }

@@ -67,6 +67,7 @@ export function useFieldDetail(
       localId: record.id,
       fieldNo: record.fieldNo,
       magnification: record.magnification,
+      status: record.status,
       aiFindings: record.aiFindings,
       detections,
       imageWidth: record.imageWidth,

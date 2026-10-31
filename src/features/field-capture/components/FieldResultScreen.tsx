@@ -41,6 +41,9 @@ export function FieldResultScreen({
   // while either dimension is unknown (a PENDING_UPLOAD placeholder has 0, 0).
   const imageAspectRatio =
     field.imageWidth > 0 && field.imageHeight > 0 ? field.imageWidth / field.imageHeight : 4 / 3;
+  // An already-ACCEPTED field reopened from the list (mobile PR #55 review, 3.7) has
+  // nothing left to Proceed on — only Discard applies.
+  const isReadOnly = field.status === 'ACCEPTED';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -89,15 +92,17 @@ export function FieldResultScreen({
           <Icon name="trash-outline" size={18} color={colors.gray300} />
           <Text style={styles.discardLabel}>{FIELD_CAPTURE_TEXT.discardLabel}</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.proceedBtn]}
-          onPress={onProceed}
-          disabled={isSubmitting}
-          testID="proceed-field-button"
-        >
-          <Icon name="checkmark-circle-outline" size={18} color={colors.white} />
-          <Text style={styles.proceedLabel}>{FIELD_CAPTURE_TEXT.proceedLabel}</Text>
-        </TouchableOpacity>
+        {!isReadOnly && (
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.proceedBtn]}
+            onPress={onProceed}
+            disabled={isSubmitting}
+            testID="proceed-field-button"
+          >
+            <Icon name="checkmark-circle-outline" size={18} color={colors.white} />
+            <Text style={styles.proceedLabel}>{FIELD_CAPTURE_TEXT.proceedLabel}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
