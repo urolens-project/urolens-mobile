@@ -26,6 +26,10 @@ jest.mock('@db/sync/pushChanges', () => ({
   requeueLegacyFailedActions: jest.fn(),
 }));
 
+jest.mock('@db/sync/legacyQueue', () => ({
+  drainLegacyQueuedActions: jest.fn(),
+}));
+
 jest.mock('@db/sync/localDataOwner', () => ({
   adoptUnownedLocalData: jest.fn(),
   getLocalDataOwner: jest.fn(),

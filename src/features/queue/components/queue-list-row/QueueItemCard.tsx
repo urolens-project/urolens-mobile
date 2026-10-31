@@ -2,13 +2,18 @@ import React, { useCallback } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { formatShortDateTime } from '@lib/dateTime';
+import { DEFAULT_MIN_FIELDS } from '@lib/constants/fieldCapture.constant';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 import { PulseDot } from '@components/PulseDot';
 
 import { QUEUE_STATUS_STYLES } from '../../constants';
-import { formatReturnReasonLabel, QUEUE_TEXT } from '../../constants/queueText.constant';
+import {
+  formatFieldCounterLabel,
+  formatReturnReasonLabel,
+  QUEUE_TEXT,
+} from '../../constants/queueText.constant';
 import { getQueueStatus } from '../../status';
 import { ITEM_HEIGHT } from '../../scrollEffects';
 import type { QueueItem } from '../../types';
@@ -35,6 +40,8 @@ function QueueItemCardComponent({
   const accent = statusStyle?.color ?? colors.teal;
   const isProcessing = status === 'PROCESSING';
   const isReturned = status === 'RETURNED';
+  const isCapturing = status === 'CAPTURING';
+  const isVerifying = status === 'VERIFYING';
   const hasReturnReason = isReturned && !!item.returnReason;
   const accessibilityLabel = `Sample ${item.sampleUid}, patient ${item.patientUid}${statusStyle ? `, ${statusStyle.label.toLowerCase()}` : ''}`;
   const handlePress = useCallback((): void => onPress(item.id), [item.id, onPress]);
@@ -45,6 +52,8 @@ function QueueItemCardComponent({
         styles.container,
         isProcessing && styles.containerProcessing,
         isReturned && styles.containerReturned,
+        isCapturing && styles.containerCapturing,
+        isVerifying && styles.containerVerifying,
         selected && styles.containerSelected,
       ]}
       onPress={handlePress}
@@ -59,6 +68,8 @@ function QueueItemCardComponent({
           styles.dropletBadge,
           isProcessing && styles.badgeProcessing,
           isReturned && styles.badgeReturned,
+          isCapturing && styles.badgeCapturing,
+          isVerifying && styles.badgeVerifying,
         ]}
       >
         <Icon name="water" size={spacing.xl} color={accent} />
@@ -74,6 +85,8 @@ function QueueItemCardComponent({
                 styles.badge,
                 isProcessing && styles.badgeProcessing,
                 isReturned && styles.badgeReturned,
+                isCapturing && styles.badgeCapturing,
+                isVerifying && styles.badgeVerifying,
               ]}
             >
               {isProcessing && <PulseDot color={accent} size={spacing.xs} live={live} />}
@@ -82,6 +95,8 @@ function QueueItemCardComponent({
                   styles.badgeText,
                   isProcessing && styles.badgeTextProcessing,
                   isReturned && styles.badgeTextReturned,
+                  isCapturing && styles.badgeTextCapturing,
+                  isVerifying && styles.badgeTextVerifying,
                 ]}
               >
                 {statusStyle.label}
@@ -97,6 +112,14 @@ function QueueItemCardComponent({
         )}
         {hasReturnReason && (
           <Text style={styles.returnReason}>{formatReturnReasonLabel(item.returnReason)}</Text>
+        )}
+        {isCapturing && (
+          <Text style={styles.captureProgress}>
+            {formatFieldCounterLabel(item.fieldCount ?? 0, DEFAULT_MIN_FIELDS)}
+          </Text>
+        )}
+        {isVerifying && (
+          <Text style={styles.verifyCaption}>{QUEUE_TEXT.itemCard.verifyOnWebsite}</Text>
         )}
       </View>
       <Icon name="chevron-forward" size={spacing.lg} color={accent} />
@@ -126,6 +149,8 @@ const styles = StyleSheet.create({
   },
   containerProcessing: { borderLeftColor: colors.violet600 },
   containerReturned: { borderLeftColor: colors.amber600 },
+  containerCapturing: { borderLeftColor: colors.indigo800 },
+  containerVerifying: { borderLeftColor: colors.blueAlt },
   containerSelected: { backgroundColor: colors.gray50, borderWidth: spacing.xxs },
   dropletBadge: {
     width: spacing.huge,
@@ -156,9 +181,13 @@ const styles = StyleSheet.create({
   },
   badgeProcessing: { backgroundColor: colors.violet100 },
   badgeReturned: { backgroundColor: colors.amber100 },
+  badgeCapturing: { backgroundColor: colors.indigo100 },
+  badgeVerifying: { backgroundColor: colors.blue50 },
   badgeText: { ...typography.micro, fontWeight: fontWeight.bold, color: colors.teal },
   badgeTextProcessing: { color: colors.violet600 },
   badgeTextReturned: { color: colors.amber800 },
+  badgeTextCapturing: { color: colors.indigo800 },
+  badgeTextVerifying: { color: colors.blue800 },
   returnLabel: {
     ...typography.caption,
     fontWeight: fontWeight.semibold,
@@ -166,4 +195,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   returnReason: { ...typography.body, color: colors.gray700 },
+  captureProgress: {
+    ...typography.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.indigo800,
+    marginTop: spacing.xs,
+  },
+  verifyCaption: {
+    ...typography.caption,
+    color: colors.blue800,
+    marginTop: spacing.xs,
+  },
 });

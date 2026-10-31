@@ -89,6 +89,9 @@ interface DbSetup {
   result?: Row | null;
   overrides?: { parameter: string; correctedValue: number }[];
   observeSpy?: jest.Mock;
+  // ACCEPTED result_fields count — read live off result_fields rather than
+  // analysis_results.field_count (mobile PR #55 review, 3.1).
+  acceptedFieldCount?: number;
 }
 
 function setupDb({
@@ -96,6 +99,7 @@ function setupDb({
   result = null,
   overrides = [],
   observeSpy,
+  acceptedFieldCount = 0,
 }: DbSetup = {}) {
   (database.get as jest.Mock).mockImplementation((table: string) => {
     if (table === 'specimens') {
@@ -121,6 +125,9 @@ function setupDb({
           observeWithColumns: () => observable(overrides),
         }),
       };
+    }
+    if (table === 'result_fields') {
+      return { query: () => ({ observeCount: () => observable(acceptedFieldCount) }) };
     }
     throw new Error(`unexpected table ${table}`);
   });
@@ -419,7 +426,12 @@ describe('when the screen is re-used for another sample', () => {
                 resolveFind = resolve;
               }),
           }
-        : { query: () => ({ observeWithColumns: () => observable([]) }) },
+        : {
+            query: () => ({
+              observeWithColumns: () => observable([]),
+              observeCount: () => observable(0),
+            }),
+          },
     );
     mockParams = { id: 'spec-1' };
     const view = render(<SampleDetailRoute />);

@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { DEFAULT_MIN_FIELDS } from '@lib/constants/fieldCapture.constant';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
@@ -31,9 +32,12 @@ import { getSampleActions } from '@features/queue/lib/sampleState';
 import { SAMPLE_TEXT } from '../constants/sampleText.constant';
 import { useSampleDetail } from '../hooks/useSampleDetail';
 import { AIFindingsSection } from './AIFindingsSection';
+import { AwaitingWebVerificationCard } from './AwaitingWebVerificationCard';
+import { CapturingFieldsCard } from './CapturingFieldsCard';
 import { RejectionDetailsCard } from './RejectionDetailsCard';
 import { ResultStatusBanner } from './ResultStatusBanner';
 import { SampleActionBar } from './SampleActionBar';
+import { SampleDetailShell } from './SampleDetailShell';
 import { SampleResultActions } from './SampleResultActions';
 import { SmartDiagnosisSection } from './SmartDiagnosisSection';
 import { SpecimenSummaryCard } from './SpecimenSummaryCard';
@@ -56,7 +60,8 @@ export function SampleDetailScreen({
 }: SampleDetailScreenProps): React.JSX.Element {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
-  const { specimen, analysisResult, overrides, isLoading, notFound } = useSampleDetail(specimenId);
+  const { specimen, analysisResult, overrides, acceptedFieldCount, isLoading, notFound } =
+    useSampleDetail(specimenId);
 
   const { confirmResult: confirmAction, isConfirming } = useConfirmAction();
 
@@ -128,13 +133,44 @@ export function SampleDetailScreen({
     router.push(`/(medtech)/sample/reject/${specimenId}`);
   }, [isReadOnly, router, specimenId]);
 
+  const handleContinueCapturing = useCallback((): void => {
+    if (isReadOnly || !specimen?.serverId) return;
+    router.push({
+      pathname: '/(medtech)/capture',
+      params: { specimenId: specimen.serverId, localSpecimenId: specimenId },
+    });
+  }, [isReadOnly, specimen, specimenId, router]);
+
   const handleBack = useCallback((): void => router.back(), [router]);
+
+  // Multi-field workflow (SDD Module 2 proposal): a result only ever has
+  // accepted result_fields rows once it's gone through the capture flow; 0
+  // means either no result yet or a legacy single-image one, which this
+  // screen (and ResultReviewScreen) continues to handle exactly as before.
+  // Counted live off result_fields rather than analysisResult.fieldCount —
+  // that column is never synced by the backend (mobile PR #55 review, 3.1).
+  const resultStatusValue = analysisResult?.status ?? null;
+  const isMultiFieldResult = acceptedFieldCount > 0;
+  const isCapturingFields = resultStatusValue === 'CAPTURING';
+  const isAwaitingWebVerification =
+    isMultiFieldResult &&
+    (resultStatusValue === 'PENDING_CONFIRM' || resultStatusValue === 'RETURNED_FOR_CORRECTION');
 
   // Reports stay in the read-only detail view even when their result is editable.
   // Other entry points open the shared review once a route or synced specimen has a
-  // result, unless the specimen has been rejected.
+  // result, unless the specimen has been rejected or the result is multi-field and
+  // still CAPTURING or awaiting a web check — neither has anything for this screen
+  // (confirm/retake/override) to offer.
   const reviewResultId = resultId ?? analysisResult?.serverId;
-  if (!isReadOnly && !isLoading && specimen && reviewResultId && specimen.status !== 'REJECTED') {
+  const canShowReview =
+    !isReadOnly &&
+    !isLoading &&
+    specimen &&
+    reviewResultId &&
+    specimen.status !== 'REJECTED' &&
+    !isCapturingFields &&
+    !isAwaitingWebVerification;
+  if (canShowReview) {
     return (
       <ResultReviewScreen
         key={reviewResultId}
@@ -142,6 +178,50 @@ export function SampleDetailScreen({
         specimenId={specimenId}
         specimen={specimen}
       />
+    );
+  }
+
+  const canShowCapturingFields =
+    !isReadOnly && !isLoading && specimen && specimen.status !== 'REJECTED' && isCapturingFields;
+  if (canShowCapturingFields) {
+    return (
+      <SampleDetailShell specimen={specimen} resultStatus={resultStatusValue} onBack={handleBack}>
+        <CapturingFieldsCard
+          acceptedCount={acceptedFieldCount}
+          minFields={DEFAULT_MIN_FIELDS}
+          returnReason={analysisResult?.returnReason}
+        />
+        <SampleActionBar
+          canBeginAnalysis={false}
+          canContinueCapturing
+          canReject={getSampleActions(specimen.status, resultStatusValue).canReject}
+          isProcessing
+          onBeginAnalysis={(): void => undefined}
+          onContinueCapturing={handleContinueCapturing}
+          onReject={handleRejectSpecimen}
+        />
+      </SampleDetailShell>
+    );
+  }
+
+  const canShowAwaitingWebVerification =
+    !isReadOnly &&
+    !isLoading &&
+    specimen &&
+    specimen.status !== 'REJECTED' &&
+    isAwaitingWebVerification;
+  if (canShowAwaitingWebVerification) {
+    return (
+      <SampleDetailShell specimen={specimen} resultStatus={resultStatusValue} onBack={handleBack}>
+        <AwaitingWebVerificationCard returnReason={analysisResult?.returnReason} />
+        <SampleActionBar
+          canBeginAnalysis={false}
+          canReject={getSampleActions(specimen.status, resultStatusValue).canReject}
+          isProcessing
+          onBeginAnalysis={(): void => undefined}
+          onReject={handleRejectSpecimen}
+        />
+      </SampleDetailShell>
     );
   }
 

@@ -13,6 +13,9 @@ export interface SampleActions {
   canConfirm: boolean;
   /** Discard the image and capture a new one. */
   canRetake: boolean;
+  /** Resume the multi-field capture session (SDD Module 2 proposal) — the
+   * result exists and is still CAPTURING, so there's nothing to confirm yet. */
+  canContinueCapturing: boolean;
 }
 
 // What the server accepts for start-analysis (specimen_service._STARTABLE_STATUSES),
@@ -80,6 +83,7 @@ export function getSampleActions(
     canRetake:
       !isRejected &&
       (resultStatus === 'PENDING_CONFIRM' || resultStatus === 'RETURNED_FOR_CORRECTION'),
+    canContinueCapturing: !isRejected && resultStatus === 'CAPTURING',
   };
 }
 
@@ -92,6 +96,7 @@ function titleCase(value: string): string {
 }
 
 const RESULT_STATUS_LABELS: Partial<Record<`${ResultStatus}`, string>> = {
+  CAPTURING: 'Capturing Fields',
   RETURNED_FOR_CORRECTION: 'Returned for Correction',
   CRITICAL_ESCALATED: 'Critical / Escalated',
   PENDING_SUPERVISOR_APPROVAL: 'Pending Supervisor Approval',

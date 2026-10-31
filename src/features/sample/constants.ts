@@ -9,4 +9,5 @@ export const RESULT_COLUMNS = [
   'smart_diagnosis_unavailable',
   'is_synced',
   'image_id',
+  'return_reason',
 ];

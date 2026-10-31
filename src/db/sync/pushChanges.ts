@@ -1,7 +1,17 @@
 import { Q } from '@nozbe/watermelondb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { File } from 'expo-file-system';
 import { apiClient } from '@lib/apiClient';
 import { PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
+
+import { buildFieldUploadFormData } from '@lib/camera/imageUtils';
+import { isRetakeNeededError, uploadFieldViaXhr } from '@lib/camera/uploadField';
+import {
+  applyFieldCaptureResponse,
+  discardQueuedField,
+} from '@features/field-capture/lib/saveUploadedField';
+import type { Magnification } from '@features/field-capture/types';
+import type ResultField from '../models/ResultField';
 
 import { database } from '../database';
 import type PendingSync from '../models/PendingSync';
@@ -14,6 +24,12 @@ const MAX_RETRY_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // Actions marked FAILED before retries existed were never given a second chance.
 // They get exactly one, recorded under this key.
 const LEGACY_REQUEUE_KEY = 'urolens_failed_actions_requeued_v1';
+
+// A queued field whose on-disk file was evicted (storage pressure, see
+// imageUtils.ts's FIELDS_DIRECTORY move) before its upload could run — same
+// terminal treatment as a gate refusal: discard with a reason instead of
+// retrying forever against a file that will never come back.
+const FIELD_FILE_LOST_MESSAGE = 'Photo was lost before upload — capture it again.';
 
 // Replies that mean "this already happened on the server": the change is done, not failed.
 // (Bare 'CONFLICT' is the generic 409; the others are what the backend actually sends.)
@@ -163,10 +179,51 @@ export async function pushChanges(signal?: AbortSignal): Promise<PushSummary> {
         console.error(`[pushChanges] ${item.action} for ${item.entityId} failed: ${message}`);
         await markItem(item, PendingSyncStatus.FAILED, message, signal);
         refusedCount += 1;
+        await resolvePermanentlyRefusedField(item, message);
       }
     }
   }
   return { refusedCount };
+}
+
+/**
+ * @description Keeps a permanently-refused field decision from leaving the phone stuck
+ * or out of step with the server (the same class of dead end 3.4 fixed for a lost file):
+ * - UPLOAD_IMAGE: the PENDING_UPLOAD placeholder has no other way to resolve — e.g. the
+ *   sample was reassigned, or AI_ANALYSIS_FAILED kept retrying until MAX_RETRY_AGE_MS.
+ *   Discard it with the server's message, same as a gate refusal or a lost file.
+ * - ACCEPT_FIELD / DISCARD_FIELD: the phone already applied the decision optimistically
+ *   (useFieldActions.ts), but the server never did. Revert the field to ANALYZED so it
+ *   goes back to "needs your decision" instead of quietly disagreeing with the server —
+ *   left as-is, Submit would hit the confusing FIELDS_UNDECIDED 409 that 3.6 was meant
+ *   to prevent.
+ * @param item - The pending_sync row just marked FAILED for a permanent reason.
+ * @param message - The server's refusal message, used as the field's discard reason.
+ */
+async function resolvePermanentlyRefusedField(item: PendingSync, message: string): Promise<void> {
+  try {
+    if (item.action === PendingSyncAction.UPLOAD_IMAGE) {
+      await discardQueuedField(item.entityId, message);
+    } else if (
+      item.action === PendingSyncAction.ACCEPT_FIELD ||
+      item.action === PendingSyncAction.DISCARD_FIELD
+    ) {
+      await database.write(async (): Promise<void> => {
+        const [field] = await database
+          .get<ResultField>('result_fields')
+          .query(Q.where('server_id', item.entityId))
+          .fetch();
+        if (!field) return;
+        await field.update((f) => {
+          f.status = 'ANALYZED';
+          f.isSynced = true;
+          f.syncedAt = new Date().toISOString();
+        });
+      });
+    }
+  } catch (err) {
+    console.error(`[pushChanges] failed to resolve refused field for ${item.entityId}`, err);
+  }
 }
 
 async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<void> {
@@ -193,7 +250,68 @@ async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<
       await apiClient.post(`/images/${item.entityId}/discard`, undefined, { signal });
       break;
 
+    // Multi-field workflow (SDD Module 2 proposal). entityId is the field's
+    // server id for both — accept/discard only ever queue once a field has
+    // already uploaded (see useFieldActions.ts), so it always has one.
+    case PendingSyncAction.ACCEPT_FIELD:
+      await apiClient.post(`/fields/${item.entityId}/accept`, undefined, { signal });
+      break;
+
+    case PendingSyncAction.DISCARD_FIELD:
+      await apiClient.post(`/fields/${item.entityId}/discard`, payload, { signal });
+      break;
+
+    // Multi-field workflow: a field captured offline. Unlike every case above,
+    // entityId here is the *local* result_fields id, not a server id — there is
+    // no server id yet. See createQueuedFieldUpload (saveUploadedField.ts).
+    case PendingSyncAction.UPLOAD_IMAGE:
+      await uploadQueuedField(item, signal);
+      break;
+
     default:
       throw new Error(`[pushChanges] Unknown sync action: ${item.action}`);
+  }
+}
+
+/**
+ * @description Replays a field captured while offline: uploads the file the capture
+ * screen already saved locally, then writes the response onto the same placeholder
+ * result_fields row (turning PENDING_UPLOAD into ANALYZED with real AI data), ready
+ * for the MedTech to decide on from the field list's backlog.
+ *
+ * The engine's input gate refusing the photo outright (IMAGE_NOT_MICROSCOPY /
+ * IMAGE_EXPOSURE) is not retried — retrying would fail the same way again, every
+ * time. Resolved here instead: the field is discarded with the reason recorded,
+ * and this function returns normally, so pushChanges marks the queued action SYNCED
+ * (handled), not FAILED (stuck, visible as a refused action with nothing to retry).
+ * @param item - The queued UPLOAD_IMAGE action; entityId is the local field id.
+ * @param signal - Aborts the upload if the account changes mid-sync.
+ */
+async function uploadQueuedField(item: PendingSync, signal?: AbortSignal): Promise<void> {
+  const field = await database.get<ResultField>('result_fields').find(item.entityId);
+  if (!field.localImageUri) {
+    throw new Error(`Field ${item.entityId} has no local image file to upload.`);
+  }
+  if (!new File(field.localImageUri).exists) {
+    await discardQueuedField(item.entityId, FIELD_FILE_LOST_MESSAGE);
+    return;
+  }
+
+  const filename = field.localImageUri.split('/').pop() ?? `field-${item.entityId}.jpg`;
+  const form = await buildFieldUploadFormData(
+    { uri: field.localImageUri, filename, mimeType: 'image/jpeg' },
+    field.specimenId,
+    field.magnification as Magnification,
+  );
+
+  try {
+    const data = await uploadFieldViaXhr(form, signal ?? new AbortController().signal, () => {});
+    await applyFieldCaptureResponse(item.entityId, field.specimenId, data);
+  } catch (err) {
+    if (isRetakeNeededError(err)) {
+      await discardQueuedField(item.entityId, err.message);
+      return;
+    }
+    throw err;
   }
 }
