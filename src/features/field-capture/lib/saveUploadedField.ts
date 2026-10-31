@@ -96,6 +96,7 @@ function toCapturedField(
     localId,
     fieldNo: data.fieldNo,
     magnification: data.magnification,
+    status: data.status,
     aiFindings: data.aiFindings ?? {},
     detections: data.detections ?? [],
     imageWidth: data.imageWidth,

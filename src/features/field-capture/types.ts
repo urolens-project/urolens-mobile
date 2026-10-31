@@ -84,6 +84,10 @@ export interface CapturedField {
   localId: string;
   fieldNo: number;
   magnification: Magnification;
+  /** ACCEPTED means this is an already-decided field reopened from the list for a
+   * look (or a Discard) rather than a fresh capture — FieldResultScreen hides
+   * Proceed in that case (mobile PR #55 review, 3.7). */
+  status: FieldStatus;
   aiFindings: Record<string, number>;
   detections: Detection[];
   imageWidth: number;
