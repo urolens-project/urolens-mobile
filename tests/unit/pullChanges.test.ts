@@ -25,6 +25,8 @@ jest.mock('@db/sync/conflictResolver', () => ({
   applyResolution: jest.fn((_strategy, serverValue: unknown) => serverValue),
 }));
 
+jest.mock('@db/sync/fieldFiles', () => ({ deleteFieldImageFile: jest.fn() }));
+
 const mockCollections = new Map<
   string,
   { created: Record<string, unknown>[]; existing: Record<string, unknown>[] }
@@ -52,11 +54,14 @@ jest.mock('@db/database', () => ({
   database: {
     write: jest.fn((fn: () => Promise<void>) => fn()),
     get: jest.fn((tableName: string) => mockMakeCollection(tableName)),
+    batch: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
 import { pullChanges } from '../../src/db/sync/pullChanges';
 import { apiClient } from '@lib/apiClient';
+import { database } from '@db/database';
+import { deleteFieldImageFile } from '@db/sync/fieldFiles';
 
 function fixtureResponse() {
   return {
@@ -434,6 +439,34 @@ describe('pullChanges', () => {
       await pullChanges(null);
 
       expect(existing['destroyPermanently']).not.toHaveBeenCalled();
+    });
+
+    // A field that leaves the sync window (reassigned, aged out) must not leave its
+    // photo or AI boxes behind with nothing left pointing at them to clean them up
+    // later (mobile PR #55 review, decision #4).
+    it("deletes a removed field's image file and field_detections row, not just the row itself", async () => {
+      const field = existingWithServerId('field-gone');
+      field['id'] = 'local-field-1';
+      field['localImageUri'] = 'file:///fields/local-field-1.jpg';
+      const detection = existingWithServerId('det-1');
+      const preparedDestroy = { prepared: 'destroy-detection' };
+      detection['prepareDestroyPermanently'] = jest.fn().mockReturnValue(preparedDestroy);
+      mockCollections.set('result_fields', { created: [], existing: [field] });
+      mockCollections.set('field_detections', { created: [], existing: [detection] });
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: {
+            resultFields: { created: [], updated: [], deleted: ['field-gone'] },
+          },
+        },
+      });
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(deleteFieldImageFile).toHaveBeenCalledWith('file:///fields/local-field-1.jpg');
+      expect(database.batch).toHaveBeenCalledWith(preparedDestroy);
+      expect(field['destroyPermanently']).toHaveBeenCalledTimes(1);
     });
   });
 });

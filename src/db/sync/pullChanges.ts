@@ -1,11 +1,14 @@
+import { Q } from '@nozbe/watermelondb';
 import type { ServerRecord } from '@db/types';
 import { mapServerToLocal } from '@db/mappers/sync.mapper';
 import { database } from '@db/database';
 import { apiClient } from '@lib/apiClient';
+import type FieldDetection from '@db/models/FieldDetection';
 
 import { resolveConflict, applyResolution } from './conflictResolver';
 import { dedupeByServerId } from './dedupeByServerId';
 import { cleanUpFinishedFields } from './fieldCleanup';
+import { deleteFieldImageFile } from './fieldFiles';
 import { throwIfSyncCancelled } from './syncCancellation';
 
 interface TableChanges {
@@ -140,6 +143,11 @@ async function processCreates(tableName: string, records: ServerRecord[]): Promi
  * @description Removes local rows the server reports as gone — samples that aged out of
  * the sync window or are no longer assigned to this MedTech. Without this, every table
  * only ever grows, and a reassigned or aged-out sample stays on the phone forever.
+ *
+ * For result_fields specifically, also deletes the field's local image file and its
+ * field_detections row first (mobile PR #55 review, decision #4) — otherwise a field
+ * that leaves the sync window or gets reassigned away leaves its photo behind with
+ * nothing left pointing at it to clean it up later.
  * @param tableName - Local database table.
  * @param deletedIds - Server ids to remove; only present on a delta sync.
  */
@@ -148,10 +156,27 @@ async function processDeletes(tableName: string, deletedIds: string[] | undefine
   const collection = database.get(tableName);
   const deletedSet = new Set(deletedIds);
   const existing = (await collection.query().fetch()) as unknown as Record<string, unknown>[];
-  for (const record of existing) {
-    if (record['serverId'] && deletedSet.has(record['serverId'] as string)) {
-      await (record as unknown as { destroyPermanently: () => Promise<void> }).destroyPermanently();
+  const toDestroy = existing.filter(
+    (record) => record['serverId'] && deletedSet.has(record['serverId'] as string),
+  );
+  if (toDestroy.length === 0) return;
+
+  if (tableName === 'result_fields') {
+    for (const record of toDestroy) {
+      deleteFieldImageFile(record['localImageUri'] as string | null);
     }
+    const localFieldIds = toDestroy.map((record) => record['id'] as string);
+    const detections = await database
+      .get<FieldDetection>('field_detections')
+      .query(Q.where('field_id', Q.oneOf(localFieldIds)))
+      .fetch();
+    if (detections.length > 0) {
+      await database.batch(...detections.map((d) => d.prepareDestroyPermanently()));
+    }
+  }
+
+  for (const record of toDestroy) {
+    await (record as unknown as { destroyPermanently: () => Promise<void> }).destroyPermanently();
   }
 }
 
