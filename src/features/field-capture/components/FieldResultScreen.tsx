@@ -31,6 +31,12 @@ export function FieldResultScreen({
   onDiscard,
 }: FieldResultScreenProps): React.JSX.Element {
   const counts = Object.entries(field.aiFindings).filter(([, count]) => count > 0);
+  // The overlay's boxes are percentages of the stored image, so the wrapper must
+  // match that image's own aspect ratio — a fixed square letterboxes a 4:3 photo
+  // and shifts every box vertically (mobile PR #55 review, 3.2). Fall back to 4:3
+  // while either dimension is unknown (a PENDING_UPLOAD placeholder has 0, 0).
+  const imageAspectRatio =
+    field.imageWidth > 0 && field.imageHeight > 0 ? field.imageWidth / field.imageHeight : 4 / 3;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -42,7 +48,7 @@ export function FieldResultScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.imageWrapper}>
+        <View style={[styles.imageWrapper, { aspectRatio: imageAspectRatio }]}>
           <Image source={{ uri: field.localImageUri }} style={styles.image} resizeMode="contain" />
           <DetectionOverlay detections={field.detections} />
         </View>
@@ -124,7 +130,7 @@ const styles = StyleSheet.create({
   title: { ...typography.title, color: colors.white },
   counterText: { ...typography.caption, color: colors.gray500, marginTop: spacing.xs },
   scrollContent: { paddingBottom: spacing.xl },
-  imageWrapper: { width: '100%', aspectRatio: 1, backgroundColor: colors.black },
+  imageWrapper: { width: '100%', backgroundColor: colors.black },
   image: { flex: 1 },
   countsSection: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.sm },
   countRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
