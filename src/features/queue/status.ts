@@ -25,15 +25,19 @@ function isMultiField(item: Pick<QueueItem, 'fieldCount'>): boolean {
  * @description The one status a Queue sample counts as. Every active sample is exactly
  * one of these, and the card badge, the stats counts, the status filters and the sort
  * order all use this same rule so they can never disagree:
- *  1. RETURNED — a Supervisor sent a legacy single-image result back for correction
- *     (SRS UC 3.4). That flag lives on the analysis result, and the specimen's own
- *     status is usually still ASSIGNED (or PROCESSING) at that point, so it has to win.
+ *  1. RETURNED — a Supervisor sent a result back for correction (SRS UC 3.4), legacy
+ *     or multi-field alike: it needs the MedTech, so it has to win even over a
+ *     multi-field result otherwise awaiting the website (mobile PR #55 review, 3.9).
+ *     That flag lives on the analysis result, and the specimen's own status is
+ *     usually still ASSIGNED (or PROCESSING) at that point, so it has to win.
  *  2. CAPTURING — a multi-field result is being collected (SDD Module 2 proposal);
  *     status CAPTURING is unambiguous, it never applies to a legacy result.
  *  3. PROCESSING — the MedTech has begun (legacy) analysis.
  *  4. ASSIGNED — waiting to be started.
- *  5. VERIFYING — a multi-field result has been submitted (or returned) and is
- *     awaiting the MedTech's check on the website; nothing to do here on mobile.
+ *  5. VERIFYING — a multi-field result has been submitted and is awaiting the
+ *     MedTech's check on the website; nothing to do here on mobile. Submit can also
+ *     reply RETURNED_FOR_CORRECTION (backend #102, when the result answers an
+ *     already-open return) — that still ranks as RETURNED, not here.
  * Anything else has no Queue status.
  * @param item - The specimen's status, correction flag, result status and field count.
  */
@@ -41,11 +45,9 @@ export function getQueueStatus(
   item: Pick<QueueItem, 'status' | 'isReturnedForCorrection' | 'resultStatus' | 'fieldCount'>,
 ): QueueStatus | null {
   if (item.resultStatus === 'CAPTURING') return 'CAPTURING';
-  const multiFieldAwaitingWeb =
-    isMultiField(item) &&
-    (item.resultStatus === 'PENDING_CONFIRM' || item.resultStatus === 'RETURNED_FOR_CORRECTION');
-  if (multiFieldAwaitingWeb) return 'VERIFYING';
   if (item.isReturnedForCorrection) return 'RETURNED';
+  const multiFieldAwaitingWeb = isMultiField(item) && item.resultStatus === 'PENDING_CONFIRM';
+  if (multiFieldAwaitingWeb) return 'VERIFYING';
   if (item.status === 'PROCESSING') return 'PROCESSING';
   if (item.status === 'ASSIGNED') return 'ASSIGNED';
   return null;

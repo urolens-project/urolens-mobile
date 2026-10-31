@@ -79,15 +79,21 @@ function makeSpecimen(overrides: Partial<Record<string, unknown>> = {}) {
 // ─── Test setup ──────────────────────────────────────────────────────────────
 
 /**
- * The hook sets up three WatermelonDB subscriptions, in this fixed order:
+ * The hook sets up four WatermelonDB subscriptions, in this fixed order:
  *  0. filtered items (re-subscribes whenever filter or returnedServerIds change)
  *  1. allItems totals (re-subscribes whenever returnedServerIds changes)
  *  2. returned-for-correction tracking (subscribes once on mount, never re-fires)
+ *  3. accepted field count, off result_fields (subscribes once on mount, never
+ *     re-fires — see mobile PR #55 review, 3.1: this used to be read off
+ *     analysis_results.field_count inside subscription 2, but that column is
+ *     never synced by the backend, so it's now counted live off result_fields
+ *     in its own subscription instead)
  *
- * We track every subscribe() call in creation order — index 2 is always the
- * returned-tracking subscription (it never tears down/recreates), but indices
- * 0/1 shift once returnedServerIds changes and 0/1 re-subscribe. Tests that
- * only care about the initial mount can use emitItems(); tests that drive a
+ * We track every subscribe() call in creation order — indices 2 and 3 are always
+ * the returned-tracking and field-count subscriptions (neither tears down/
+ * recreates), but indices 0/1 shift once returnedServerIds or fieldCountByServerId
+ * change and 0/1 re-subscribe. Tests that only care about the initial mount can
+ * use emitItems(); tests that drive a
  * returnedServerIds-triggered re-subscription read the tail of the array directly.
  */
 const subscribeCalls: Array<{ cb: (rows: unknown[]) => void; onError: (error: Error) => void }> =
@@ -231,11 +237,11 @@ describe('queue paging and failure recovery', () => {
     await act(async (): Promise<void> => {
       await result.current.refresh();
     });
-    expect(subscribeCalls).toHaveLength(6);
+    expect(subscribeCalls).toHaveLength(8);
     await act(async (): Promise<void> => {
-      subscribeCalls[3].cb([]);
       subscribeCalls[4].cb([]);
       subscribeCalls[5].cb([]);
+      subscribeCalls[6].cb([]);
     });
     expect(result.current.error).toBeNull();
     expect(result.current.isLoading).toBe(false);
@@ -345,9 +351,9 @@ describe('useQueue', () => {
     it('unsubscribes from WatermelonDB when the component unmounts', () => {
       const { unmount } = renderHook(() => useQueue());
       unmount();
-      // Three subscriptions (filtered items + allItems + returned-for-correction
-      // tracking) are all cleaned up
-      expect(mockUnsubscribe).toHaveBeenCalledTimes(3);
+      // Four subscriptions (filtered items + allItems + returned-for-correction
+      // tracking + accepted field count) are all cleaned up
+      expect(mockUnsubscribe).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -500,10 +506,10 @@ describe('useQueue', () => {
         result.current.setFilter('ASSIGNED');
       });
 
-      // Filter subscription cleaned up; allItems + returned-tracking stay
+      // Filter subscription cleaned up; allItems + returned-tracking + field-count stay
       expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
-      // mount: 3 (filter + allItems + returned-tracking), setFilter: +1 = 4 total
-      expect(database.get).toHaveBeenCalledTimes(4);
+      // mount: 4 (filter + allItems + returned-tracking + field-count), setFilter: +1 = 5 total
+      expect(database.get).toHaveBeenCalledTimes(5);
     });
   });
 
