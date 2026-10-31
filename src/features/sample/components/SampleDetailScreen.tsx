@@ -186,7 +186,11 @@ export function SampleDetailScreen({
   if (canShowCapturingFields) {
     return (
       <SampleDetailShell specimen={specimen} resultStatus={resultStatusValue} onBack={handleBack}>
-        <CapturingFieldsCard acceptedCount={acceptedFieldCount} minFields={DEFAULT_MIN_FIELDS} />
+        <CapturingFieldsCard
+          acceptedCount={acceptedFieldCount}
+          minFields={DEFAULT_MIN_FIELDS}
+          returnReason={analysisResult?.returnReason}
+        />
         <SampleActionBar
           canBeginAnalysis={false}
           canContinueCapturing
