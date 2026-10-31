@@ -38,9 +38,10 @@ export default class ResultField extends Model {
   @field('is_synced') isSynced!: boolean;
   @field('created_at') createdAt!: number;
   @field('synced_at') syncedAt!: string | null;
-  // Set when the system discards a field automatically (a queued offline
-  // capture refused as IMAGE_NOT_MICROSCOPY / IMAGE_EXPOSURE); null for a
-  // MedTech's own discard decision.
+  // Set when the app discards a field automatically — client-side only, for
+  // a queued offline capture the engine's gate refused (IMAGE_NOT_MICROSCOPY /
+  // IMAGE_EXPOSURE), which creates no field server-side at all; null for a
+  // MedTech's own discard decision (mobile PR #55 review, 3.12).
   @field('discard_reason') discardReason!: string | null;
 
   // Computed getter — parses the AI count-per-class JSON safely
