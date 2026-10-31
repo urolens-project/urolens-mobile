@@ -179,10 +179,51 @@ export async function pushChanges(signal?: AbortSignal): Promise<PushSummary> {
         console.error(`[pushChanges] ${item.action} for ${item.entityId} failed: ${message}`);
         await markItem(item, PendingSyncStatus.FAILED, message, signal);
         refusedCount += 1;
+        await resolvePermanentlyRefusedField(item, message);
       }
     }
   }
   return { refusedCount };
+}
+
+/**
+ * @description Keeps a permanently-refused field decision from leaving the phone stuck
+ * or out of step with the server (the same class of dead end 3.4 fixed for a lost file):
+ * - UPLOAD_IMAGE: the PENDING_UPLOAD placeholder has no other way to resolve — e.g. the
+ *   sample was reassigned, or AI_ANALYSIS_FAILED kept retrying until MAX_RETRY_AGE_MS.
+ *   Discard it with the server's message, same as a gate refusal or a lost file.
+ * - ACCEPT_FIELD / DISCARD_FIELD: the phone already applied the decision optimistically
+ *   (useFieldActions.ts), but the server never did. Revert the field to ANALYZED so it
+ *   goes back to "needs your decision" instead of quietly disagreeing with the server —
+ *   left as-is, Submit would hit the confusing FIELDS_UNDECIDED 409 that 3.6 was meant
+ *   to prevent.
+ * @param item - The pending_sync row just marked FAILED for a permanent reason.
+ * @param message - The server's refusal message, used as the field's discard reason.
+ */
+async function resolvePermanentlyRefusedField(item: PendingSync, message: string): Promise<void> {
+  try {
+    if (item.action === PendingSyncAction.UPLOAD_IMAGE) {
+      await discardQueuedField(item.entityId, message);
+    } else if (
+      item.action === PendingSyncAction.ACCEPT_FIELD ||
+      item.action === PendingSyncAction.DISCARD_FIELD
+    ) {
+      await database.write(async (): Promise<void> => {
+        const [field] = await database
+          .get<ResultField>('result_fields')
+          .query(Q.where('server_id', item.entityId))
+          .fetch();
+        if (!field) return;
+        await field.update((f) => {
+          f.status = 'ANALYZED';
+          f.isSynced = true;
+          f.syncedAt = new Date().toISOString();
+        });
+      });
+    }
+  } catch (err) {
+    console.error(`[pushChanges] failed to resolve refused field for ${item.entityId}`, err);
+  }
 }
 
 async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<void> {
