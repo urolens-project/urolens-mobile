@@ -5,6 +5,10 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
 
+import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
+import { SmartDiagnosisRows } from '@features/result-confirmation/components/SmartDiagnosisRows';
+import { mapSmartDiagnosis } from '@features/result-confirmation/mappers/resultReview.mapper';
+
 import { DetectionOverlay } from './DetectionOverlay';
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
 import type { CapturedField } from '../types';
@@ -112,9 +116,24 @@ function SmartDiagnosisPreview({ field }: { field: CapturedField }): React.JSX.E
     );
   }
 
+  const smartDiagnosis = mapSmartDiagnosis(field.smartDiagnosisPreview);
+
   return (
     <View style={styles.diagnosisSection}>
       <Text style={styles.diagnosisCaption}>{FIELD_CAPTURE_TEXT.thisFieldOnlyCaption}</Text>
+      {smartDiagnosis?.noSignificantIndicators ? (
+        <View style={styles.noIndicatorsRow}>
+          <Icon name="checkmark-circle-outline" size={16} color={colors.emerald800} />
+          <Text style={styles.noIndicatorsText}>
+            {FIELD_CAPTURE_TEXT.noSignificantDiagnosticIndicators}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.rowsWrapper}>
+          <SmartDiagnosisRows smartDiagnosis={smartDiagnosis} isCompact />
+        </View>
+      )}
+      <AIDisclaimer />
     </View>
   );
 }
@@ -137,9 +156,26 @@ const styles = StyleSheet.create({
   countLabel: { ...typography.body, color: colors.gray300 },
   countValue: { ...typography.body, color: colors.white, fontWeight: fontWeight.semibold },
   emptyCountsText: { ...typography.body, color: colors.gray500 },
-  diagnosisSection: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  diagnosisCaption: { ...typography.caption, color: colors.gray500 },
-  diagnosisUnavailableText: { ...typography.caption, color: colors.gray500 },
+  diagnosisSection: { paddingTop: spacing.lg },
+  diagnosisCaption: {
+    ...typography.caption,
+    color: colors.gray500,
+    paddingHorizontal: spacing.lg,
+  },
+  diagnosisUnavailableText: {
+    ...typography.caption,
+    color: colors.gray500,
+    paddingHorizontal: spacing.lg,
+  },
+  noIndicatorsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  noIndicatorsText: { ...typography.body, color: colors.emerald800 },
+  rowsWrapper: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',

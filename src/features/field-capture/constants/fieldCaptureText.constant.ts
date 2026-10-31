@@ -9,6 +9,7 @@ export const FIELD_CAPTURE_TEXT = {
   fieldResultTitle: (fieldNo: number): string => `Field ${fieldNo}`,
   thisFieldOnlyCaption: 'This field only — not the reported diagnosis',
   smartDiagnosisUnavailableMessage: 'Smart Diagnosis preview unavailable for this field.',
+  noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
   proceedLabel: 'Proceed',
   discardLabel: 'Discard',
   discardModalTitle: 'Discard this field?',
