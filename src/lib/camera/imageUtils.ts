@@ -184,13 +184,16 @@ export async function buildFieldUploadFormData(
   return form;
 }
 
-// ── Private helpers ───────────────────────────────────────────────────────────
-
 // ImageManipulator saves into Expo's reclaimable cache directory by default, which
 // iOS/Android can clear under storage pressure before a field captured offline
 // gets uploaded (mobile PR #55 review, 3.4). documentDirectory survives that, so
-// every processed field is moved there immediately after processing.
-const FIELDS_DIRECTORY = new Directory(Paths.document, 'fields');
+// every processed field — captured through the multi-field flow or the legacy
+// single-image retake flow, both of which call processUri below — is moved there
+// immediately after processing. Exported so db/sync can delete the directory
+// (decision #4): unlike the old cache location, nothing else ever reclaims this one.
+export const FIELDS_DIRECTORY = new Directory(Paths.document, 'fields');
+
+// ── Private helpers ───────────────────────────────────────────────────────────
 
 function moveToFieldsDirectory(cacheUri: string, filename: string): LocalFile {
   if (!FIELDS_DIRECTORY.exists) FIELDS_DIRECTORY.create({ idempotent: true, intermediates: true });
