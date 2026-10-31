@@ -9,6 +9,9 @@ import { SAMPLE_TEXT } from '../constants/sampleText.constant';
 export interface CapturingFieldsCardProps {
   acceptedCount: number;
   minFields: number;
+  /** The supervisor's return reason, when capturing because a submitted result was
+   * sent back and then reopened for more fields via Capture More Fields. */
+  returnReason?: string | null;
 }
 
 /**
@@ -17,10 +20,12 @@ export interface CapturingFieldsCardProps {
  * progress toward the minimum.
  * @param acceptedCount - Accepted field count so far.
  * @param minFields - Minimum accepted fields required to submit.
+ * @param returnReason - The supervisor's return reason, if capturing resumed one.
  */
 export function CapturingFieldsCard({
   acceptedCount,
   minFields,
+  returnReason,
 }: CapturingFieldsCardProps): React.JSX.Element {
   return (
     <View style={styles.card}>
@@ -31,6 +36,11 @@ export function CapturingFieldsCard({
       <Text style={styles.body}>
         {SAMPLE_TEXT.getCapturingFieldsBody(acceptedCount, minFields)}
       </Text>
+      {returnReason && (
+        <Text style={styles.reason}>
+          {SAMPLE_TEXT.rejectionReasonLabel}: {returnReason}
+        </Text>
+      )}
     </View>
   );
 }
@@ -47,4 +57,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
   title: { ...typography.label, fontWeight: fontWeight.bold, color: colors.indigo800 },
   body: { ...typography.body, color: colors.indigo800, lineHeight: 18 },
+  reason: {
+    ...typography.body,
+    color: colors.indigo800,
+    fontWeight: fontWeight.semibold,
+    marginTop: spacing.sm,
+  },
 });
