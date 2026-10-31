@@ -19,8 +19,7 @@ const RETIRED_ACTIONS: PendingSyncAction[] = [
   PendingSyncAction.DISCARD_IMAGE,
 ];
 
-const RETIRED_REASON =
-  'Replaced by the field workflow. Capture more fields on the phone, then verify on the website.';
+const RETIRED_REASON = 'Replaced by the field workflow. Continue this sample on the website.';
 
 /**
  * @description One-time, run before the first sync of a new app version (SDD Module 2

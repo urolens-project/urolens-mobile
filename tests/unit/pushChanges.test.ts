@@ -21,6 +21,20 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
 }));
+jest.mock('expo-file-system', () => ({
+  File: jest.fn().mockImplementation(() => ({ exists: true })),
+}));
+jest.mock('@lib/camera/imageUtils', () => ({
+  buildFieldUploadFormData: jest.fn().mockResolvedValue({}),
+}));
+jest.mock('@lib/camera/uploadField', () => ({
+  uploadFieldViaXhr: jest.fn(),
+  isRetakeNeededError: jest.fn().mockReturnValue(false),
+}));
+jest.mock('@features/field-capture/lib/saveUploadedField', () => ({
+  applyFieldCaptureResponse: jest.fn(),
+  discardQueuedField: jest.fn(),
+}));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
@@ -31,6 +45,8 @@ import {
 } from '../../src/db/sync/pushChanges';
 import { database } from '../../src/db/database';
 import { apiClient } from '../../src/lib/apiClient';
+import { uploadFieldViaXhr } from '../../src/lib/camera/uploadField';
+import { discardQueuedField } from '../../src/features/field-capture/lib/saveUploadedField';
 import { PendingSyncAction, PendingSyncStatus } from '../../src/types/enums';
 
 const post = apiClient.post as jest.Mock;
@@ -359,4 +375,73 @@ describe('requeueLegacyFailedActions', () => {
     expect(failed.update).not.toHaveBeenCalled();
     expect(setItem).not.toHaveBeenCalled();
   });
+});
+
+// A permanently-refused field decision must not leave the phone stuck (a queued
+// upload with nothing left to retry) or out of step with the server (an
+// optimistically-applied Accept/Discard the server never actually recorded).
+describe('resolving a permanently-refused field decision', () => {
+  it('discards the PENDING_UPLOAD placeholder when a queued upload is refused for good', async () => {
+    const item = makeItem({
+      action: PendingSyncAction.UPLOAD_IMAGE,
+      entityId: 'local-field-1',
+      createdAt: Date.now() - 8 * DAY,
+    });
+    const fieldRow = { localImageUri: 'file:///fields/x.jpg', magnification: 'HPF' };
+    (database.get as jest.Mock).mockImplementation((table: string) => {
+      if (table === 'pending_sync') {
+        return { query: () => ({ fetch: jest.fn().mockResolvedValue([item]) }) };
+      }
+      if (table === 'result_fields') {
+        return { find: jest.fn().mockResolvedValue(fieldRow) };
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+    (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<unknown>) => fn());
+    (uploadFieldViaXhr as jest.Mock).mockRejectedValue({
+      status: 403,
+      code: 'SPECIMEN_NOT_ASSIGNED',
+      message: 'This sample is no longer assigned to you.',
+    });
+
+    await pushChanges();
+
+    expect(discardQueuedField).toHaveBeenCalledWith(
+      'local-field-1',
+      expect.stringContaining('SPECIMEN_NOT_ASSIGNED'),
+    );
+  });
+
+  it.each([PendingSyncAction.ACCEPT_FIELD, PendingSyncAction.DISCARD_FIELD])(
+    'reverts the field back to ANALYZED when a queued %s is refused for good',
+    async (action) => {
+      const item = makeItem({ action, entityId: 'srv-field-1', createdAt: Date.now() - 8 * DAY });
+      const fieldRow = {
+        status: action === PendingSyncAction.ACCEPT_FIELD ? 'ACCEPTED' : 'DISCARDED',
+        isSynced: false,
+        syncedAt: null,
+        update: jest.fn(async (cb: (f: typeof fieldRow) => void) => cb(fieldRow)),
+      };
+      (database.get as jest.Mock).mockImplementation((table: string) => {
+        if (table === 'pending_sync') {
+          return { query: () => ({ fetch: jest.fn().mockResolvedValue([item]) }) };
+        }
+        if (table === 'result_fields') {
+          return { query: () => ({ fetch: jest.fn().mockResolvedValue([fieldRow]) }) };
+        }
+        throw new Error(`unexpected table ${table}`);
+      });
+      (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<unknown>) => fn());
+      post.mockRejectedValue({
+        status: 403,
+        code: 'SPECIMEN_NOT_ASSIGNED',
+        message: 'This sample is no longer assigned to you.',
+      });
+
+      await pushChanges();
+
+      expect(fieldRow.status).toBe('ANALYZED');
+      expect(fieldRow.isSynced).toBe(true);
+    },
+  );
 });
