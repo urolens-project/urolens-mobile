@@ -115,6 +115,13 @@ export function isRetakeNeededError(err: unknown): err is UploadFieldXhrError {
   );
 }
 
+/** @description The error's backend code (core/exceptions.py), if it carries one. */
+export function getUploadErrorCode(err: unknown): string | undefined {
+  return typeof err === 'object' && err !== null && 'code' in err
+    ? (err as UploadFieldXhrError).code
+    : undefined;
+}
+
 // A refusal with no message of its own, e.g. a proxy answering before the API does.
 function describeUploadStatus(status: number): string {
   if (status === HTTP_PAYLOAD_TOO_LARGE) {

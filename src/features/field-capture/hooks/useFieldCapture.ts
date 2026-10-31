@@ -1,6 +1,11 @@
 import { buildFieldUploadFormData } from '@lib/camera/imageUtils';
 import type { ProcessedImage } from '@lib/camera/imageUtils';
-import { isRetakeNeededError, uploadFieldViaXhr } from '@lib/camera/uploadField';
+import {
+  getUploadErrorCode,
+  isRetakeNeededError,
+  uploadFieldViaXhr,
+} from '@lib/camera/uploadField';
+import { synchronize } from '@db/sync/syncManager';
 import { useAsyncAction } from '@hooks/useAsyncAction';
 
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
@@ -56,10 +61,20 @@ export function useFieldCapture(): UseFieldCaptureResult {
         if (isRetakeNeededError(err)) {
           return { status: 'retake', message: err.message };
         }
+        // Codes the backend answers with no MedTech-facing message of their own
+        // (core/exceptions.py) get a clear one here; everything else already
+        // carries its own server message (mobile PR #55 review, 3.10).
+        const code = getUploadErrorCode(err);
+        if (code === 'RESULT_NOT_EDITABLE') {
+          // Something else (another device, the website) moved this result out of
+          // CAPTURING — pull the real state now rather than waiting for the next
+          // scheduled sync, so the queue/sample screen stop offering capture.
+          synchronize().catch((syncErr) => console.error('[FieldCapture] resync failed', syncErr));
+        }
         const message =
-          err instanceof Error && err.message
-            ? err.message
-            : FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage;
+          (code && FIELD_CAPTURE_TEXT.captureErrorMessages[code]) ||
+          (err instanceof Error && err.message) ||
+          FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage;
         return { status: 'failed', message };
       }
     },

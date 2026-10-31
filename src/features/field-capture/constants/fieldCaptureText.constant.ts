@@ -23,6 +23,19 @@ export const FIELD_CAPTURE_TEXT = {
   discardFailedMessage: 'Could not discard this field. Please try again.',
   uploadFailedFallbackMessage: 'Upload failed. Please check your connection and try again.',
 
+  // Capture error codes the backend answers with a bare machine-readable code
+  // and no MedTech-facing message (core/exceptions.py) — everything else
+  // (INVALID_IMAGE_FORMAT, INVALID_IMAGE_RESOLUTION, IMAGE_TOO_LARGE,
+  // AI_ANALYSIS_FAILED, STORAGE_ERROR) already carries its own message from
+  // the server (mobile PR #55 review, 3.10).
+  captureErrorMessages: {
+    RESULT_NOT_EDITABLE: 'This sample is no longer capturing — open it from the queue.',
+    SPECIMEN_REJECTED: 'This sample was rejected.',
+    SPECIMEN_NOT_ASSIGNED: 'This sample is no longer assigned to you.',
+    CONSENT_REFUSED: 'The patient refused processing — this sample can’t be analysed.',
+    FEATURE_DISABLED: 'This feature isn’t available yet. Please try again later.',
+  } as Record<string, string>,
+
   // FieldListScreen
   fieldListTitle: 'Fields',
   captureMoreLabel: 'Capture More Fields',
