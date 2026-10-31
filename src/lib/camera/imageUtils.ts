@@ -14,6 +14,11 @@
  */
 
 import { Platform } from 'react-native';
+// Aliased: this module also constructs the DOM/RN-polyfill `File` for web
+// uploads (buildUploadFormData/buildFieldUploadFormData below), which the
+// global `File` already covers — importing expo-file-system's own `File`
+// under its own name would shadow that.
+import { Directory, File as LocalFile, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { ImageManipulatorContext, ImageRef } from 'expo-image-manipulator';
 import type { ImagePickerAsset } from 'expo-image-picker';
@@ -181,6 +186,19 @@ export async function buildFieldUploadFormData(
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
+// ImageManipulator saves into Expo's reclaimable cache directory by default, which
+// iOS/Android can clear under storage pressure before a field captured offline
+// gets uploaded (mobile PR #55 review, 3.4). documentDirectory survives that, so
+// every processed field is moved there immediately after processing.
+const FIELDS_DIRECTORY = new Directory(Paths.document, 'fields');
+
+function moveToFieldsDirectory(cacheUri: string, filename: string): LocalFile {
+  if (!FIELDS_DIRECTORY.exists) FIELDS_DIRECTORY.create({ idempotent: true, intermediates: true });
+  const destination = new LocalFile(FIELDS_DIRECTORY, filename);
+  new LocalFile(cacheUri).move(destination);
+  return destination;
+}
+
 async function processUri(uri: string, filenameStem: string): Promise<ProcessedImage> {
   // Re-encode via the chain API — strips all EXIF.
   const context = ImageManipulator.manipulate(uri);
@@ -199,13 +217,16 @@ async function processUri(uri: string, filenameStem: string): Promise<ProcessedI
   const sizeBytes = await readSizeBytes(saved.uri);
   if (sizeBytes > MAX_UPLOAD_BYTES) throw new ImageTooLargeError();
 
+  const filename = `${filenameStem}-${Date.now()}.jpg`;
+  const storedFile = moveToFieldsDirectory(saved.uri, filename);
+
   return {
-    uri: saved.uri,
+    uri: storedFile.uri,
     width: imageRef.width,
     height: imageRef.height,
     mimeType: 'image/jpeg',
     sizeBytes,
-    filename: `${filenameStem}-${Date.now()}.jpg`,
+    filename,
   };
 }
 

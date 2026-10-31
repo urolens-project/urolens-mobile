@@ -1,5 +1,6 @@
 import { Q } from '@nozbe/watermelondb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { File } from 'expo-file-system';
 import { apiClient } from '@lib/apiClient';
 import { PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
 
@@ -23,6 +24,12 @@ const MAX_RETRY_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // Actions marked FAILED before retries existed were never given a second chance.
 // They get exactly one, recorded under this key.
 const LEGACY_REQUEUE_KEY = 'urolens_failed_actions_requeued_v1';
+
+// A queued field whose on-disk file was evicted (storage pressure, see
+// imageUtils.ts's FIELDS_DIRECTORY move) before its upload could run — same
+// terminal treatment as a gate refusal: discard with a reason instead of
+// retrying forever against a file that will never come back.
+const FIELD_FILE_LOST_MESSAGE = 'Photo was lost before upload — capture it again.';
 
 // Replies that mean "this already happened on the server": the change is done, not failed.
 // (Bare 'CONFLICT' is the generic 409; the others are what the backend actually sends.)
@@ -243,6 +250,10 @@ async function uploadQueuedField(item: PendingSync, signal?: AbortSignal): Promi
   const field = await database.get<ResultField>('result_fields').find(item.entityId);
   if (!field.localImageUri) {
     throw new Error(`Field ${item.entityId} has no local image file to upload.`);
+  }
+  if (!new File(field.localImageUri).exists) {
+    await discardQueuedField(item.entityId, FIELD_FILE_LOST_MESSAGE);
+    return;
   }
 
   const filename = field.localImageUri.split('/').pop() ?? `field-${item.entityId}.jpg`;
