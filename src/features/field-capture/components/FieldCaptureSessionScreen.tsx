@@ -14,12 +14,13 @@
  *   fieldResult → (Proceed or Discard)  → idle, ready for the next field
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Alert, StyleSheet } from 'react-native';
 import { useCameraPermissions, type CameraView } from 'expo-camera';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { processCapture, processPickerAsset, isImageValidationError } from '@lib/camera/imageUtils';
 import type { ProcessedImage } from '@lib/camera/imageUtils';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
@@ -34,10 +35,15 @@ import { IMAGE_RETAKE_TEXT } from '@features/image-retake/constants/imageRetakeT
 
 import { FieldResultScreen } from './FieldResultScreen';
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
+import { LAST_MAGNIFICATION_KEY } from '../constants/magnification.constant';
 import { useFieldCapture } from '../hooks/useFieldCapture';
 import { useFieldActions } from '../hooks/useFieldActions';
 import { createQueuedFieldUpload } from '../lib/saveUploadedField';
 import type { CapturedField, Magnification } from '../types';
+
+function isMagnification(value: string | null): value is Magnification {
+  return value === 'HPF' || value === 'LPF';
+}
 
 type ScreenPhase = 'idle' | 'previewing' | 'uploading' | 'fieldResult';
 
@@ -74,6 +80,18 @@ export function FieldCaptureSessionScreen({
   const [thumbnails, setThumbnails] = useState<string[]>([]);
 
   const cameraRef = useRef<CameraView>(null);
+
+  // Keeps the last-chosen magnification between captures instead of always
+  // resetting to HPF (mobile PR #55 review, 3.15).
+  useEffect((): void => {
+    AsyncStorage.getItem(LAST_MAGNIFICATION_KEY)
+      .then((stored): void => {
+        if (isMagnification(stored)) setMagnification(stored);
+      })
+      .catch((err: unknown): void =>
+        console.error('[FieldCapture] failed to load magnification', err),
+      );
+  }, []);
 
   // ── Capture from camera ───────────────────────────────────────────────────
   const handleCapture = useCallback(async (): Promise<void> => {
@@ -222,7 +240,13 @@ export function FieldCaptureSessionScreen({
   }, []);
 
   const handleToggleMagnification = useCallback((): void => {
-    setMagnification((m) => (m === 'HPF' ? 'LPF' : 'HPF'));
+    setMagnification((m) => {
+      const next = m === 'HPF' ? 'LPF' : 'HPF';
+      AsyncStorage.setItem(LAST_MAGNIFICATION_KEY, next).catch((err: unknown): void =>
+        console.error('[FieldCapture] failed to persist magnification', err),
+      );
+      return next;
+    });
   }, []);
 
   const handleViewFieldList = useCallback((): void => {

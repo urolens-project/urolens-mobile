@@ -73,8 +73,9 @@ export interface FieldListItem {
   thumbnailUri: string | null;
   /** Sum of all AI counts for this field — a quick glance, not a full breakdown. */
   particleCount: number;
-  /** Set only when the system discarded this field automatically (the engine's
-   * input gate refused it); null for a MedTech's own discard decision. */
+  /** Set only when the app discarded this field automatically — client-side only,
+   * for a queued offline capture the engine's gate refused, which creates no field
+   * server-side at all; null for a MedTech's own discard decision. */
   discardReason: string | null;
 }
 
