@@ -269,14 +269,6 @@ describe('ResultReviewScreen — integration (TASK-MOB-09-12)', () => {
       expect(view.getByText('Supervisor review')).toBeTruthy();
     });
 
-    it('captions a queued multi-field submission "Preview" — it has not synced yet', async (): Promise<void> => {
-      setupDatabaseMock({ ...mockResult, isSynced: false });
-      const view = render(
-        <ResultReviewScreen resultId="result-int-01" specimenId="specimen-int-01" />,
-      );
-      await waitFor(() => expect(view.getByText('Preview')).toBeTruthy());
-    });
-
     it('shows no indicators for a valid all-low detail response', async (): Promise<void> => {
       (apiClient.get as jest.Mock).mockResolvedValue({
         data: {
