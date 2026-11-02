@@ -48,6 +48,7 @@ import { apiClient } from '../../src/lib/apiClient';
 import { uploadFieldViaXhr } from '../../src/lib/camera/uploadField';
 import { discardQueuedField } from '../../src/features/field-capture/lib/saveUploadedField';
 import { PendingSyncAction, PendingSyncStatus } from '../../src/types/enums';
+import { RETIRED_REASON } from '../../src/db/sync/legacyQueue';
 
 const post = apiClient.post as jest.Mock;
 const DAY = 24 * 60 * 60 * 1000;
@@ -235,6 +236,51 @@ describe('pushChanges', () => {
       await pushChanges();
       expect(item.status).toBe(PendingSyncStatus.FAILED);
       expect(item.errorMessage).toContain('Unknown sync action');
+    });
+  });
+
+  describe('an action the field workflow retired gets a clear reason, not the server 410 text', () => {
+    it.each([
+      PendingSyncAction.CONFIRM_RESULT,
+      PendingSyncAction.OVERRIDE_PARAMETER,
+      PendingSyncAction.DISCARD_IMAGE,
+    ])('%s answered APP_UPDATE_REQUIRED ends FAILED with the clean-out message', async (action) => {
+      const item = makeItem({ action });
+      setDb([item]);
+      post.mockRejectedValue({
+        code: 'APP_UPDATE_REQUIRED',
+        message: 'Update UroLens to continue.',
+        status: 410,
+      });
+
+      await pushChanges();
+
+      expect(item.status).toBe(PendingSyncStatus.FAILED);
+      expect(item.errorMessage).toBe(RETIRED_REASON);
+    });
+
+    it('leaves an unrelated action refused with APP_UPDATE_REQUIRED showing the server message', async () => {
+      const item = makeItem({ action: PendingSyncAction.ACCEPT_FIELD, entityId: 'srv-field-1' });
+      (database.get as jest.Mock).mockImplementation((table: string) => {
+        if (table === 'pending_sync') {
+          return { query: () => ({ fetch: jest.fn().mockResolvedValue([item]) }) };
+        }
+        if (table === 'result_fields') {
+          return { query: () => ({ fetch: jest.fn().mockResolvedValue([]) }) };
+        }
+        throw new Error(`unexpected table ${table}`);
+      });
+      (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<unknown>) => fn());
+      post.mockRejectedValue({
+        code: 'APP_UPDATE_REQUIRED',
+        message: 'Update UroLens to continue.',
+        status: 410,
+      });
+
+      await pushChanges();
+
+      expect(item.status).toBe(PendingSyncStatus.FAILED);
+      expect(item.errorMessage).toBe('APP_UPDATE_REQUIRED: Update UroLens to continue.');
     });
   });
 
