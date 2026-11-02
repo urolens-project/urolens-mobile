@@ -32,11 +32,10 @@ export interface UseFieldCaptureResult {
 
 /**
  * @description Uploads one captured field (POST /fields) and saves the response into
- * WatermelonDB. Online only: the capture session blocks this call while offline (see
- * ImageCaptureScreen), matching today's single-image upload behavior. Classifies the
- * failure (retake-needed vs. a real analysis failure) in the resolved outcome rather
- * than through this hook's error state, which would still read stale on the very
- * render where the caller needs it.
+ * WatermelonDB. Online only: the capture session blocks this call while offline.
+ * Classifies the failure (retake-needed vs. a real analysis failure) in the resolved
+ * outcome rather than through this hook's error state, which would still read stale
+ * on the very render where the caller needs it.
  */
 export function useFieldCapture(): UseFieldCaptureResult {
   const { run, isLoading } = useAsyncAction(

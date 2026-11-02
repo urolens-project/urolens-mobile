@@ -7,7 +7,14 @@ const sample = (
   status: string,
   isReturnedForCorrection = false,
   receivedAt = '2026-09-20T00:00:00Z',
-): Sample => ({ id, status: status as Sample['status'], isReturnedForCorrection, receivedAt });
+  resultStatus: string | null = null,
+): Sample => ({
+  id,
+  status: status as Sample['status'],
+  isReturnedForCorrection,
+  receivedAt,
+  resultStatus,
+});
 
 describe('getQueueStatus', () => {
   it.each([
@@ -24,6 +31,23 @@ describe('getQueueStatus', () => {
     'a returned sample is RETURNED even when the specimen is %s',
     (status) => {
       expect(getQueueStatus(sample('x', status, true))).toBe('RETURNED');
+    },
+  );
+
+  it('a CAPTURING result is CAPTURING whatever the specimen status', () => {
+    expect(getQueueStatus(sample('x', 'ASSIGNED', false, undefined, 'CAPTURING'))).toBe(
+      'CAPTURING',
+    );
+  });
+
+  // Status alone decides VERIFYING, legacy single-image or multi-field alike
+  // (mobile PR #55 review, #3) — field count no longer matters.
+  it.each(['PENDING_CONFIRM', 'IMAGE_RETAKE_REQUESTED', 'FAILED'])(
+    'a %s result is VERIFYING whatever the field count',
+    (resultStatus) => {
+      expect(getQueueStatus(sample('x', 'PROCESSING', false, undefined, resultStatus))).toBe(
+        'VERIFYING',
+      );
     },
   );
 });

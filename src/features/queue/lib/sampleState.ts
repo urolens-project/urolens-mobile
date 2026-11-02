@@ -9,10 +9,6 @@ export interface SampleActions {
   canBeginAnalysis: boolean;
   /** Reject the specimen. */
   canReject: boolean;
-  /** Confirm the AI result and send it to the Supervisor. */
-  canConfirm: boolean;
-  /** Discard the image and capture a new one. */
-  canRetake: boolean;
   /** Resume the multi-field capture session (SDD Module 2 proposal) — the
    * result exists and is still CAPTURING, so there's nothing to confirm yet. */
   canContinueCapturing: boolean;
@@ -77,12 +73,6 @@ export function getSampleActions(
   return {
     canBeginAnalysis: resultStatus === null && BEGINNABLE_STATUSES.includes(specimenStatus),
     canReject: getRejectBlockedReason(specimenStatus, resultStatus) === null,
-    canConfirm:
-      !isRejected &&
-      (resultStatus === 'PENDING_CONFIRM' || resultStatus === 'RETURNED_FOR_CORRECTION'),
-    canRetake:
-      !isRejected &&
-      (resultStatus === 'PENDING_CONFIRM' || resultStatus === 'RETURNED_FOR_CORRECTION'),
     canContinueCapturing: !isRejected && resultStatus === 'CAPTURING',
   };
 }

@@ -16,24 +16,16 @@ export interface AIFindingsPanelProps {
   /** server_id of the AnalysisResult. */
   resultId: string;
   findings: AIFindingEntry[];
-  onOverride: (parameter: string, originalValue: number) => void;
-  isConfirmed: boolean;
 }
 
 /**
- * @description Card listing every AI-detected particle for a result, with a live count
- * of MedTech-overridden parameters from the local `manual_overrides` table.
+ * @description Card listing every AI-detected particle for a result, with a live,
+ * read-only count of MedTech-overridden parameters from the local `manual_overrides`
+ * table — overriding now happens on the website (mobile PR #55 review, #3).
  * @param resultId - Server id of the analysis result these findings belong to.
  * @param findings - AI findings to render as rows.
- * @param onOverride - Called with a parameter name and its original AI count.
- * @param isConfirmed - Hides override controls once the result is confirmed.
  */
-function AIFindingsPanelComponent({
-  resultId,
-  findings,
-  onOverride,
-  isConfirmed,
-}: AIFindingsPanelProps): React.JSX.Element {
+function AIFindingsPanelComponent({ resultId, findings }: AIFindingsPanelProps): React.JSX.Element {
   const database = useDatabase();
   const [overrides, setOverrides] = React.useState<Record<string, number>>({});
 
@@ -85,8 +77,6 @@ function AIFindingsPanelComponent({
               key={finding.parameter}
               finding={finding}
               overriddenValue={overrides[finding.parameter]}
-              onOverride={onOverride}
-              disabled={isConfirmed}
             />
           ))}
         </View>
