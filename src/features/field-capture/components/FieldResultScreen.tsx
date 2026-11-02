@@ -44,6 +44,9 @@ export function FieldResultScreen({
   // An already-ACCEPTED field reopened from the list (mobile PR #55 review, 3.7) has
   // nothing left to Proceed on — only Discard applies.
   const isReadOnly = field.status === 'ACCEPTED';
+  // A field still awaiting its boxes (1.2/3.14) hides Proceed too, so nobody
+  // decides a field blind — Discard can stay.
+  const canProceed = !isReadOnly && !field.isAwaitingBoxes;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -55,10 +58,24 @@ export function FieldResultScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={[styles.imageWrapper, { aspectRatio: imageAspectRatio }]}>
-          <Image source={{ uri: field.localImageUri }} style={styles.image} resizeMode="contain" />
-          <DetectionOverlay detections={field.detections} />
-        </View>
+        {field.isAwaitingBoxes ? (
+          <View
+            style={[styles.imageWrapper, styles.awaitingBoxes, { aspectRatio: imageAspectRatio }]}
+          >
+            <Text style={styles.awaitingBoxesText}>
+              {FIELD_CAPTURE_TEXT.boxesAwaitingSyncMessage}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.imageWrapper, { aspectRatio: imageAspectRatio }]}>
+            <Image
+              source={{ uri: field.localImageUri }}
+              style={styles.image}
+              resizeMode="contain"
+            />
+            <DetectionOverlay detections={field.detections} />
+          </View>
+        )}
 
         <View style={styles.countsSection}>
           {counts.map(([particleType, count]) => (
@@ -92,7 +109,7 @@ export function FieldResultScreen({
           <Icon name="trash-outline" size={18} color={colors.gray300} />
           <Text style={styles.discardLabel}>{FIELD_CAPTURE_TEXT.discardLabel}</Text>
         </TouchableOpacity>
-        {!isReadOnly && (
+        {canProceed && (
           <TouchableOpacity
             style={[styles.actionBtn, styles.proceedBtn]}
             onPress={onProceed}
@@ -156,6 +173,8 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: spacing.xl },
   imageWrapper: { width: '100%', backgroundColor: colors.black },
   image: { flex: 1 },
+  awaitingBoxes: { alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  awaitingBoxesText: { ...typography.body, color: colors.gray500, textAlign: 'center' },
   countsSection: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.sm },
   countRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
   countLabel: { ...typography.body, color: colors.gray300 },
