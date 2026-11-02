@@ -50,6 +50,15 @@ describe('getQueueStatus', () => {
       );
     },
   );
+
+  // A RETURNED_FOR_CORRECTION result still ranks as RETURNED, not VERIFYING — the
+  // mapper sets isReturnedForCorrection whenever this resultStatus occurs, and that
+  // flag has to win even though the result is otherwise read-only on mobile.
+  it('a RETURNED_FOR_CORRECTION result is RETURNED, not VERIFYING', () => {
+    expect(
+      getQueueStatus(sample('x', 'PROCESSING', true, undefined, 'RETURNED_FOR_CORRECTION')),
+    ).toBe('RETURNED');
+  });
 });
 
 describe('orderByStatus', () => {
