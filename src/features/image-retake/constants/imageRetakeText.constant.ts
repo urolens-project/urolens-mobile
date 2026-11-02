@@ -1,10 +1,15 @@
 // src/features/image-retake/constants/imageRetakeText.constant.ts
-/** User-facing copy for the Image Capture & Retake flow (T2.7). */
+/**
+ * User-facing copy for the shared camera/upload screens (live view, permission
+ * request, unavailable view, image preview, upload progress) and the capture/gallery
+ * -pick errors they raise. Shared by the multi-field capture flow
+ * (FieldCaptureSessionScreen) — the legacy single-image retake screen that
+ * originally owned this file is gone (mobile PR #55 review, #3).
+ */
 export const IMAGE_RETAKE_TEXT = {
-  // Shared across the camera screens (live view, permission request, unavailable view, preview)
+  // Shared across the camera/preview screens
   leaveCaptureA11yLabel: 'Leave capture',
   uploadFromGalleryLabel: 'Upload from Gallery Instead',
-  cancelLabel: 'Cancel',
   retakeLabel: 'Retake',
 
   // CameraLiveView
@@ -23,7 +28,7 @@ export const IMAGE_RETAKE_TEXT = {
   cameraMountErrorMessage:
     'The camera could not be started on this device. You can still upload an image from the gallery.',
 
-  // ImageCaptureScreen — capture/upload flow errors and alerts
+  // Capture/upload flow errors and alerts
   captureFailedMessage: 'Failed to capture image. Please try again.',
   galleryPickFailedMessage: 'Could not process the selected image. Please try another.',
   galleryAccessDeniedTitle: 'Gallery Access Denied',
@@ -32,21 +37,6 @@ export const IMAGE_RETAKE_TEXT = {
   missingSpecimenIdTitle: 'Missing Specimen ID',
   missingSpecimenIdMessage:
     'The specimen server ID was not passed to this screen. Go back and try again.',
-  offlineUploadBlockedMessage:
-    'A connection is required to upload this image. Connect and try again.',
-  uploadFailedTitle: 'Upload Failed',
-  discardFailedTitle: 'Error',
-  discardFailedMessage: 'Could not discard the image. Please try again.',
-  uploadFailedFallbackMessage: 'Upload failed. Please check your connection and try again.',
-
-  // DiscardConfirmationModal — legacy single-image retake path only (existingImageId set)
-  discardModalTitle: 'Discard this image?',
-  discardModalBody:
-    'The current image and its AI analysis will be discarded. You will need to recapture a new specimen image. This action cannot be undone.',
-  keepImageLabel: 'Keep Image',
-  discardAndRetakeLabel: 'Discard & Retake',
-  cancelDiscardA11yLabel: 'Cancel — keep current image',
-  confirmDiscardA11yLabel: 'Confirm discard and retake',
 
   // ImagePreviewPanel
   imagePreviewTitle: 'Image Preview',
@@ -55,15 +45,4 @@ export const IMAGE_RETAKE_TEXT = {
   // UploadProgressView
   uploadingImageTitle: 'Uploading image…',
   uploadSubtitle: 'AI analysis will begin automatically',
-
-  // useImageRetake hook errors
-  galleryPermissionRequiredMessage:
-    'Photo library permission is required. Please enable it in Settings.',
-  noImageCapturedMessage: 'No image has been captured yet.',
-  unexpectedErrorMessage: 'An unexpected error occurred. Please try again.',
-
-  // confirmRetake
-  discardOverridesTitle: 'Discard Overrides?',
-  discardOverridesMessage:
-    'Retaking the image will run a new AI analysis. Your existing manual overrides will be removed.',
 } as const;
