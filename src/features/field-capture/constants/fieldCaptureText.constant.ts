@@ -12,6 +12,10 @@ export const FIELD_CAPTURE_TEXT = {
   noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
   proceedLabel: 'Proceed',
   discardLabel: 'Discard',
+  // A field synced from another phone (or from before a reinstall) with no local
+  // image or AI boxes yet (mobile PR #55 review, 1.2/3.14) — never shown as if it
+  // had no detections.
+  boxesAwaitingSyncMessage: 'Boxes will load when you are online',
   discardModalTitle: 'Discard this field?',
   discardModalBody:
     'This field and its AI analysis will be dropped. It will not count toward the minimum. This action cannot be undone.',
