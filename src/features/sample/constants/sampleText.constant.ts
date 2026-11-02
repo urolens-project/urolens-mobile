@@ -33,7 +33,16 @@ export const SAMPLE_TEXT = {
 
   beginAnalysis: 'Begin Analysis',
   continueAnalysis: 'Continue Analysis',
+  continueCapturing: 'Continue Capturing',
   rejectSpecimen: 'Reject Specimen',
+
+  capturingFieldsTitle: 'Capturing Fields',
+  getCapturingFieldsBody(acceptedCount: number, minFields: number): string {
+    return `${acceptedCount} of ${minFields} fields accepted so far. Continue capturing until the minimum is reached, then submit for verification on the website.`;
+  },
+  awaitingWebVerificationTitle: 'Continue on the Website',
+  awaitingWebVerificationBody:
+    'This result has been submitted and is checked and confirmed on the website, not on the phone.',
 
   confirmResult: 'Confirm Result',
   confirmAnalysisResultAccessibilityLabel: 'Confirm analysis result',

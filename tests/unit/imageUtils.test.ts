@@ -187,12 +187,15 @@ describe('processCapture', () => {
     expect(result.mimeType).toBe('image/jpeg');
   });
 
-  it('returns the URI from ImageManipulator saveAsync output', async () => {
+  it('moves the saved file into documentDirectory/fields/, not the raw saveAsync cache URI', async () => {
+    // documentDirectory survives OS storage pressure that the cache directory
+    // ImageManipulator saves into by default does not (mobile PR #55 review, 3.4).
     const imageRef = makeImageRef();
     imageRef.saveAsync.mockResolvedValue({ uri: 'file://stripped.jpg', width: 1280, height: 960 });
     setupManipulator(imageRef);
     const result = await processCapture({ uri: 'file://photo.jpg' } as any);
-    expect(result.uri).toBe('file://stripped.jpg');
+    expect(result.uri).not.toBe('file://stripped.jpg');
+    expect(result.uri).toMatch(/\/fields\/captured-\d+\.jpg$/);
   });
 
   it('throws ImageResolutionError when manipulated width is below minimum', async () => {

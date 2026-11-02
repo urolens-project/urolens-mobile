@@ -6,6 +6,7 @@ import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpec
 import Specimen from '@db/models/Specimen';
 import AnalysisResult from '@db/models/AnalysisResult';
 import ManualOverride from '@db/models/ManualOverride';
+import ResultField from '@db/models/ResultField';
 
 import type { QueueItem } from '@features/queue/types';
 
@@ -16,6 +17,8 @@ export interface UseSampleDetailResult {
   specimen: QueueItem | null;
   analysisResult: AnalysisResult | null;
   overrides: Record<string, number>;
+  /** Live count of ACCEPTED result_fields rows; see note on the effect below. */
+  acceptedFieldCount: number;
   isLoading: boolean;
   notFound: boolean;
 }
@@ -30,10 +33,11 @@ export function useSampleDetail(specimenId: string): UseSampleDetailResult {
   const [specimen, setSpecimen] = useState<QueueItem | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const [acceptedFieldCount, setAcceptedFieldCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  // The three effects below must stay unconditional (Rules of Hooks). Internal
+  // The four effects below must stay unconditional (Rules of Hooks). Internal
   // guards make them no-ops when specimenId/serverId are absent.
   useEffect(() => {
     if (!specimenId) {
@@ -104,5 +108,22 @@ export function useSampleDetail(specimenId: string): UseSampleDetailResult {
     return () => subscription.unsubscribe();
   }, [analysisResult?.serverId]);
 
-  return { specimen, analysisResult, overrides, isLoading, notFound };
+  // Counted off result_fields directly rather than read from
+  // analysis_results.field_count: the backend never syncs that column, so a
+  // pull reset it to null on every sync (mobile PR #55 review, 3.1). This
+  // table syncs fully regardless of which device captured a field.
+  useEffect(() => {
+    if (!specimen?.serverId) return;
+    const specimenServerId = specimen.serverId;
+
+    const subscription = database
+      .get<ResultField>('result_fields')
+      .query(Q.where('specimen_id', specimenServerId), Q.where('status', 'ACCEPTED'))
+      .observeCount()
+      .subscribe(setAcceptedFieldCount);
+
+    return () => subscription.unsubscribe();
+  }, [specimen?.serverId]);
+
+  return { specimen, analysisResult, overrides, acceptedFieldCount, isLoading, notFound };
 }

@@ -26,6 +26,9 @@ jest.mock('@db/sync/pushChanges', (): object => ({
   hasPendingActions: jest.fn().mockResolvedValue(false),
   requeueLegacyFailedActions: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('@db/sync/legacyQueue', (): object => ({
+  drainLegacyQueuedActions: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('@db/database', (): object => ({
   database: { get: jest.fn(), write: jest.fn(), unsafeResetDatabase: jest.fn() },
 }));

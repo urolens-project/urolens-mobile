@@ -23,5 +23,8 @@ export function toQueueItem(s: Specimen): QueueItem {
     rejectedAt: s.rejectedAt,
     syncedAt: s.syncedAt,
     isReturnedForCorrection: false,
+    // Not derived here either — same reason as isReturnedForCorrection above.
+    resultStatus: null,
+    fieldCount: null,
   };
 }

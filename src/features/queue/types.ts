@@ -43,4 +43,10 @@ export interface QueueItem {
   // (SRS UC 3.4) — derived from analysis_results, not the specimen's own status.
   isReturnedForCorrection: boolean;
   returnReason?: string | null;
+  // The specimen's latest analysis result status and accepted field count, both
+  // derived from analysis_results (SDD Module 2 proposal) — null/null when there's
+  // no result yet, or for a legacy single-image result (fieldCount is only ever
+  // set by the multi-field capture flow).
+  resultStatus: string | null;
+  fieldCount: number | null;
 }

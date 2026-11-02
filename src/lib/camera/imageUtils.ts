@@ -14,6 +14,11 @@
  */
 
 import { Platform } from 'react-native';
+// Aliased: this module also constructs the DOM/RN-polyfill `File` for web
+// uploads (buildUploadFormData/buildFieldUploadFormData below), which the
+// global `File` already covers — importing expo-file-system's own `File`
+// under its own name would shadow that.
+import { Directory, File as LocalFile, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { ImageManipulatorContext, ImageRef } from 'expo-image-manipulator';
 import type { ImagePickerAsset } from 'expo-image-picker';
@@ -143,7 +148,59 @@ export async function buildUploadFormData(
   return form;
 }
 
+/**
+ * @description Builds a FormData object ready for the multipart POST /fields (one
+ * captured microscope field). Same web/native Blob handling as buildUploadFormData.
+ * Takes only the three fields it actually uses, not the full ProcessedImage, so a
+ * queued offline capture — which only has the stored file's URI by the time it
+ * replays, not the original processing result — can call this too.
+ * @param image - The file to upload: its local URI, filename and MIME type.
+ * @param specimenId - Specimen the field belongs to.
+ * @param magnification - Objective used for this field, HPF or LPF.
+ */
+export async function buildFieldUploadFormData(
+  image: Pick<ProcessedImage, 'uri' | 'filename' | 'mimeType'>,
+  specimenId: string,
+  magnification: 'HPF' | 'LPF',
+): Promise<FormData> {
+  const form = new FormData();
+  // Matches the backend's POST /fields multipart fields (api/fields.py): snake_case
+  // specimen_id, plain magnification — the same one deviation from camelCase as
+  // the single-image upload route.
+  form.append('specimen_id', specimenId);
+  form.append('magnification', magnification);
+
+  if (Platform.OS === 'web') {
+    const blob = await fetch(image.uri).then((r) => r.blob());
+    form.append('file', new File([blob], image.filename, { type: image.mimeType }));
+  } else {
+    form.append('file', {
+      uri: image.uri,
+      name: image.filename,
+      type: image.mimeType,
+    } as unknown as Blob);
+  }
+
+  return form;
+}
+
+// ImageManipulator saves into Expo's reclaimable cache directory by default, which
+// iOS/Android can clear under storage pressure before a field captured offline
+// gets uploaded (mobile PR #55 review, 3.4). documentDirectory survives that, so
+// every processed field — captured through the multi-field flow or the legacy
+// single-image retake flow, both of which call processUri below — is moved there
+// immediately after processing. Exported so db/sync can delete the directory
+// (decision #4): unlike the old cache location, nothing else ever reclaims this one.
+export const FIELDS_DIRECTORY = new Directory(Paths.document, 'fields');
+
 // ── Private helpers ───────────────────────────────────────────────────────────
+
+function moveToFieldsDirectory(cacheUri: string, filename: string): LocalFile {
+  if (!FIELDS_DIRECTORY.exists) FIELDS_DIRECTORY.create({ idempotent: true, intermediates: true });
+  const destination = new LocalFile(FIELDS_DIRECTORY, filename);
+  new LocalFile(cacheUri).move(destination);
+  return destination;
+}
 
 async function processUri(uri: string, filenameStem: string): Promise<ProcessedImage> {
   // Re-encode via the chain API — strips all EXIF.
@@ -163,13 +220,16 @@ async function processUri(uri: string, filenameStem: string): Promise<ProcessedI
   const sizeBytes = await readSizeBytes(saved.uri);
   if (sizeBytes > MAX_UPLOAD_BYTES) throw new ImageTooLargeError();
 
+  const filename = `${filenameStem}-${Date.now()}.jpg`;
+  const storedFile = moveToFieldsDirectory(saved.uri, filename);
+
   return {
-    uri: saved.uri,
+    uri: storedFile.uri,
     width: imageRef.width,
     height: imageRef.height,
     mimeType: 'image/jpeg',
     sizeBytes,
-    filename: `${filenameStem}-${Date.now()}.jpg`,
+    filename,
   };
 }
 
