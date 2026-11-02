@@ -75,8 +75,9 @@ export function mapServerToLocal(table: string, record: ServerRecord): Record<st
       };
 
     case 'manual_overrides':
-      // Pulled from the server, so it's already synced — matches how a confirmed
-      // override response is mapped locally (manualOverride.mapper.ts's mapManualOverride).
+      // Pulled from the server, so it's already synced. The mobile feature that
+      // submitted new overrides is gone (mobile PR #55 review, #3 — overriding
+      // moved to the website); this mapping stays to display historical ones.
       return {
         ...base,
         resultId: record['result_id'],

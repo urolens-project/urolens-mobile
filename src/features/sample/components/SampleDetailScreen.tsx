@@ -18,14 +18,12 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
-import { useConfirmAction } from '@features/result-confirmation/hooks/useConfirmAction';
 import { ResultReviewScreen } from '@features/result-confirmation/components/ResultReviewScreen';
 import { buildFindingRows } from '@features/result-confirmation/lib/findingRows';
 import {
   getSmartDiagnosisState,
   SMART_DIAGNOSIS_MESSAGES,
 } from '@features/result-confirmation/lib/smartDiagnosisState';
-import { confirmRetake } from '@features/image-retake/lib/confirmRetake';
 import { startAnalysis } from '@features/queue/lib/startAnalysis';
 import { getSampleActions } from '@features/queue/lib/sampleState';
 
@@ -38,7 +36,6 @@ import { RejectionDetailsCard } from './RejectionDetailsCard';
 import { ResultStatusBanner } from './ResultStatusBanner';
 import { SampleActionBar } from './SampleActionBar';
 import { SampleDetailShell } from './SampleDetailShell';
-import { SampleResultActions } from './SampleResultActions';
 import { SmartDiagnosisSection } from './SmartDiagnosisSection';
 import { SpecimenSummaryCard } from './SpecimenSummaryCard';
 
@@ -50,7 +47,7 @@ export interface SampleDetailScreenProps {
 
 /**
  * @description Sample detail: specimen info, analysis result review, and the actions
- * available at the specimen's current stage (begin analysis, retake, reject).
+ * available at the specimen's current stage (begin analysis, reject).
  * @param props - Sample identifiers and the read-only mode used by Reports.
  */
 export function SampleDetailScreen({
@@ -62,16 +59,6 @@ export function SampleDetailScreen({
   const { isOnline } = useNetworkStatus();
   const { specimen, analysisResult, overrides, acceptedFieldCount, isLoading, notFound } =
     useSampleDetail(specimenId);
-
-  const { confirmResult: confirmAction, isConfirming } = useConfirmAction();
-
-  const handleConfirmResult = useCallback(async (): Promise<void> => {
-    if (isReadOnly || !analysisResult) return;
-    const outcome = await confirmAction(analysisResult);
-    if (outcome.status === 'failed') {
-      Alert.alert(SAMPLE_TEXT.confirmationFailedTitle, outcome.message);
-    }
-  }, [isReadOnly, analysisResult, confirmAction]);
 
   const handleBeginAnalysis = useCallback(async (): Promise<void> => {
     if (isReadOnly) return;
@@ -108,26 +95,6 @@ export function SampleDetailScreen({
     });
   }, [isReadOnly, specimen, specimenId, isOnline, router]);
 
-  const handleRetakeImage = useCallback((): void => {
-    if (isReadOnly) return;
-    if (!specimen?.serverId) {
-      Alert.alert(SAMPLE_TEXT.notSyncedTitle, SAMPLE_TEXT.retakeNotSyncedMessage);
-      return;
-    }
-    const serverId = specimen.serverId;
-
-    confirmRetake(Object.keys(overrides).length > 0, (): void => {
-      router.push({
-        pathname: '/(medtech)/capture',
-        params: {
-          specimenId: serverId,
-          localSpecimenId: specimenId,
-          existingImageId: analysisResult?.imageId ?? undefined,
-        },
-      });
-    });
-  }, [isReadOnly, specimen, specimenId, overrides, analysisResult, router]);
-
   const handleRejectSpecimen = useCallback((): void => {
     if (isReadOnly) return;
     router.push(`/(medtech)/sample/reject/${specimenId}`);
@@ -143,24 +110,23 @@ export function SampleDetailScreen({
 
   const handleBack = useCallback((): void => router.back(), [router]);
 
-  // Multi-field workflow (SDD Module 2 proposal): a result only ever has
-  // accepted result_fields rows once it's gone through the capture flow; 0
-  // means either no result yet or a legacy single-image one, which this
-  // screen (and ResultReviewScreen) continues to handle exactly as before.
-  // Counted live off result_fields rather than analysisResult.fieldCount —
-  // that column is never synced by the backend (mobile PR #55 review, 3.1).
+  // Status rule (mobile PR #55 review, #3): with the fields-workflow flag on,
+  // the server only leaves a result waiting on the MedTech via these four
+  // statuses, legacy single-image or multi-field alike — confirming,
+  // retaking and overriding all happen on the website now, not the phone.
+  // No fieldCount/accepted-count test needed to tell the two apart.
   const resultStatusValue = analysisResult?.status ?? null;
-  const isMultiFieldResult = acceptedFieldCount > 0;
   const isCapturingFields = resultStatusValue === 'CAPTURING';
   const isAwaitingWebVerification =
-    isMultiFieldResult &&
-    (resultStatusValue === 'PENDING_CONFIRM' || resultStatusValue === 'RETURNED_FOR_CORRECTION');
+    resultStatusValue === 'PENDING_CONFIRM' ||
+    resultStatusValue === 'RETURNED_FOR_CORRECTION' ||
+    resultStatusValue === 'IMAGE_RETAKE_REQUESTED' ||
+    resultStatusValue === 'FAILED';
 
   // Reports stay in the read-only detail view even when their result is editable.
   // Other entry points open the shared review once a route or synced specimen has a
-  // result, unless the specimen has been rejected or the result is multi-field and
-  // still CAPTURING or awaiting a web check — neither has anything for this screen
-  // (confirm/retake/override) to offer.
+  // result, unless the specimen has been rejected or the result is still CAPTURING
+  // or awaiting a web check — neither has anything for this screen to offer.
   const reviewResultId = resultId ?? analysisResult?.serverId;
   const canShowReview =
     !isReadOnly &&
@@ -344,16 +310,6 @@ export function SampleDetailScreen({
                 variant="escalated"
                 title={SAMPLE_TEXT.criticalEscalatedTitle}
                 body={SAMPLE_TEXT.criticalEscalatedBody}
-              />
-            )}
-
-            {!isReadOnly && (
-              <SampleResultActions
-                canConfirm={actions.canConfirm}
-                canRetake={actions.canRetake}
-                isConfirming={isConfirming}
-                onConfirm={handleConfirmResult}
-                onRetake={handleRetakeImage}
               />
             )}
 

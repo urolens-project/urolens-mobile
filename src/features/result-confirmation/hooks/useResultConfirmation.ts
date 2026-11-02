@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
@@ -6,18 +6,12 @@ import type AnalysisResult from '@db/models/AnalysisResult';
 
 import { RESULT_COLUMNS } from '@features/sample/constants';
 
-import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
-import { useConfirmAction } from './useConfirmAction';
-import type { ConfirmActionResult } from './useConfirmAction';
 import type { AIFindingEntry } from '../types';
 
 export interface UseResultConfirmationReturn {
   result: AnalysisResult | null;
   aiFindings: AIFindingEntry[];
   isLoading: boolean;
-  isConfirming: boolean;
-  error: string | null;
-  confirmResult: () => Promise<ConfirmActionResult>;
 }
 
 interface ResultSnapshot {
@@ -41,16 +35,14 @@ function deriveFindings(raw: Record<string, number>): AIFindingEntry[] {
 
 /**
  * @description Loads one analysis result from the local WatermelonDB by server id and
- * exposes its AI findings plus confirm-action state. Components never call the API
- * directly — they observe the local record and confirm through `useConfirmAction`.
+ * exposes its AI findings for read-only review. Confirming, retaking and overriding
+ * all moved to the website (mobile PR #55 review, #3), so this only observes.
  * @param resultId - Server id of the analysis result to load.
  */
 export function useResultConfirmation(resultId: string): UseResultConfirmationReturn {
   // WatermelonDB mutates model instances in place; a new snapshot makes every column emission render.
   const [snapshot, setSnapshot] = useState<ResultSnapshot>({ result: null });
-  const result = snapshot.result;
   const [isLoading, setIsLoading] = useState(true);
-  const { confirmResult: confirmAction, isConfirming, error } = useConfirmAction();
 
   // Observe local WatermelonDB record — components never call API directly (SRP)
   useEffect((): (() => void) => {
@@ -66,16 +58,10 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
     return (): void => subscription.unsubscribe();
   }, [resultId]);
 
-  const confirmResult = useCallback(async (): Promise<ConfirmActionResult> => {
-    if (!result)
-      return { status: 'failed', message: RESULT_CONFIRMATION_TEXT.resultNotFoundRetryMessage };
-    return confirmAction(result);
-  }, [result, confirmAction]);
-
   const aiFindings = useMemo<AIFindingEntry[]>(
     (): AIFindingEntry[] => (snapshot.result ? deriveFindings(snapshot.result.aiFindings) : []),
     [snapshot],
   );
 
-  return { result, aiFindings, isLoading, isConfirming, error, confirmResult };
+  return { result: snapshot.result, aiFindings, isLoading };
 }
