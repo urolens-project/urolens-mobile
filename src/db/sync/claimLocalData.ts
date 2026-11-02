@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { database } from '../database';
+import { deleteAllFieldImages } from './fieldFiles';
 import { getLocalDataOwner, setLocalDataOwner } from './localDataOwner';
 import {
   FULL_PULL_NEEDED_KEY,
@@ -18,8 +19,13 @@ import {
  *
  * The same user logging back in keeps everything — sessions time out often, and their
  * offline work must survive that. Anyone else, or data with no owner on record, gets a
- * clean database and a full first sync. Call it before the new session is saved or any
- * screen is shown; if it throws, the login must not proceed. Any active sync is
+ * clean database and a full first sync, and every field image on the phone is deleted
+ * (mobile PR #55 review, decision #4): the database wipe below only clears rows, and
+ * leaving the previous MedTech's field photos behind on the next user's phone is an
+ * RA 10173 problem the OS will never clean up on its own now that they live in
+ * documentDirectory. Covers the legacy single-image retake flow's photos too — both
+ * share imageUtils.ts's FIELDS_DIRECTORY. Call it before the new session is saved or
+ * any screen is shown; if it throws, the login must not proceed. Any active sync is
  * cancelled and its writes are drained before checking or changing the owner.
  * @param userId - The user who just authenticated.
  */
@@ -27,6 +33,7 @@ export async function claimLocalDataFor(userId: string): Promise<void> {
   await withSyncPaused(async (): Promise<void> => {
     if ((await getLocalDataOwner()) === userId) return;
 
+    deleteAllFieldImages();
     await database.write(async (): Promise<void> => {
       await database.unsafeResetDatabase();
     });

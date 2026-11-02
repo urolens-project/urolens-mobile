@@ -23,6 +23,9 @@ export type SpecimenStatus =
   | 'COMPLETED';
 
 export enum ResultStatus {
+  // Multi-field workflow (SDD Module 2 proposal): fields are being
+  // collected on mobile, below the minimum or not yet submitted.
+  CAPTURING = 'CAPTURING',
   PENDING_CONFIRM = 'PENDING_CONFIRM',
   PENDING_SUPERVISOR_APPROVAL = 'PENDING_SUPERVISOR_APPROVAL',
   APPROVED = 'APPROVED',
@@ -47,10 +50,23 @@ export enum ProbabilityLevel {
 export enum PendingSyncAction {
   REJECT_SPECIMEN = 'REJECT_SPECIMEN',
   START_ANALYSIS = 'START_ANALYSIS',
+  // Pre-multi-field actions. CONFIRM_RESULT and OVERRIDE_PARAMETER are
+  // retired from mobile under the multi-field workflow (confirmation and
+  // correction move to the web verification workspace) and DISCARD_IMAGE's
+  // route answers 410 APP_UPDATE_REQUIRED once the backend flag is on. Any
+  // of the three still queued from an old app version is drained once, to
+  // FAILED, on first launch of the multi-field build — see the legacy-queue
+  // migration (Section 8 of the proposal) — never dispatched here again.
   CONFIRM_RESULT = 'CONFIRM_RESULT',
   OVERRIDE_PARAMETER = 'OVERRIDE_PARAMETER',
   DISCARD_IMAGE = 'DISCARD_IMAGE',
+  // Multi-field workflow (SDD Module 2 proposal). UPLOAD_IMAGE existed
+  // before but was never dispatched (no offline queue for image upload);
+  // it's repurposed here to mean "upload one captured field," posting to
+  // POST /fields instead of the retired POST /images/upload.
   UPLOAD_IMAGE = 'UPLOAD_IMAGE',
+  ACCEPT_FIELD = 'ACCEPT_FIELD',
+  DISCARD_FIELD = 'DISCARD_FIELD',
 }
 
 export enum PendingSyncStatus {

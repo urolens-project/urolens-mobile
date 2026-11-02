@@ -13,7 +13,7 @@ export interface QueueStatusStyle {
   wash: string;
   // The badge label needs more contrast on its tint than the accent color gives.
   badgeText: string;
-  icon: 'flask-outline' | 'timer-sand' | 'undo-variant';
+  icon: 'flask-outline' | 'timer-sand' | 'undo-variant' | 'camera-outline' | 'web';
 }
 
 // One place for what each Queue status looks like. The card badge, the stats tiles,
@@ -44,6 +44,27 @@ export const QUEUE_STATUS_STYLES: Record<QueueStatus, QueueStatusStyle> = {
     badgeText: colors.amber800,
     icon: 'undo-variant',
   },
+  // Multi-field workflow (SDD Module 2 proposal): fields are being collected.
+  // Indigo, not violet — PROCESSING already owns violet, and the two need to
+  // stay visually distinct on the card.
+  CAPTURING: {
+    label: 'CAPTURING',
+    color: colors.indigo800,
+    tint: colors.indigo100,
+    wash: colors.indigo100,
+    badgeText: colors.indigo800,
+    icon: 'camera-outline',
+  },
+  // A multi-field result has been submitted (or returned) and is awaiting the
+  // MedTech's check on the website — nothing to do here on mobile.
+  VERIFYING: {
+    label: 'VERIFY ON WEBSITE',
+    color: colors.blueAlt,
+    tint: colors.blue50,
+    wash: colors.blue50,
+    badgeText: colors.blue800,
+    icon: 'web',
+  },
 };
 
 export interface QueueStatsTile {
@@ -68,8 +89,18 @@ export interface SyncPillToneStyle {
 
 // Colors for the Queue's sync pill, one set per SyncPillTone.
 export const SYNC_PILL_TONE_STYLES: Record<SyncPillTone, SyncPillToneStyle> = {
-  ok: { bg: colors.emerald50, border: colors.emerald200, dot: colors.emerald500, text: colors.emerald800 },
-  caution: { bg: colors.amber100, border: colors.amber200, dot: colors.amber600, text: colors.amber800 },
+  ok: {
+    bg: colors.emerald50,
+    border: colors.emerald200,
+    dot: colors.emerald500,
+    text: colors.emerald800,
+  },
+  caution: {
+    bg: colors.amber100,
+    border: colors.amber200,
+    dot: colors.amber600,
+    text: colors.amber800,
+  },
   error: { bg: colors.red100, border: colors.red200, dot: colors.red600, text: colors.red800 },
 };
 

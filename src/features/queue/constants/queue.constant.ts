@@ -15,3 +15,7 @@ export const QUEUE_RESULT_COLUMNS = [
   'synced_at',
   'created_at',
 ];
+// Accepted field count is derived from result_fields rows (see useQueue.ts),
+// not analysis_results.field_count — that column is never synced by the
+// backend (mobile PR #55 review, 3.1).
+export const QUEUE_FIELD_COLUMNS = ['specimen_id', 'status'];

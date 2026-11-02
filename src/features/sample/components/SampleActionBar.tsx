@@ -6,30 +6,47 @@ import { SAMPLE_TEXT } from '../constants/sampleText.constant';
 
 export interface SampleActionBarProps {
   canBeginAnalysis: boolean;
+  /** Resume the multi-field capture session (SDD Module 2 proposal) — mutually
+   * exclusive with canBeginAnalysis (the result is already CAPTURING). */
+  canContinueCapturing?: boolean;
   canReject: boolean;
   isProcessing: boolean;
   onBeginAnalysis: () => void;
+  onContinueCapturing?: () => void;
   onReject: () => void;
 }
 
 /**
  * @description Bottom action bar for a specimen's current stage: begin (or continue)
- * analysis, and reject the specimen.
+ * analysis or capturing, and reject the specimen.
  * @param canBeginAnalysis - Whether the Begin/Continue Analysis button should render.
+ * @param canContinueCapturing - Whether the Continue Capturing button should render instead.
  * @param canReject - Whether the Reject Specimen button should render.
  * @param isProcessing - Whether analysis is already in progress, to say "Continue" instead of "Begin".
  * @param onBeginAnalysis - Called when Begin/Continue Analysis is pressed.
+ * @param onContinueCapturing - Called when Continue Capturing is pressed.
  * @param onReject - Called when Reject Specimen is pressed.
  */
 export function SampleActionBar({
   canBeginAnalysis,
+  canContinueCapturing = false,
   canReject,
   isProcessing,
   onBeginAnalysis,
+  onContinueCapturing,
   onReject,
 }: SampleActionBarProps): React.JSX.Element {
   return (
     <View style={styles.actions}>
+      {canContinueCapturing && (
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.actionBtnPrimary]}
+          onPress={onContinueCapturing}
+          accessibilityRole="button"
+        >
+          <Text style={styles.actionBtnPrimaryText}>{SAMPLE_TEXT.continueCapturing}</Text>
+        </TouchableOpacity>
+      )}
       {canBeginAnalysis && (
         <TouchableOpacity
           style={[styles.actionBtn, styles.actionBtnPrimary]}

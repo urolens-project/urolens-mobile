@@ -3,6 +3,7 @@ import { tokenStorage } from '@lib/auth/tokenStorage';
 
 import { database } from '../database';
 import { adoptUnownedLocalData, getLocalDataOwner } from './localDataOwner';
+import { drainLegacyQueuedActions } from './legacyQueue';
 import { pullChanges } from './pullChanges';
 import { hasPendingActions, pushChanges, requeueLegacyFailedActions } from './pushChanges';
 import { throwIfSyncCancelled } from './syncCancellation';
@@ -94,7 +95,12 @@ async function runSync(cycle: ActiveSync): Promise<void> {
     throwIfSyncCancelled(signal);
 
     // 1. Push FIRST — Send upstream local modifications so the server can run conflict checks
+    // drainLegacyQueuedActions runs after requeueLegacyFailedActions, not before: the
+    // latter can flip an old FAILED retired action back to PENDING, and the drain only
+    // looks at PENDING rows — running it second catches that case too, in the same pass.
     await requeueLegacyFailedActions(signal);
+    throwIfSyncCancelled(signal);
+    await drainLegacyQueuedActions(signal);
     throwIfSyncCancelled(signal);
     const { refusedCount } = await pushChanges(signal);
     throwIfSyncCancelled(signal);
