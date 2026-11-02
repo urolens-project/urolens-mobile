@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
 import type { ServerRecord } from '@db/types';
 import { mapServerToLocal } from '@db/mappers/sync.mapper';
@@ -9,6 +10,7 @@ import { resolveConflict, applyResolution } from './conflictResolver';
 import { dedupeByServerId } from './dedupeByServerId';
 import { cleanUpFinishedFields } from './fieldCleanup';
 import { deleteFieldImageFile } from './fieldFiles';
+import { FIELD_WORKFLOW_SEEN_KEY } from './legacyQueue';
 import { throwIfSyncCancelled } from './syncCancellation';
 
 interface TableChanges {
@@ -97,6 +99,14 @@ export async function pullChanges(
     // field images and AI boxes from local storage. No-op once already clean.
     await cleanUpFinishedFields();
   });
+
+  // The resultFields key is only ever present while the backend's
+  // FIELD_WORKFLOW_ENABLED flag is on (empty created/updated arrays still count —
+  // it's the key's presence that matters, not its contents). Recorded so the
+  // legacy-queue drain (mobile PR #55 review, 1.3) knows it's safe to run.
+  if (changes.resultFields) {
+    await AsyncStorage.setItem(FIELD_WORKFLOW_SEEN_KEY, '1');
+  }
 
   throwIfSyncCancelled(signal);
   return timestamp;
