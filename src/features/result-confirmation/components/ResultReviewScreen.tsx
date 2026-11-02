@@ -72,10 +72,7 @@ export function ResultReviewScreen({
     error: detailError,
     refresh,
   } = useResultReviewDetail(resultId, localRevision);
-  // A multi-field submission queued offline (useSubmitFields) — the result is
-  // already PENDING_SUPERVISOR_APPROVAL locally before the next sync confirms it.
-  const isQueuedSubmission = result?.status === 'PENDING_SUPERVISOR_APPROVAL' && !result.isSynced;
-  const status = isQueuedSubmission ? result.status : (detail?.status ?? result?.status ?? '');
+  const status = detail?.status ?? result?.status ?? '';
   // Confirm, Retake and Override all moved to the website (mobile PR #55 review,
   // #3): PENDING_CONFIRM/RETURNED_FOR_CORRECTION/IMAGE_RETAKE_REQUESTED/FAILED
   // never reach this screen (SampleDetailScreen routes them to "Continue on the
@@ -171,7 +168,6 @@ export function ResultReviewScreen({
           smartDiagnosis={smartDiagnosis}
           unavailable={isDiagnosisUnavailable}
           emptyMessage={diagnosisMessage}
-          isPreview={isQueuedSubmission}
         />
         {canReject && (
           <Pressable style={styles.rejectButton} accessibilityRole="button" onPress={handleReject}>
