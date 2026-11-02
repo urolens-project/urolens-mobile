@@ -121,11 +121,15 @@ async function applyServerResponse(
 
 /**
  * Offline counterpart of applyServerResponse: applies the same status change
- * locally (and, for Accept, the same field_count bump and image-pointer rule)
- * without the server's recomputed effective counts — those only ever change
- * through a web correction, so a field just captured on this device has none
- * to lose by waiting for the next sync. Queues the action on the field's
- * server id in the same batch, so the two can never get out of step.
+ * locally (and, for Accept, the same image-pointer rule) without the server's
+ * recomputed effective counts — those only ever change through a web
+ * correction, so a field just captured on this device has none to lose by
+ * waiting for the next sync. Queues the action on the field's server id in
+ * the same batch, so the two can never get out of step. The returned
+ * acceptedFieldCount is counted live off the other result_fields rows (the
+ * Queue does the same, since analysis_results.field_count is never synced by
+ * the backend — mobile PR #55 review, 3.1) rather than read from this field's
+ * own parent row.
  */
 async function applyOptimistic(
   field: ResultField,
@@ -134,7 +138,16 @@ async function applyOptimistic(
   reason: string | null,
 ): Promise<FieldActionOutcome> {
   const createdAt = Date.now();
-  let acceptedFieldCount = 0;
+
+  const otherAcceptedCount = await database
+    .get<ResultField>('result_fields')
+    .query(
+      Q.where('result_id', field.resultId),
+      Q.where('status', 'ACCEPTED'),
+      Q.where('id', Q.notEq(field.id)),
+    )
+    .fetchCount();
+  const acceptedFieldCount = otherAcceptedCount + (nextStatus === 'ACCEPTED' ? 1 : 0);
 
   await database.write(async () => {
     const toBatch: Model[] = [
@@ -146,14 +159,10 @@ async function applyOptimistic(
 
     const results = database.get<AnalysisResult>('analysis_results');
     const [parent] = await results.query(Q.where('server_id', field.resultId)).fetch();
-    if (parent) {
-      acceptedFieldCount = (parent.fieldCount ?? 0) + (nextStatus === 'ACCEPTED' ? 1 : 0);
+    if (parent && nextStatus === 'ACCEPTED' && !parent.imageId) {
       toBatch.push(
         parent.prepareUpdate((r) => {
-          if (nextStatus === 'ACCEPTED') {
-            r.fieldCount = acceptedFieldCount;
-            if (!r.imageId) r.imageId = field.imageId;
-          }
+          r.imageId = field.imageId;
         }),
       );
     }
