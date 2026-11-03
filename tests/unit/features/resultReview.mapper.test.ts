@@ -1,4 +1,28 @@
-import { mapSmartDiagnosis } from '@features/result-confirmation/mappers/resultReview.mapper';
+import {
+  mapResultReviewDetail,
+  mapSmartDiagnosis,
+} from '@features/result-confirmation/mappers/resultReview.mapper';
+import type { components } from '@app-types/api';
+
+type FullResultDetail = components['schemas']['FullResultDetail'];
+
+function makeDto(overrides: Partial<FullResultDetail> = {}): FullResultDetail {
+  return {
+    resultId: 'result-1',
+    specimenId: 'specimen-1',
+    patientUid: 'PT-1',
+    medtechName: 'Tech One',
+    aiFindings: {},
+    flaggedAnomalies: {},
+    particleClasses: {},
+    modelVersion: 'v1',
+    manualOverrides: [],
+    smartDiagnosisUnavailable: false,
+    status: 'APPROVED',
+    annotations: [],
+    ...overrides,
+  };
+}
 
 const evidence = {
   particle_name: 'crystals',
@@ -62,5 +86,29 @@ describe('Smart Diagnosis payload mapping', () => {
       nephroScore: null,
       noSignificantIndicators: false,
     });
+  });
+});
+
+// mobile-n8-todo-rem.md B4: FullResultDetail has no field_summary (only GET /sync/pull
+// does, backend #105), but it does carry particleClasses — the confirmed counts —
+// which should win over the raw, unconfirmed aiFindings once a result is confirmed.
+describe('mapResultReviewDetail — aiFindings source', () => {
+  it('prefers particleClasses over aiFindings when both are present', () => {
+    const detail = mapResultReviewDetail(
+      makeDto({ aiFindings: { RBC: 99 }, particleClasses: { RBC: 3 } }),
+    );
+    expect(detail.aiFindings).toEqual([{ parameter: 'RBC', count: 3, isAnomalous: false }]);
+  });
+
+  it('falls back to aiFindings when particleClasses is empty', () => {
+    const detail = mapResultReviewDetail(makeDto({ aiFindings: { RBC: 3 }, particleClasses: {} }));
+    expect(detail.aiFindings).toEqual([{ parameter: 'RBC', count: 3, isAnomalous: false }]);
+  });
+
+  it('rounds a decimal mean instead of showing it bare', () => {
+    const detail = mapResultReviewDetail(
+      makeDto({ aiFindings: {}, particleClasses: { RBC: 2.4 } }),
+    );
+    expect(detail.aiFindings).toEqual([{ parameter: 'RBC', count: 2, isAnomalous: false }]);
   });
 });

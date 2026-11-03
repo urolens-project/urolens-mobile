@@ -72,7 +72,8 @@ export async function registerForPushNotifications(): Promise<void> {
  * `entity_id` is an analysis result (`RESULT_RETURNED`, `RESULT_READY_FOR_REVIEW`,
  * `SMART_DIAGNOSIS_UNAVAILABLE`) — tries `entity_id` as a specimen server id first, then
  * falls back to resolving it as a result id and following that to its specimen. Falls
- * back to the Queue when nothing matches.
+ * back to the Queue when nothing matches. Also used for `CAPTURE_REOPENED`, whose
+ * `entity_id` is a result id, same as the others.
  * @param serverId - Server id from the notification payload's `entity_id`.
  */
 export async function navigateToSpecimenByServerId(serverId: string | undefined): Promise<void> {
@@ -139,6 +140,7 @@ export function registerNotificationListeners(): () => void {
       case 'RESULT_RETURNED':
       case 'RESULT_READY_FOR_REVIEW':
       case 'SMART_DIAGNOSIS_UNAVAILABLE':
+      case 'CAPTURE_REOPENED':
         navigateToSpecimenByServerId(data.entity_id);
         break;
 

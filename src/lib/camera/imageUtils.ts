@@ -157,11 +157,16 @@ export async function buildUploadFormData(
  * @param image - The file to upload: its local URI, filename and MIME type.
  * @param specimenId - Specimen the field belongs to.
  * @param magnification - Objective used for this field, HPF or LPF.
+ * @param captureId - This photo's client-generated id (backend #108): sent on every
+ * retry of the same photo so a retried upload the phone never saw the answer to
+ * doesn't create a second field server-side. Omitted for an older queued row that
+ * predates this.
  */
 export async function buildFieldUploadFormData(
   image: Pick<ProcessedImage, 'uri' | 'filename' | 'mimeType'>,
   specimenId: string,
   magnification: 'HPF' | 'LPF',
+  captureId?: string,
 ): Promise<FormData> {
   const form = new FormData();
   // Matches the backend's POST /fields multipart fields (api/fields.py): snake_case
@@ -169,6 +174,7 @@ export async function buildFieldUploadFormData(
   // the single-image upload route.
   form.append('specimen_id', specimenId);
   form.append('magnification', magnification);
+  if (captureId) form.append('capture_id', captureId);
 
   if (Platform.OS === 'web') {
     const blob = await fetch(image.uri).then((r) => r.blob());

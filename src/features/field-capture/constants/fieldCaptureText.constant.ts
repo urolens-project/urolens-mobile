@@ -7,6 +7,9 @@ export const FIELD_CAPTURE_TEXT = {
 
   // FieldResultScreen
   fieldResultTitle: (fieldNo: number): string => `Field ${fieldNo}`,
+  // Shown only when this field was opened from the list (the offline backlog's
+  // step-through, mobile-n8-todo-rem.md C6) and others still need a decision.
+  moreFieldsWaitingLabel: (count: number): string => `${count} more waiting`,
   thisFieldOnlyCaption: 'This field only — not the reported diagnosis',
   smartDiagnosisUnavailableMessage: 'Smart Diagnosis preview unavailable for this field.',
   noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
@@ -14,10 +17,9 @@ export const FIELD_CAPTURE_TEXT = {
   discardLabel: 'Discard',
   // A field synced from another phone (or from before a reinstall) with no local
   // image or AI boxes yet (mobile PR #55 review, 1.2/3.14) — never shown as if it
-  // had no detections. Says "aren't on this phone yet" rather than "will load" since
-  // nothing fetches them yet (the background fetch is C5); switch the wording back
-  // once that lands.
-  boxesAwaitingSyncMessage: "Captured on another phone — its boxes aren't on this phone yet.",
+  // had no detections. The background fetch (C5) now fills this in on the next
+  // sync, so it only ever shows briefly, not as a permanent dead end.
+  boxesAwaitingSyncMessage: 'Boxes will load when you are online.',
   discardModalTitle: 'Discard this field?',
   discardModalBody:
     'This field and its AI analysis will be dropped. It will not count toward the minimum. This action cannot be undone.',
@@ -40,6 +42,11 @@ export const FIELD_CAPTURE_TEXT = {
     SPECIMEN_NOT_ASSIGNED: 'This sample is no longer assigned to you.',
     CONSENT_REFUSED: 'The patient refused processing — this sample can’t be analysed.',
     FEATURE_DISABLED: 'This feature isn’t available yet. Please try again later.',
+    // 422 from main.py's RequestValidationError handler (a malformed request, not
+    // an image-content gate — those are IMAGE_NOT_MICROSCOPY/IMAGE_EXPOSURE above).
+    // The server's own message here is "Request validation failed.", which isn't
+    // something a MedTech can act on.
+    VALIDATION_ERROR: 'This capture couldn’t be processed. Please retake the photo and try again.',
   } as Record<string, string>,
 
   // FieldListScreen

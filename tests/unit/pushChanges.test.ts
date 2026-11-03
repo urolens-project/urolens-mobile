@@ -24,8 +24,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('expo-file-system', () => ({
   File: jest.fn().mockImplementation(() => ({ exists: true })),
 }));
+const mockBuildFieldUploadFormData = jest.fn().mockResolvedValue({});
 jest.mock('@lib/camera/imageUtils', () => ({
-  buildFieldUploadFormData: jest.fn().mockResolvedValue({}),
+  buildFieldUploadFormData: (...args: unknown[]) => mockBuildFieldUploadFormData(...args),
 }));
 jest.mock('@lib/camera/uploadField', () => ({
   uploadFieldViaXhr: jest.fn(),
@@ -45,7 +46,7 @@ import {
 } from '../../src/db/sync/pushChanges';
 import { database } from '../../src/db/database';
 import { apiClient } from '../../src/lib/apiClient';
-import { uploadFieldViaXhr } from '../../src/lib/camera/uploadField';
+import { isRetakeNeededError, uploadFieldViaXhr } from '../../src/lib/camera/uploadField';
 import { discardQueuedField } from '../../src/features/field-capture/lib/saveUploadedField';
 import { PendingSyncAction, PendingSyncStatus } from '../../src/types/enums';
 import { RETIRED_REASON } from '../../src/db/sync/legacyQueue';
@@ -423,6 +424,66 @@ describe('requeueLegacyFailedActions', () => {
   });
 });
 
+// B2 / M14 (backend #108): the capture id lets a retried upload the phone never saw
+// the answer to be recognized as the same photo, rather than analysed twice.
+describe('replaying a queued field upload', () => {
+  function setFieldRow(item: FakeItem, fieldRow: Record<string, unknown>) {
+    (database.get as jest.Mock).mockImplementation((table: string) => {
+      if (table === 'pending_sync')
+        return { query: () => ({ fetch: jest.fn().mockResolvedValue([item]) }) };
+      if (table === 'result_fields') return { find: jest.fn().mockResolvedValue(fieldRow) };
+      throw new Error(`unexpected table ${table}`);
+    });
+    (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<unknown>) => fn());
+  }
+
+  it('sends the capture id stored on the queued action on replay', async () => {
+    const item = makeItem({
+      action: PendingSyncAction.UPLOAD_IMAGE,
+      entityId: 'local-field-1',
+      payload: { captureId: 'capture-id-1' },
+    });
+    setFieldRow(item, {
+      localImageUri: 'file:///fields/x.jpg',
+      magnification: 'HPF',
+      specimenId: 'srv-specimen-1',
+    });
+    (uploadFieldViaXhr as jest.Mock).mockResolvedValue({ fieldId: 'server-field-1' });
+
+    await pushChanges();
+
+    expect(mockBuildFieldUploadFormData).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: 'file:///fields/x.jpg' }),
+      'srv-specimen-1',
+      'HPF',
+      'capture-id-1',
+    );
+  });
+
+  it('replays an old queued row with no stored capture id unchanged', async () => {
+    const item = makeItem({
+      action: PendingSyncAction.UPLOAD_IMAGE,
+      entityId: 'local-field-1',
+      payload: {},
+    });
+    setFieldRow(item, {
+      localImageUri: 'file:///fields/x.jpg',
+      magnification: 'HPF',
+      specimenId: 'srv-specimen-1',
+    });
+    (uploadFieldViaXhr as jest.Mock).mockResolvedValue({ fieldId: 'server-field-1' });
+
+    await pushChanges();
+
+    expect(mockBuildFieldUploadFormData).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: 'file:///fields/x.jpg' }),
+      'srv-specimen-1',
+      'HPF',
+      undefined,
+    );
+  });
+});
+
 // A permanently-refused field decision must not leave the phone stuck (a queued
 // upload with nothing left to retry) or out of step with the server (an
 // optimistically-applied Accept/Discard the server never actually recorded).
@@ -488,6 +549,100 @@ describe('resolving a permanently-refused field decision', () => {
 
       expect(fieldRow.status).toBe('ANALYZED');
       expect(fieldRow.isSynced).toBe(true);
+    },
+  );
+});
+
+// M8 (mobile-n8-todo-rem.md): the exact queued-action outcomes the multi-field
+// workflow's backend contract specifies — each a concrete instance of the generic
+// transient/permanent rules already covered above, pinned to the literal codes so a
+// future change to isTransient or the retake-detection list is caught here too.
+describe('M8: queued field action outcomes', () => {
+  function setFieldRow(item: FakeItem, fieldRow: Record<string, unknown>) {
+    (database.get as jest.Mock).mockImplementation((table: string) => {
+      if (table === 'pending_sync') {
+        return { query: () => ({ fetch: jest.fn().mockResolvedValue([item]) }) };
+      }
+      if (table === 'result_fields') return { find: jest.fn().mockResolvedValue(fieldRow) };
+      throw new Error(`unexpected table ${table}`);
+    });
+    (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<unknown>) => fn());
+  }
+
+  it.each([
+    ['RESULT_NOT_EDITABLE', 409],
+    ['SPECIMEN_REJECTED', 409],
+    ['CONSENT_REFUSED', 409],
+  ])('discards the queued upload when the server refuses it with %s (%i)', async (code, status) => {
+    const item = makeItem({ action: PendingSyncAction.UPLOAD_IMAGE, entityId: 'local-field-1' });
+    setFieldRow(item, { localImageUri: 'file:///fields/x.jpg', magnification: 'HPF' });
+    (uploadFieldViaXhr as jest.Mock).mockRejectedValue({ status, code, message: 'refused' });
+
+    await pushChanges();
+
+    expect(discardQueuedField).toHaveBeenCalledWith('local-field-1', expect.stringContaining(code));
+  });
+
+  it.each(['IMAGE_NOT_MICROSCOPY', 'IMAGE_EXPOSURE'])(
+    'discards the queued upload when the engine gate refuses it with %s (422)',
+    async (code) => {
+      const item = makeItem({ action: PendingSyncAction.UPLOAD_IMAGE, entityId: 'local-field-1' });
+      setFieldRow(item, { localImageUri: 'file:///fields/x.jpg', magnification: 'HPF' });
+      const err = { status: 422, code, message: 'retake needed' };
+      (uploadFieldViaXhr as jest.Mock).mockRejectedValue(err);
+      (isRetakeNeededError as jest.Mock).mockReturnValueOnce(true);
+
+      await pushChanges();
+
+      expect(discardQueuedField).toHaveBeenCalledWith('local-field-1', 'retake needed');
+      // Resolved, not stuck: the queued action itself is marked SYNCED, not FAILED.
+      expect(item.status).toBe(PendingSyncStatus.SYNCED);
+    },
+  );
+
+  it('retries a queued upload the server answers with 503 AI_ANALYSIS_FAILED', async () => {
+    const item = makeItem({ action: PendingSyncAction.UPLOAD_IMAGE, entityId: 'local-field-1' });
+    setFieldRow(item, { localImageUri: 'file:///fields/x.jpg', magnification: 'HPF' });
+    (uploadFieldViaXhr as jest.Mock).mockRejectedValue({
+      status: 503,
+      code: 'AI_ANALYSIS_FAILED',
+      message: 'The AI engine could not process this image.',
+    });
+
+    await pushChanges();
+
+    expect(item.status).toBe(PendingSyncStatus.PENDING);
+    expect(discardQueuedField).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['INVALID_RESULT_STATUS', 409],
+    ['REASON_REQUIRED', 422],
+  ])(
+    'puts a queued Accept/Discard field decision back to ANALYZED when refused with %s (%i)',
+    async (code, status) => {
+      const item = makeItem({ action: PendingSyncAction.ACCEPT_FIELD, entityId: 'srv-field-1' });
+      const fieldRow = {
+        status: 'ACCEPTED',
+        isSynced: false,
+        syncedAt: null,
+        update: jest.fn(async (cb: (f: typeof fieldRow) => void) => cb(fieldRow)),
+      };
+      (database.get as jest.Mock).mockImplementation((table: string) => {
+        if (table === 'pending_sync') {
+          return { query: () => ({ fetch: jest.fn().mockResolvedValue([item]) }) };
+        }
+        if (table === 'result_fields') {
+          return { query: () => ({ fetch: jest.fn().mockResolvedValue([fieldRow]) }) };
+        }
+        throw new Error(`unexpected table ${table}`);
+      });
+      (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<unknown>) => fn());
+      post.mockRejectedValue({ status, code, message: 'refused' });
+
+      await pushChanges();
+
+      expect(fieldRow.status).toBe('ANALYZED');
     },
   );
 });

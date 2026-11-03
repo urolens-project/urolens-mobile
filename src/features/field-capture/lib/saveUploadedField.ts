@@ -52,13 +52,15 @@ async function upsertCapturingResult(specimenId: string, resultId: string): Prom
 
 /**
  * @description Writes (or overwrites) a field's AI boxes into field_detections. Must
- * run inside an active database.write().
+ * run inside an active database.write(). Exported for fetchRemoteFields.ts (C5): the
+ * same write, whether the boxes come from this device's own capture response or from
+ * `GET /fields/{fieldId}` for a field captured elsewhere.
  * @param localFieldId - Local WatermelonDB id of the result_fields row.
  * @param detections - AI boxes from the capture response.
  * @param imageWidth - Width of the upright stored image the boxes refer to.
  * @param imageHeight - Height of the upright stored image the boxes refer to.
  */
-async function writeFieldDetections(
+export async function writeFieldDetections(
   localFieldId: string,
   detections: FieldAnalysisResponseDto['detections'],
   imageWidth: number,
@@ -110,11 +112,45 @@ function toCapturedField(
   };
 }
 
+/** @description Sets every field a captured response fills in, shared by the create
+ * and update branches of `saveUploadedField` so a retried upload with the same
+ * `capture_id` (backend #108, same `fieldId` back) lands on one local row either way. */
+function applyCapturedFieldData(
+  f: ResultField,
+  specimenId: string,
+  localImageUri: string,
+  data: FieldAnalysisResponseDto,
+): void {
+  f.serverId = data.fieldId;
+  f.resultId = data.resultId;
+  f.specimenId = specimenId;
+  f.imageId = data.imageId;
+  f.fieldNo = data.fieldNo;
+  f.magnification = data.magnification;
+  f.status = data.status;
+  f.aiFindingsJson = JSON.stringify(data.aiFindings ?? {});
+  f.effectiveCountsJson = JSON.stringify(data.aiFindings ?? {});
+  f.confidenceScoresJson = JSON.stringify(data.confidenceScores ?? {});
+  f.imageWidth = data.imageWidth;
+  f.imageHeight = data.imageHeight;
+  f.smartDiagnosisJson = data.smartDiagnosisPreview
+    ? JSON.stringify(data.smartDiagnosisPreview)
+    : null;
+  f.smartDiagnosisUnavailable = data.smartDiagnosisUnavailable;
+  f.localImageUri = localImageUri;
+  f.version = 1;
+  f.isSynced = true;
+  f.syncedAt = new Date().toISOString();
+}
+
 /**
  * @description Writes a captured field's upload response into WatermelonDB immediately
- * (the online path — capture, upload, decide, all in one go): a new result_fields row,
- * the field's AI boxes into field_detections, and get-or-creates the specimen's
- * analysis_results row.
+ * (the online path — capture, upload, decide, all in one go): the field's AI boxes into
+ * field_detections, and get-or-creates the specimen's analysis_results row. Get-or-creates
+ * the result_fields row itself too, keyed on the response's `fieldId` — a retried
+ * **Use Image** whose first answer the phone never saw (same `capture_id`, backend #108)
+ * gets back the same `fieldId`, and must update that one local row rather than create a
+ * second local field for it.
  * @param specimenId - Server specimen id the field belongs to.
  * @param localImageUri - Local file path of the processed image, so the field shows
  * its own photo offline without a signed URL round trip.
@@ -128,29 +164,18 @@ export async function saveUploadedField(
   return database.write(async () => {
     await upsertCapturingResult(specimenId, data.resultId);
 
-    const field = await database.get<ResultField>('result_fields').create((f) => {
-      f.serverId = data.fieldId;
-      f.resultId = data.resultId;
-      f.specimenId = specimenId;
-      f.imageId = data.imageId;
-      f.fieldNo = data.fieldNo;
-      f.magnification = data.magnification;
-      f.status = data.status;
-      f.aiFindingsJson = JSON.stringify(data.aiFindings ?? {});
-      f.effectiveCountsJson = JSON.stringify(data.aiFindings ?? {});
-      f.confidenceScoresJson = JSON.stringify(data.confidenceScores ?? {});
-      f.imageWidth = data.imageWidth;
-      f.imageHeight = data.imageHeight;
-      f.smartDiagnosisJson = data.smartDiagnosisPreview
-        ? JSON.stringify(data.smartDiagnosisPreview)
-        : null;
-      f.smartDiagnosisUnavailable = data.smartDiagnosisUnavailable;
-      f.localImageUri = localImageUri;
-      f.version = 1;
-      f.isSynced = true;
-      f.createdAt = Date.now();
-      f.syncedAt = new Date().toISOString();
-    });
+    const fields = database.get<ResultField>('result_fields');
+    const existing = await fields.query(Q.where('server_id', data.fieldId)).fetch();
+
+    const field =
+      existing[0] ??
+      (await fields.create((f) => {
+        applyCapturedFieldData(f, specimenId, localImageUri, data);
+        f.createdAt = Date.now();
+      }));
+    if (existing[0]) {
+      await existing[0].update((f) => applyCapturedFieldData(f, specimenId, localImageUri, data));
+    }
 
     await writeFieldDetections(field.id, data.detections, data.imageWidth, data.imageHeight);
 
@@ -166,11 +191,14 @@ export async function saveUploadedField(
  * @param specimenId - Server specimen id the field belongs to.
  * @param magnification - Objective chosen on the camera view.
  * @param localImageUri - Local file path of the processed image.
+ * @param captureId - This photo's client-generated id (backend #108), replayed on every
+ * retry of the queued upload — see `pushChanges.ts`'s `uploadQueuedField`.
  */
 export async function createQueuedFieldUpload(
   specimenId: string,
   magnification: Magnification,
   localImageUri: string,
+  captureId: string,
 ): Promise<string> {
   const fieldsCollection = database.get<ResultField>('result_fields');
   const existingCount = await fieldsCollection
@@ -212,7 +240,7 @@ export async function createQueuedFieldUpload(
       row.entity = 'result_field';
       row.entityId = field.id;
       row.action = PendingSyncAction.UPLOAD_IMAGE;
-      row.payloadJson = '{}';
+      row.payloadJson = JSON.stringify({ captureId });
       row.status = PendingSyncStatus.PENDING;
       row.createdAt = createdAt;
     });

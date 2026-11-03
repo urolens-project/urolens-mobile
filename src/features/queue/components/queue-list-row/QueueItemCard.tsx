@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { formatShortDateTime } from '@lib/dateTime';
-import { DEFAULT_MIN_FIELDS } from '@lib/constants/fieldCapture.constant';
+import { useMinFieldsStore } from '@lib/stores/minFieldsStore';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
@@ -43,6 +43,7 @@ function QueueItemCardComponent({
   const isCapturing = status === 'CAPTURING';
   const isVerifying = status === 'VERIFYING';
   const hasReturnReason = isReturned && !!item.returnReason;
+  const minFields = useMinFieldsStore((s) => s.minFields);
   const accessibilityLabel = `Sample ${item.sampleUid}, patient ${item.patientUid}${statusStyle ? `, ${statusStyle.label.toLowerCase()}` : ''}`;
   const handlePress = useCallback((): void => onPress(item.id), [item.id, onPress]);
 
@@ -115,7 +116,7 @@ function QueueItemCardComponent({
         )}
         {isCapturing && (
           <Text style={styles.captureProgress}>
-            {formatFieldCounterLabel(item.fieldCount ?? 0, DEFAULT_MIN_FIELDS)}
+            {formatFieldCounterLabel(item.fieldCount ?? 0, minFields)}
           </Text>
         )}
         {isVerifying && (

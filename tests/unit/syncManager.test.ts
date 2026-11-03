@@ -30,6 +30,10 @@ jest.mock('@db/sync/legacyQueue', () => ({
   drainLegacyQueuedActions: jest.fn(),
 }));
 
+jest.mock('@db/sync/fetchRemoteFields', () => ({
+  fetchRemoteFields: jest.fn(),
+}));
+
 jest.mock('@db/sync/localDataOwner', () => ({
   adoptUnownedLocalData: jest.fn(),
   getLocalDataOwner: jest.fn(),
@@ -47,6 +51,7 @@ let mockPush: jest.Mock;
 let mockHasPending: jest.Mock;
 let mockRequeue: jest.Mock;
 let mockReset: jest.Mock;
+let mockFetchRemoteFields: jest.Mock;
 let getSyncStatus: () => { state: string; lastSuccessAt: number | null };
 let subscribeSyncStatus: (listener: () => void) => () => void;
 let withSyncPaused: (changeLocalData: () => Promise<void>) => Promise<void>;
@@ -77,6 +82,7 @@ beforeEach(() => {
     requeueLegacyFailedActions: mockRequeue,
   } = require('@db/sync/pushChanges'));
   mockReset = require('@db/database').database.unsafeResetDatabase;
+  ({ fetchRemoteFields: mockFetchRemoteFields } = require('@db/sync/fetchRemoteFields'));
   jest.requireMock('@lib/auth/tokenStorage').tokenStorage.getUserId.mockResolvedValue('user-1');
   jest.requireMock('@db/sync/localDataOwner').getLocalDataOwner.mockResolvedValue('user-1');
 
@@ -90,6 +96,7 @@ beforeEach(() => {
   mockPush.mockResolvedValue(NOTHING_REFUSED);
   mockHasPending.mockResolvedValue(false);
   mockRequeue.mockResolvedValue(undefined);
+  mockFetchRemoteFields.mockResolvedValue(undefined);
   mockGetItem.mockImplementation(async (key: string) => stored[key] ?? null);
   mockSetItem.mockImplementation(async (key: string, value: string) => {
     stored[key] = value;
@@ -144,6 +151,32 @@ describe('synchronize', () => {
     await synchronize();
 
     expect(mockSetItem).not.toHaveBeenCalled();
+  });
+
+  // C5: a best-effort background enhancement, run after the real sync succeeds —
+  // never allowed to make the sync cycle itself report failure.
+  describe('background field fetch (C5)', () => {
+    it('runs after a successful pull', async () => {
+      const order: string[] = [];
+      mockPull.mockImplementation(async () => {
+        order.push('pull');
+        return '2026-05-26T10:00:00Z';
+      });
+      mockFetchRemoteFields.mockImplementation(async () => {
+        order.push('fetchRemoteFields');
+      });
+
+      await synchronize();
+
+      expect(order).toEqual(['pull', 'fetchRemoteFields']);
+    });
+
+    it('does not fail the sync cycle when it throws', async () => {
+      mockFetchRemoteFields.mockRejectedValue(new Error('network error'));
+
+      await expect(synchronize()).resolves.toBeUndefined();
+      expect(getSyncStatus().state).toBe('succeeded');
+    });
   });
 
   it('skips a concurrent call while a sync is already in progress', async () => {
