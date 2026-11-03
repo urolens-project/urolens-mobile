@@ -4,6 +4,7 @@ import type { ServerRecord } from '@db/types';
 import { mapServerToLocal } from '@db/mappers/sync.mapper';
 import { database } from '@db/database';
 import { apiClient } from '@lib/apiClient';
+import { useMinFieldsStore } from '@lib/stores/minFieldsStore';
 import type FieldDetection from '@db/models/FieldDetection';
 
 import { resolveConflict, applyResolution } from './conflictResolver';
@@ -31,6 +32,9 @@ interface SyncChanges {
     resultFields?: TableChanges;
   };
   timestamp: string;
+  /** Accepted fields a specimen needs before it can be submitted (backend #105) —
+   * only present while FIELD_WORKFLOW_ENABLED is on server-side. */
+  minFields?: number;
 }
 
 // resultFields rows have no top-level "id" — fieldId is their identity instead
@@ -55,7 +59,10 @@ export async function pullChanges(
   const params = lastSyncedAt ? `?lastSyncedAt=${encodeURIComponent(lastSyncedAt)}` : '';
   const response = await apiClient.get<SyncChanges>(`/sync/pull${params}`, { signal });
   throwIfSyncCancelled(signal);
-  const { changes, timestamp } = response.data;
+  const { changes, timestamp, minFields } = response.data;
+  if (typeof minFields === 'number') {
+    useMinFieldsStore.getState().setMinFields(minFields);
+  }
 
   await database.write(async (): Promise<void> => {
     // The writer can be queued behind other work after the response has arrived.
