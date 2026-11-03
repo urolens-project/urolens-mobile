@@ -114,7 +114,7 @@ export function FieldResultScreen({
           disabled={isSubmitting}
           testID="discard-field-button"
         >
-          <Icon name="trash-outline" size={18} color={colors.gray300} />
+          <Icon name="trash-outline" size={18} color={colors.gray700} />
           <Text style={styles.discardLabel}>{FIELD_CAPTURE_TEXT.discardLabel}</Text>
         </TouchableOpacity>
         {canProceed && (
@@ -169,24 +169,32 @@ function SmartDiagnosisPreview({ field }: { field: CapturedField }): React.JSX.E
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.blackAlt },
+  container: { flex: 1, backgroundColor: colors.white },
   header: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.mlg,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: colors.gray200,
   },
-  title: { ...typography.title, color: colors.white },
+  title: { ...typography.title, color: colors.gray900 },
   counterText: { ...typography.caption, color: colors.gray500, marginTop: spacing.xs },
   scrollContent: { paddingBottom: spacing.xl },
-  imageWrapper: { width: '100%', backgroundColor: colors.black },
+  imageWrapper: {
+    backgroundColor: colors.black,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    overflow: 'hidden',
+  },
   image: { flex: 1 },
   awaitingBoxes: { alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  awaitingBoxesText: { ...typography.body, color: colors.gray500, textAlign: 'center' },
+  awaitingBoxesText: { ...typography.body, color: colors.gray300, textAlign: 'center' },
   countsSection: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.sm },
   countRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
-  countLabel: { ...typography.body, color: colors.gray300 },
-  countValue: { ...typography.body, color: colors.white, fontWeight: fontWeight.semibold },
+  countLabel: { ...typography.body, color: colors.gray700 },
+  countValue: { ...typography.body, color: colors.gray900, fontWeight: fontWeight.semibold },
   emptyCountsText: { ...typography.body, color: colors.gray500 },
   diagnosisSection: { paddingTop: spacing.lg },
   diagnosisCaption: {
@@ -225,9 +233,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
-    backgroundColor: colors.blackAlt,
+    backgroundColor: colors.white,
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: colors.gray200,
   },
   actionBtn: {
     flex: 1,
@@ -239,11 +247,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   discardBtn: {
-    backgroundColor: colors.navyAlt,
+    backgroundColor: colors.gray50,
     borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.gray300,
   },
   proceedBtn: { backgroundColor: colors.teal },
-  discardLabel: { ...typography.subtitle, fontWeight: fontWeight.semibold, color: colors.gray300 },
+  discardLabel: { ...typography.subtitle, fontWeight: fontWeight.semibold, color: colors.gray700 },
   proceedLabel: { ...typography.subtitle, fontWeight: fontWeight.semibold, color: colors.white },
 });
