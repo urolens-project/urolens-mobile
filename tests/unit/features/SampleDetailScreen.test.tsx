@@ -515,6 +515,26 @@ describe('AI Findings', () => {
     });
     expect(view.getByText('No particles detected')).toBeTruthy();
   });
+
+  it('notes the counts are per-field averages for a multi-field result', async () => {
+    const view = await openScreen(
+      { result: makeResult({ status: 'APPROVED', fieldCount: 4 }) },
+      { id: 'spec-1', readOnly: 'true' },
+    );
+    expect(
+      view.getByText('Values shown are the average particle count across all captured fields.'),
+    ).toBeTruthy();
+  });
+
+  it('does not show the average note for a legacy single-image result', async () => {
+    const view = await openScreen(
+      { result: makeResult({ status: 'APPROVED' }) },
+      { id: 'spec-1', readOnly: 'true' },
+    );
+    expect(
+      view.queryByText('Values shown are the average particle count across all captured fields.'),
+    ).toBeNull();
+  });
 });
 
 // ── Bug 8: Smart Diagnosis wording ───────────────────────────────────────────

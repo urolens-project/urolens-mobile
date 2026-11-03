@@ -6,6 +6,10 @@ export const SAMPLE_TEXT = {
   analysisResultsTitle: 'Analysis Results',
   smartDiagnosisSectionTitle: 'Smart Diagnosis',
   aiFindingsSectionTitle: 'AI Findings',
+  // Shown only for multi-field results (AnalysisResult.fieldCount > 0): the backend
+  // stores the per-class mean across all captured fields in ai_findings, not a sum,
+  // so the counts here would otherwise read as exact totals.
+  aiFindingsAverageNote: 'Values shown are the average particle count across all captured fields.',
   noParticlesDetected: 'No particles detected.',
   noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
 
