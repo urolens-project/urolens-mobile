@@ -43,6 +43,9 @@ export default class ResultField extends Model {
   // IMAGE_EXPOSURE), which creates no field server-side at all; null for a
   // MedTech's own discard decision (mobile PR #55 review, 3.12).
   @field('discard_reason') discardReason!: string | null;
+  // Client-only acknowledgement that a MedTech opened and looked at this field
+  // while it still needed a decision — never synced to the server.
+  @field('is_reviewed') isReviewed!: boolean;
 
   // Computed getter — parses the AI count-per-class JSON safely
   get aiFindings(): ParticleCounts {

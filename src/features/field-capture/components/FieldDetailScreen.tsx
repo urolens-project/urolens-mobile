@@ -37,7 +37,13 @@ export function FieldDetailScreen({
 }: FieldDetailScreenProps): React.JSX.Element {
   const { acceptedCount, fields } = useFieldList(specimenId);
   const { field, isLoading } = useFieldDetail(localFieldId, acceptedCount, minFields);
-  const { acceptField, discardField, isLoading: isActing, error } = useFieldActions();
+  const {
+    acceptField,
+    discardField,
+    markFieldReviewed,
+    isLoading: isActing,
+    error,
+  } = useFieldActions();
 
   // `fields` is already sorted by fieldNo ascending (useFieldList's query), so the
   // first match here is the lowest-numbered field still waiting.
@@ -82,6 +88,10 @@ export function FieldDetailScreen({
     ]);
   }, [handleDiscardConfirmed]);
 
+  const handleMarkReviewed = useCallback((): void => {
+    void markFieldReviewed(localFieldId);
+  }, [markFieldReviewed, localFieldId]);
+
   if (isLoading || !field) {
     return (
       <View style={styles.center}>
@@ -97,6 +107,7 @@ export function FieldDetailScreen({
       errorMessage={error?.message ?? null}
       onProceed={handleProceed}
       onDiscard={handleDiscard}
+      onMarkReviewed={handleMarkReviewed}
       remainingCount={otherUndecided.length}
       onGoBack={handleGoBack}
     />

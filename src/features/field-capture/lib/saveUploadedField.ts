@@ -109,6 +109,7 @@ function toCapturedField(
     acceptedFieldCount: data.acceptedFieldCount,
     minFields: data.minFields,
     isAwaitingBoxes: false,
+    isReviewed: false,
   };
 }
 

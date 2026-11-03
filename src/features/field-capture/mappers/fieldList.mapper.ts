@@ -16,5 +16,6 @@ export function mapFieldListItem(field: ResultField): FieldListItem {
     thumbnailUri: field.localImageUri,
     particleCount: counts.reduce((sum, count) => sum + count, 0),
     discardReason: field.discardReason,
+    isReviewed: field.isReviewed,
   };
 }

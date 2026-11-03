@@ -21,6 +21,11 @@ export interface FieldResultScreenProps {
   errorMessage: string | null;
   onProceed: () => void;
   onDiscard: () => void;
+  /** Marks a field still needing a decision as reviewed, without deciding
+   * Proceed/Discard — only passed when this field was reopened from the field
+   * list; omitted for a field just captured in a live session, which has no
+   * separate "come back to this later" backlog to track reviewed state for. */
+  onMarkReviewed?: () => void;
   /** Other fields still needing a decision, for the step-through's "N more waiting"
    * header (mobile-n8-todo-rem.md C6) — only set when this field was opened from the
    * list; omitted for a field just captured in a live session, which has no backlog. */
@@ -44,6 +49,7 @@ export function FieldResultScreen({
   errorMessage,
   onProceed,
   onDiscard,
+  onMarkReviewed,
   remainingCount,
   onGoBack,
 }: FieldResultScreenProps): React.JSX.Element {
@@ -60,6 +66,10 @@ export function FieldResultScreen({
   // A field still awaiting its boxes (1.2/3.14) hides Proceed too, so nobody
   // decides a field blind — Discard can stay.
   const canProceed = !isReadOnly && !field.isAwaitingBoxes;
+  // Only offered for a field reopened from the list that still needs a decision —
+  // Mark as Reviewed doesn't replace Proceed/Discard, so submit still blocks on it
+  // until one of those is tapped (see submitBlockingReason.ts's undecidedCount).
+  const canMarkReviewed = !!onMarkReviewed && field.status === 'ANALYZED' && !field.isReviewed;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -84,6 +94,12 @@ export function FieldResultScreen({
               ` · ${FIELD_CAPTURE_TEXT.moreFieldsWaitingLabel(remainingCount)}`}
           </Text>
         </View>
+        {field.status === 'ANALYZED' && field.isReviewed && (
+          <View style={styles.reviewedBadge} testID="field-reviewed-badge">
+            <Icon name="checkmark-circle-outline" size={14} color={colors.indigo800} />
+            <Text style={styles.reviewedBadgeText}>{FIELD_CAPTURE_TEXT.reviewedLabel}</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -136,6 +152,20 @@ export function FieldResultScreen({
           </View>
         )}
       </ScrollView>
+
+      {canMarkReviewed && (
+        <View style={styles.markReviewedRow}>
+          <TouchableOpacity
+            style={styles.markReviewedBtn}
+            onPress={onMarkReviewed}
+            disabled={isSubmitting}
+            testID="mark-field-reviewed-button"
+          >
+            <Icon name="eye-outline" size={16} color={colors.indigo800} />
+            <Text style={styles.markReviewedLabel}>{FIELD_CAPTURE_TEXT.markAsReviewedLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.actions}>
         <TouchableOpacity
@@ -212,6 +242,20 @@ const styles = StyleSheet.create({
   headerTitles: { flex: 1 },
   title: { ...typography.title, color: colors.gray900 },
   counterText: { ...typography.caption, color: colors.gray500, marginTop: spacing.xs },
+  reviewedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.indigo100,
+  },
+  reviewedBadgeText: {
+    ...typography.caption,
+    color: colors.indigo800,
+    fontWeight: fontWeight.semibold,
+  },
   scrollContent: { paddingBottom: spacing.xl },
   imageWrapper: {
     backgroundColor: colors.black,
@@ -274,6 +318,26 @@ const styles = StyleSheet.create({
     padding: spacing.smd,
   },
   errorText: { ...typography.body, color: colors.red700, lineHeight: 18, flex: 1 },
+  markReviewedRow: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: colors.white,
+  },
+  markReviewedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 0.5,
+    borderColor: colors.indigo800,
+  },
+  markReviewedLabel: {
+    ...typography.subtitle,
+    fontWeight: fontWeight.semibold,
+    color: colors.indigo800,
+  },
   actions: {
     flexDirection: 'row',
     gap: spacing.smd,
