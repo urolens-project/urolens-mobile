@@ -24,6 +24,7 @@ function makeField(overrides: Partial<CapturedField> = {}): CapturedField {
     acceptedFieldCount: 3,
     minFields: 10,
     isAwaitingBoxes: false,
+    isReviewed: false,
     ...overrides,
   };
 }
@@ -125,5 +126,73 @@ describe('FieldResultScreen — remainingCount header (C6)', () => {
     );
 
     expect(screen.queryByText(/more waiting/)).toBeNull();
+  });
+});
+
+// Mark as Reviewed: a lightweight "I looked at this" acknowledgement for a field
+// reopened from the list that still needs a decision — distinct from Proceed/Discard.
+describe('FieldResultScreen — Mark as Reviewed', () => {
+  it('shows the button for an unreviewed field reopened from the list', () => {
+    render(
+      <FieldResultScreen
+        field={makeField({ status: 'ANALYZED', isReviewed: false })}
+        isSubmitting={false}
+        errorMessage={null}
+        onProceed={noop}
+        onDiscard={noop}
+        onMarkReviewed={noop}
+        onGoBack={noop}
+      />,
+    );
+
+    expect(screen.getByTestId('mark-field-reviewed-button')).toBeTruthy();
+    expect(screen.queryByTestId('field-reviewed-badge')).toBeNull();
+  });
+
+  it('hides the button and shows a badge once the field is marked reviewed', () => {
+    render(
+      <FieldResultScreen
+        field={makeField({ status: 'ANALYZED', isReviewed: true })}
+        isSubmitting={false}
+        errorMessage={null}
+        onProceed={noop}
+        onDiscard={noop}
+        onMarkReviewed={noop}
+        onGoBack={noop}
+      />,
+    );
+
+    expect(screen.queryByTestId('mark-field-reviewed-button')).toBeNull();
+    expect(screen.getByTestId('field-reviewed-badge')).toBeTruthy();
+  });
+
+  it('hides the button for a field opened from a live capture session (no onMarkReviewed)', () => {
+    render(
+      <FieldResultScreen
+        field={makeField({ status: 'ANALYZED', isReviewed: false })}
+        isSubmitting={false}
+        errorMessage={null}
+        onProceed={noop}
+        onDiscard={noop}
+      />,
+    );
+
+    expect(screen.queryByTestId('mark-field-reviewed-button')).toBeNull();
+  });
+
+  it('hides the button for an already-ACCEPTED field even if reopened from the list', () => {
+    render(
+      <FieldResultScreen
+        field={makeField({ status: 'ACCEPTED', isReviewed: false })}
+        isSubmitting={false}
+        errorMessage={null}
+        onProceed={noop}
+        onDiscard={noop}
+        onMarkReviewed={noop}
+        onGoBack={noop}
+      />,
+    );
+
+    expect(screen.queryByTestId('mark-field-reviewed-button')).toBeNull();
   });
 });

@@ -25,10 +25,12 @@ jest.mock('@features/field-capture/hooks/useFieldDetail', () => ({
 
 const mockAcceptField = jest.fn();
 const mockDiscardField = jest.fn();
+const mockMarkFieldReviewed = jest.fn();
 jest.mock('@features/field-capture/hooks/useFieldActions', () => ({
   useFieldActions: () => ({
     acceptField: mockAcceptField,
     discardField: mockDiscardField,
+    markFieldReviewed: mockMarkFieldReviewed,
     isLoading: false,
     error: null,
   }),
@@ -52,6 +54,7 @@ function makeListItem(overrides: Partial<FieldListItem> = {}): FieldListItem {
     thumbnailUri: null,
     particleCount: 2,
     discardReason: null,
+    isReviewed: false,
     ...overrides,
   };
 }
@@ -72,6 +75,7 @@ function makeField(overrides: Partial<CapturedField> = {}): CapturedField {
     acceptedFieldCount: 3,
     minFields: 10,
     isAwaitingBoxes: false,
+    isReviewed: false,
     ...overrides,
   };
 }
@@ -89,6 +93,7 @@ beforeEach(() => {
     verifiedFieldCount: 0,
     undecidedFieldCount: 0,
   });
+  mockMarkFieldReviewed.mockResolvedValue(undefined);
 });
 
 describe('FieldDetailScreen step-through', () => {
@@ -201,6 +206,20 @@ describe('FieldDetailScreen step-through', () => {
     render(<FieldDetailScreen localFieldId="field-1" specimenId="srv-1" minFields={10} />);
 
     expect(screen.queryByText(/more waiting/)).toBeNull();
+  });
+
+  it('marks the field reviewed without navigating away', async () => {
+    mockUseFieldList.mockReturnValue({
+      fields: [makeListItem({ localId: 'field-1', fieldNo: 1 })],
+      acceptedCount: 3,
+    });
+
+    render(<FieldDetailScreen localFieldId="field-1" specimenId="srv-1" minFields={10} />);
+    fireEvent.press(screen.getByTestId('mark-field-reviewed-button'));
+
+    await waitFor(() => expect(mockMarkFieldReviewed).toHaveBeenCalledWith('field-1'));
+    expect(mockRouterReplace).not.toHaveBeenCalled();
+    expect(mockRouterBack).not.toHaveBeenCalled();
   });
 
   it('does not navigate when the action is refused (no outcome)', async () => {
