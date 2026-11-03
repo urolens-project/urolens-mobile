@@ -15,7 +15,7 @@
  *   fieldResult → (Proceed or Discard)  → idle, ready for the next field
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Alert, StyleSheet } from 'react-native';
 import { useCameraPermissions, type CameraView } from 'expo-camera';
 import { router } from 'expo-router';
@@ -41,6 +41,7 @@ import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
 import { LAST_MAGNIFICATION_KEY } from '../constants/magnification.constant';
 import { useFieldCapture } from '../hooks/useFieldCapture';
 import { useFieldActions } from '../hooks/useFieldActions';
+import { useFieldList } from '../hooks/useFieldList';
 import { createQueuedFieldUpload } from '../lib/saveUploadedField';
 import type { CapturedField, Magnification } from '../types';
 
@@ -84,12 +85,24 @@ export function FieldCaptureSessionScreen({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [magnification, setMagnification] = useState<Magnification>('HPF');
   const [capturedField, setCapturedField] = useState<CapturedField | null>(null);
-  const [acceptedCount, setAcceptedCount] = useState(0);
+  // Read from the local DB rather than kept as local state: capture.tsx remounts this
+  // screen on every focus (so a previous session's uploading/previewing state never
+  // leaks into a fresh one), which would otherwise reset these back to empty every
+  // time a MedTech returns from the field list — even though the fields themselves
+  // were never lost.
+  const { fields: dbFields, acceptedCount } = useFieldList(specimenId);
+  const thumbnails = useMemo(
+    (): string[] =>
+      dbFields
+        .filter((f) => f.status === 'ACCEPTED')
+        .map((f) => f.thumbnailUri)
+        .filter((uri): uri is string => uri != null),
+    [dbFields],
+  );
   // Seeded from the last sync's server minimum (backend #105) so the counter before
   // this session's own first capture response reflects reality instead of the
   // hard-coded fallback.
   const [minFields, setMinFields] = useState(() => useMinFieldsStore.getState().minFields);
-  const [thumbnails, setThumbnails] = useState<string[]>([]);
 
   const cameraRef = useRef<CameraView>(null);
 
@@ -225,8 +238,7 @@ export function FieldCaptureSessionScreen({
     if (!capturedField) return;
     const outcome = await acceptField(capturedField.localId);
     if (!outcome) return;
-    setAcceptedCount(outcome.acceptedFieldCount);
-    setThumbnails((prev) => [...prev, capturedField.localImageUri]);
+    // acceptedCount and thumbnails come from useFieldList, which observes this write.
     setCapturedField(null);
     setProcessed(null);
     setPhase('idle');

@@ -48,6 +48,17 @@ jest.mock('@features/field-capture/hooks/useFieldActions', () => ({
   useFieldActions: () => ({ acceptField: jest.fn(), discardField: jest.fn(), isLoading: false }),
 }));
 
+jest.mock('@features/field-capture/hooks/useFieldList', () => ({
+  useFieldList: () => ({
+    fields: [],
+    acceptedCount: 0,
+    undecidedCount: 0,
+    pendingDecisionsCount: 0,
+    resultServerId: null,
+    isLoading: false,
+  }),
+}));
+
 const mockCreateQueuedFieldUpload = jest.fn();
 jest.mock('@features/field-capture/lib/saveUploadedField', () => ({
   createQueuedFieldUpload: (...args: unknown[]) => mockCreateQueuedFieldUpload(...args),
