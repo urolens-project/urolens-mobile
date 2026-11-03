@@ -69,7 +69,12 @@ export function FieldCaptureSessionScreen({
 }: FieldCaptureSessionScreenProps): React.JSX.Element {
   const { isOnline } = useNetworkStatus();
   const { captureField, isLoading: isUploading } = useFieldCapture();
-  const { acceptField, discardField, isLoading: isActing } = useFieldActions();
+  const {
+    acceptField,
+    discardField,
+    isLoading: isActing,
+    error: fieldActionError,
+  } = useFieldActions();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<ScreenPhase>('idle');
@@ -159,6 +164,12 @@ export function FieldCaptureSessionScreen({
         quality: 1,
         allowsEditing: false,
         exif: false,
+        // iOS defaults to .current, returning HEIC assets as-is (expo-image-picker
+        // changelog, 37569) — getPickerMimeType only accepts JPEG/PNG, so an
+        // unedited iPhone photo would fail format validation. Forcing .automatic
+        // re-encodes HEIC to JPEG before it reaches us.
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Automatic,
       });
 
       if (result.canceled || !result.assets[0]) return;
@@ -317,7 +328,7 @@ export function FieldCaptureSessionScreen({
       <FieldResultScreen
         field={capturedField}
         isSubmitting={isActing}
-        errorMessage={null}
+        errorMessage={fieldActionError?.message ?? null}
         onProceed={handleProceed}
         onDiscard={handleDiscardRequest}
       />
