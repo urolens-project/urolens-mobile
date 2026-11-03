@@ -10,7 +10,9 @@ import { SmartDiagnosisRows } from '@features/result-confirmation/components/Sma
 import { mapSmartDiagnosis } from '@features/result-confirmation/mappers/resultReview.mapper';
 
 import { DetectionOverlay } from './DetectionOverlay';
+import { ParticleLegend } from './ParticleLegend';
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
+import { formatParticleName, getParticleColor } from '../lib/particleColor';
 import type { CapturedField } from '../types';
 
 export interface FieldResultScreenProps {
@@ -23,6 +25,11 @@ export interface FieldResultScreenProps {
    * header (mobile-n8-todo-rem.md C6) — only set when this field was opened from the
    * list; omitted for a field just captured in a live session, which has no backlog. */
   remainingCount?: number;
+  /** Shows a header back button when set — only when this field was reopened from
+   * the field list (FieldDetailScreen), which otherwise leaves no way back
+   * (field-post-analysis-report.md, Section 2 item 6). Omitted for a field just
+   * captured in a live session, where Proceed/Discard are the only ways forward. */
+  onGoBack?: () => void;
 }
 
 /**
@@ -38,6 +45,7 @@ export function FieldResultScreen({
   onProceed,
   onDiscard,
   remainingCount,
+  onGoBack,
 }: FieldResultScreenProps): React.JSX.Element {
   const counts = Object.entries(field.aiFindings).filter(([, count]) => count > 0);
   // The overlay's boxes are percentages of the stored image, so the wrapper must
@@ -56,13 +64,26 @@ export function FieldResultScreen({
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{FIELD_CAPTURE_TEXT.fieldResultTitle(field.fieldNo)}</Text>
-        <Text style={styles.counterText}>
-          {FIELD_CAPTURE_TEXT.fieldCounterLabel(field.acceptedFieldCount, field.minFields)}
-          {!!remainingCount &&
-            remainingCount > 0 &&
-            ` · ${FIELD_CAPTURE_TEXT.moreFieldsWaitingLabel(remainingCount)}`}
-        </Text>
+        {onGoBack && (
+          <TouchableOpacity
+            onPress={onGoBack}
+            style={styles.backButton}
+            testID="field-result-back-button"
+            accessibilityRole="button"
+            accessibilityLabel={FIELD_CAPTURE_TEXT.backToFieldListA11yLabel}
+          >
+            <Icon name="chevron-back" size={22} color={colors.gray700} />
+          </TouchableOpacity>
+        )}
+        <View style={styles.headerTitles}>
+          <Text style={styles.title}>{FIELD_CAPTURE_TEXT.fieldResultTitle(field.fieldNo)}</Text>
+          <Text style={styles.counterText}>
+            {FIELD_CAPTURE_TEXT.fieldCounterLabel(field.acceptedFieldCount, field.minFields)}
+            {!!remainingCount &&
+              remainingCount > 0 &&
+              ` · ${FIELD_CAPTURE_TEXT.moreFieldsWaitingLabel(remainingCount)}`}
+          </Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -75,20 +96,29 @@ export function FieldResultScreen({
             </Text>
           </View>
         ) : (
-          <View style={[styles.imageWrapper, { aspectRatio: imageAspectRatio }]}>
-            <Image
-              source={{ uri: field.localImageUri }}
-              style={styles.image}
-              resizeMode="contain"
-            />
-            <DetectionOverlay detections={field.detections} />
-          </View>
+          <>
+            <View style={[styles.imageWrapper, { aspectRatio: imageAspectRatio }]}>
+              <Image
+                source={{ uri: field.localImageUri }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+              <DetectionOverlay detections={field.detections} />
+            </View>
+            <ParticleLegend detections={field.detections} />
+          </>
         )}
 
         <View style={styles.countsSection}>
           {counts.map(([particleType, count]) => (
-            <View key={particleType} style={styles.countRow}>
-              <Text style={styles.countLabel}>{particleType}</Text>
+            <View key={particleType} style={styles.componentCard}>
+              <View
+                style={[
+                  styles.componentAccent,
+                  { backgroundColor: getParticleColor(particleType) },
+                ]}
+              />
+              <Text style={styles.countLabel}>{formatParticleName(particleType)}</Text>
               <Text style={styles.countValue}>{count}</Text>
             </View>
           ))}
@@ -171,11 +201,15 @@ function SmartDiagnosisPreview({ field }: { field: CapturedField }): React.JSX.E
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.mlg,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.gray200,
   },
+  backButton: { width: 32, height: 32, justifyContent: 'center', marginRight: spacing.sm },
+  headerTitles: { flex: 1 },
   title: { ...typography.title, color: colors.gray900 },
   counterText: { ...typography.caption, color: colors.gray500, marginTop: spacing.xs },
   scrollContent: { paddingBottom: spacing.xl },
@@ -187,13 +221,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.gray200,
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  image: { flex: 1 },
+  image: { width: '100%', height: '100%' },
   awaitingBoxes: { alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   awaitingBoxesText: { ...typography.body, color: colors.gray300, textAlign: 'center' },
   countsSection: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.sm },
-  countRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
-  countLabel: { ...typography.body, color: colors.gray700 },
+  componentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.smd,
+    paddingHorizontal: spacing.smd,
+    borderRadius: radius.lg,
+    backgroundColor: colors.gray50,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+  },
+  componentAccent: { width: 8, height: 8, borderRadius: radius.pill },
+  countLabel: { ...typography.body, color: colors.gray700, flex: 1 },
   countValue: { ...typography.body, color: colors.gray900, fontWeight: fontWeight.semibold },
   emptyCountsText: { ...typography.body, color: colors.gray500 },
   diagnosisSection: { paddingTop: spacing.lg },

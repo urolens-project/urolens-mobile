@@ -15,6 +15,7 @@ export const FIELD_CAPTURE_TEXT = {
   noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
   proceedLabel: 'Proceed',
   discardLabel: 'Discard',
+  backToFieldListA11yLabel: 'Back to field list',
   // A field synced from another phone (or from before a reinstall) with no local
   // image or AI boxes yet (mobile PR #55 review, 1.2/3.14) — never shown as if it
   // had no detections. The background fetch (C5) now fills this in on the next
