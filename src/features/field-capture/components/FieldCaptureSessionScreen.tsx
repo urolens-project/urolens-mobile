@@ -69,7 +69,12 @@ export function FieldCaptureSessionScreen({
 }: FieldCaptureSessionScreenProps): React.JSX.Element {
   const { isOnline } = useNetworkStatus();
   const { captureField, isLoading: isUploading } = useFieldCapture();
-  const { acceptField, discardField, isLoading: isActing } = useFieldActions();
+  const {
+    acceptField,
+    discardField,
+    isLoading: isActing,
+    error: fieldActionError,
+  } = useFieldActions();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<ScreenPhase>('idle');
@@ -323,7 +328,7 @@ export function FieldCaptureSessionScreen({
       <FieldResultScreen
         field={capturedField}
         isSubmitting={isActing}
-        errorMessage={null}
+        errorMessage={fieldActionError?.message ?? null}
         onProceed={handleProceed}
         onDiscard={handleDiscardRequest}
       />
