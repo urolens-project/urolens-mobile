@@ -42,6 +42,11 @@ export const FIELD_CAPTURE_TEXT = {
     SPECIMEN_NOT_ASSIGNED: 'This sample is no longer assigned to you.',
     CONSENT_REFUSED: 'The patient refused processing — this sample can’t be analysed.',
     FEATURE_DISABLED: 'This feature isn’t available yet. Please try again later.',
+    // 422 from main.py's RequestValidationError handler (a malformed request, not
+    // an image-content gate — those are IMAGE_NOT_MICROSCOPY/IMAGE_EXPOSURE above).
+    // The server's own message here is "Request validation failed.", which isn't
+    // something a MedTech can act on.
+    VALIDATION_ERROR: 'This capture couldn’t be processed. Please retake the photo and try again.',
   } as Record<string, string>,
 
   // FieldListScreen
