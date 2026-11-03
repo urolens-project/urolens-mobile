@@ -4,6 +4,12 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
+import { NotificationBadge } from '@components/NotificationBadge';
+
+import {
+  openNotificationsPreview,
+  useUnreadNotificationCount,
+} from '@features/alerts/store/notificationsStore';
 
 import { QueueHeaderSyncButton } from './QueueHeaderSyncButton';
 import { formatActiveSamplesLabel, QUEUE_TEXT } from '../../constants/queueText.constant';
@@ -39,6 +45,8 @@ export function QueueHeaderBody({
   reduceMotion,
   onSync,
 }: QueueHeaderBodyProps): React.JSX.Element {
+  const unreadCount = useUnreadNotificationCount();
+
   return (
     <Animated.View style={[styles.container, { paddingTop: topInset + spacing.sm }, style]}>
       <View style={styles.titleRow}>
@@ -71,10 +79,11 @@ export function QueueHeaderBody({
             style={styles.iconButton}
             accessibilityLabel={QUEUE_TEXT.header.notificationsAccessibilityLabel}
             accessibilityRole="button"
+            onPress={openNotificationsPreview}
           >
             <View>
               <Icon name="notifications-outline" size={20} color={colors.white} />
-              <View style={styles.notificationDot} />
+              <NotificationBadge count={unreadCount} />
             </View>
           </TouchableOpacity>
         </View>
@@ -149,15 +158,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: -spacing.xxs,
-    right: -spacing.xxs,
-    width: spacing.sm,
-    height: spacing.sm,
-    borderRadius: radius.pill,
-    backgroundColor: colors.red500,
   },
   metaRow: {
     flexDirection: 'row',
