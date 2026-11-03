@@ -4,6 +4,7 @@ import { tokenStorage } from '@lib/auth/tokenStorage';
 import { database } from '../database';
 import { adoptUnownedLocalData, getLocalDataOwner } from './localDataOwner';
 import { drainLegacyQueuedActions } from './legacyQueue';
+import { fetchRemoteFields } from './fetchRemoteFields';
 import { pullChanges } from './pullChanges';
 import { hasPendingActions, pushChanges, requeueLegacyFailedActions } from './pushChanges';
 import { throwIfSyncCancelled } from './syncCancellation';
@@ -136,6 +137,16 @@ async function runSync(cycle: ActiveSync): Promise<void> {
     if (isFullPullDue) await AsyncStorage.removeItem(FULL_PULL_NEEDED_KEY);
     throwIfSyncCancelled(signal);
     setSyncStatus({ state: 'succeeded', lastSuccessAt: Date.now() });
+
+    // 5. Best-effort background fetch (C5): boxes/images for fields captured on
+    // another phone. Never lets the sync cycle itself report failure — one field's
+    // image not loading yet is not a sync failure, and the next cycle retries it.
+    try {
+      await fetchRemoteFields(signal);
+    } catch (err) {
+      if (signal.aborted) return;
+      console.error('[SyncManager] Background field fetch failed:', err);
+    }
   } catch (err) {
     // Account changes cancel a cycle intentionally; it must not overwrite the next
     // account's status or surface as a network failure to a background caller.
