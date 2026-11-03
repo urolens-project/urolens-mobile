@@ -19,13 +19,16 @@ const STATUS_RANK: Record<QueueStatus, number> = {
  * order all use this same rule so they can never disagree:
  *  1. RETURNED — a Supervisor sent a result back for correction (SRS UC 3.4), legacy
  *     or multi-field alike: it needs the MedTech, so it has to win even over a
- *     multi-field result otherwise awaiting the website (mobile PR #55 review, 3.9).
- *     That flag lives on the analysis result, and the specimen's own status is
- *     usually still ASSIGNED (or PROCESSING) at that point, so it has to win.
- *  2. CAPTURING — a multi-field result is being collected (SDD Module 2 proposal);
- *     status CAPTURING is unambiguous, it never applies to a legacy result.
+ *     multi-field result otherwise awaiting the website (mobile PR #55 review, 3.9),
+ *     AND even once the website's Capture More Fields has reopened it and the result
+ *     is back to CAPTURING — the correction isn't done until it's resubmitted. That
+ *     flag lives on the analysis result, and the specimen's own status is usually
+ *     still ASSIGNED (or PROCESSING) at that point, so it has to win.
+ *  2. CAPTURING — a multi-field result is being collected (SDD Module 2 proposal),
+ *     and isn't an open return.
  *  3. PROCESSING — the MedTech has begun (legacy) analysis.
- *  4. ASSIGNED — waiting to be started.
+ *  4. ASSIGNED — waiting to be started. IN_QUEUE (unassigned pool, SRS UC 2.2) counts
+ *     the same way: nothing in the backend sets it today, but older rows may have it.
  *  5. VERIFYING — the result is waiting on a check on the website, multi-field or
  *     legacy single-image alike (mobile PR #55 review, #3): PENDING_CONFIRM,
  *     IMAGE_RETAKE_REQUESTED and FAILED all land here regardless of field count,
@@ -38,16 +41,66 @@ const STATUS_RANK: Record<QueueStatus, number> = {
 export function getQueueStatus(
   item: Pick<QueueItem, 'status' | 'isReturnedForCorrection' | 'resultStatus'>,
 ): QueueStatus | null {
-  if (item.resultStatus === 'CAPTURING') return 'CAPTURING';
   if (item.isReturnedForCorrection) return 'RETURNED';
+  if (item.resultStatus === 'CAPTURING') return 'CAPTURING';
   const awaitingWeb =
     item.resultStatus === 'PENDING_CONFIRM' ||
     item.resultStatus === 'IMAGE_RETAKE_REQUESTED' ||
     item.resultStatus === 'FAILED';
   if (awaitingWeb) return 'VERIFYING';
   if (item.status === 'PROCESSING') return 'PROCESSING';
-  if (item.status === 'ASSIGNED') return 'ASSIGNED';
+  if (item.status === 'ASSIGNED' || item.status === 'IN_QUEUE') return 'ASSIGNED';
   return null;
+}
+
+/**
+ * @description How many items have each Queue status — the same rule the badge and
+ * sort already use, so a chip or tile count can never disagree with what it shows.
+ * @param items - Queue items to count; only status-related fields are read.
+ */
+export function countByQueueStatus<
+  T extends Pick<QueueItem, 'status' | 'isReturnedForCorrection' | 'resultStatus'>,
+>(items: T[]): Record<QueueStatus, number> {
+  const totals: Record<QueueStatus, number> = {
+    RETURNED: 0,
+    CAPTURING: 0,
+    PROCESSING: 0,
+    ASSIGNED: 0,
+    VERIFYING: 0,
+  };
+  for (const item of items) {
+    const status = getQueueStatus(item);
+    if (status) totals[status] += 1;
+  }
+  return totals;
+}
+
+export type ProceedAction =
+  | 'PROCEED_TO_ANALYSIS'
+  | 'CONTINUE'
+  | 'CONTINUE_CAPTURING'
+  | 'CONTINUE_ON_WEBSITE';
+
+/**
+ * @description Which action the Queue's Proceed/Continue button represents for a
+ * selected card — text-free so the UI maps it to its own label (QUEUE_TEXT). A
+ * returned sample is CONTINUE_CAPTURING once the website's Capture More Fields has
+ * reopened it (result back to CAPTURING) and CONTINUE_ON_WEBSITE until then —
+ * everything else already has nothing left to do on the phone
+ * (mobile-queue-status-n8, Q1).
+ * @param status - The selected item's Queue status.
+ * @param resultStatus - The selected item's latest analysis result status.
+ */
+export function getProceedAction(
+  status: QueueStatus | null,
+  resultStatus: string | null,
+): ProceedAction {
+  if (status === 'RETURNED') {
+    return resultStatus === 'CAPTURING' ? 'CONTINUE_CAPTURING' : 'CONTINUE_ON_WEBSITE';
+  }
+  if (status === 'CAPTURING') return 'CONTINUE_CAPTURING';
+  if (status === 'PROCESSING' || status === 'VERIFYING') return 'CONTINUE';
+  return 'PROCEED_TO_ANALYSIS';
 }
 
 function receivedTime(item: Pick<QueueItem, 'receivedAt'>): number {

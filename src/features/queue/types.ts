@@ -23,6 +23,8 @@ export type FilterOption =
   | 'STATUS'
   | 'ASSIGNED'
   | 'PROCESSING'
+  | 'CAPTURING'
+  | 'VERIFYING'
   | 'RETURNED';
 
 export interface QueueItem {
