@@ -73,4 +73,10 @@ export const FIELD_CAPTURE_TEXT = {
   offlineCaptureQueuedTitle: 'Saved',
   offlineCaptureQueuedMessage:
     'It will upload once you are back online — check the field list to decide on it then.',
+
+  // UploadRetryModal — shown when a field upload fails to reach the server at all
+  // (offline, unreachable, timed out), distinct from a real analysis failure.
+  uploadRetryModalTitle: 'Upload Failed',
+  uploadRetryModalTryAgainLabel: 'Try Again',
+  uploadRetryModalCancelLabel: 'Cancel',
 } as const;

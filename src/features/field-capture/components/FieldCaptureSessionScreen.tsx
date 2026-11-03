@@ -37,6 +37,7 @@ import { UploadProgressView } from '@features/image-retake/components/UploadProg
 import { IMAGE_RETAKE_TEXT } from '@features/image-retake/constants/imageRetakeText.constant';
 
 import { FieldResultScreen } from './FieldResultScreen';
+import { UploadRetryModal } from './UploadRetryModal';
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
 import { LAST_MAGNIFICATION_KEY } from '../constants/magnification.constant';
 import { useFieldCapture } from '../hooks/useFieldCapture';
@@ -90,6 +91,10 @@ export function FieldCaptureSessionScreen({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [magnification, setMagnification] = useState<Magnification>('HPF');
   const [capturedField, setCapturedField] = useState<CapturedField | null>(null);
+  const [uploadRetry, setUploadRetry] = useState<{ visible: boolean; message: string }>({
+    visible: false,
+    message: '',
+  });
   // Read from the local DB rather than kept as local state: capture.tsx remounts this
   // screen on every focus (so a previous session's uploading/previewing state never
   // leaks into a fresh one), which would otherwise reset these back to empty every
@@ -223,6 +228,14 @@ export function FieldCaptureSessionScreen({
       setUploadProgress,
       captureId,
     );
+    if (outcome?.status === 'networkError') {
+      // The upload never reached the server — offer a dedicated Try Again instead
+      // of the generic inline error, keeping the captured image either way
+      // (field-post-analysis-report.md, Section 2 item 7).
+      setPhase('previewing');
+      setUploadRetry({ visible: true, message: outcome.message });
+      return;
+    }
     if (!outcome || outcome.status === 'failed') {
       // A real analysis failure: keep the image, let the MedTech retry the upload
       // without recapturing.
@@ -274,6 +287,16 @@ export function FieldCaptureSessionScreen({
       },
     ]);
   }, [handleDiscardConfirmed]);
+
+  // ── Upload retry modal (network failure) ─────────────────────────────────
+  const handleUploadRetryTryAgain = useCallback((): void => {
+    setUploadRetry({ visible: false, message: '' });
+    void handleUseImage();
+  }, [handleUseImage]);
+
+  const handleUploadRetryCancel = useCallback((): void => {
+    setUploadRetry({ visible: false, message: '' });
+  }, []);
 
   // ── Retake before upload — simple reset, nothing to undo server-side ────
   const handleRetake = useCallback((): void => {
@@ -338,13 +361,21 @@ export function FieldCaptureSessionScreen({
   // ── Preview phase ─────────────────────────────────────────────────────────
   if (phase === 'previewing' && processed) {
     return (
-      <ImagePreviewPanel
-        processed={processed}
-        validationError={validationError}
-        onGoBack={handleGoBack}
-        onRetake={handleRetake}
-        onUseImage={handleUseImage}
-      />
+      <>
+        <ImagePreviewPanel
+          processed={processed}
+          validationError={validationError}
+          onGoBack={handleGoBack}
+          onRetake={handleRetake}
+          onUseImage={handleUseImage}
+        />
+        <UploadRetryModal
+          visible={uploadRetry.visible}
+          message={uploadRetry.message}
+          onTryAgain={handleUploadRetryTryAgain}
+          onCancel={handleUploadRetryCancel}
+        />
+      </>
     );
   }
 

@@ -79,12 +79,18 @@ export function uploadFieldViaXhr(
 
     xhr.onerror = () => {
       signal.removeEventListener('abort', onAbort);
-      reject(new Error('Network error during upload.'));
+      const error: UploadFieldXhrError = new Error('Network error during upload.');
+      error.code = 'NETWORK_ERROR';
+      reject(error);
     };
 
     xhr.ontimeout = () => {
       signal.removeEventListener('abort', onAbort);
-      reject(new Error('Upload timed out. Please check your connection and try again.'));
+      const error: UploadFieldXhrError = new Error(
+        'Upload timed out. Please check your connection and try again.',
+      );
+      error.code = 'TIMEOUT';
+      reject(error);
     };
 
     xhr.onabort = () => {
@@ -120,6 +126,20 @@ export function getUploadErrorCode(err: unknown): string | undefined {
   return typeof err === 'object' && err !== null && 'code' in err
     ? (err as UploadFieldXhrError).code
     : undefined;
+}
+
+const NETWORK_ERROR_CODES = new Set(['NETWORK_ERROR', 'TIMEOUT']);
+
+/**
+ * @description True when the upload never reached the server at all (offline,
+ * unreachable, or timed out) as opposed to a real analysis/validation failure —
+ * worth a distinct "Try Again" prompt since retrying is likely to just work once
+ * connectivity returns (field-post-analysis-report.md, Section 2 item 7).
+ * @param err - Caught value from `uploadFieldViaXhr`.
+ */
+export function isNetworkUploadError(err: unknown): boolean {
+  const code = getUploadErrorCode(err);
+  return !!code && NETWORK_ERROR_CODES.has(code);
 }
 
 // A refusal with no message of its own, e.g. a proxy answering before the API does.
