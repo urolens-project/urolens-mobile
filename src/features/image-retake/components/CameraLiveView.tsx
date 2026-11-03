@@ -85,16 +85,6 @@ export function CameraLiveView({
           <Text style={styles.instructionText}>{IMAGE_RETAKE_TEXT.cameraInstructionText}</Text>
         </View>
 
-        {fieldSession && (
-          <TouchableOpacity
-            style={styles.magnificationSwitch}
-            onPress={fieldSession.onToggleMagnification}
-            testID="magnification-switch"
-          >
-            <Text style={styles.magnificationText}>{fieldSession.magnification}</Text>
-          </TouchableOpacity>
-        )}
-
         {validationError && (
           <View style={styles.errorBannerCamera}>
             <Text style={styles.errorText}>{validationError}</Text>
@@ -109,7 +99,8 @@ export function CameraLiveView({
           </View>
         )}
 
-        {/* Bottom controls — gallery left, capture centered, mirror spacer right */}
+        {/* Bottom controls — gallery left, capture centered, magnification switch
+            (or a mirror spacer, outside a field session) right */}
         <View style={styles.cameraControls}>
           <TouchableOpacity style={styles.galleryButton} onPress={onGalleryPick}>
             <Icon name="images-outline" size={28} color="rgba(255,255,255,0.85)" />
@@ -120,7 +111,18 @@ export function CameraLiveView({
             <View style={styles.captureButton} />
           </TouchableOpacity>
 
-          <View style={styles.captureSpacer} />
+          {fieldSession ? (
+            <TouchableOpacity
+              style={styles.magnificationButton}
+              onPress={fieldSession.onToggleMagnification}
+              testID="magnification-switch"
+            >
+              <Icon name="aperture-outline" size={24} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.magnificationLabel}>{fieldSession.magnification}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.captureSpacer} />
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -157,16 +159,8 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: 'right',
   },
-  magnificationSwitch: {
-    position: 'absolute',
-    top: spacing.jumbo + spacing.xxxl,
-    right: spacing.lg,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  magnificationText: { ...typography.label, color: colors.white },
+  magnificationButton: { width: 60, alignItems: 'center', gap: spacing.xs },
+  magnificationLabel: { ...typography.micro, color: colors.gray200 },
   thumbnailStrip: {
     position: 'absolute',
     bottom: spacing.jumbo + spacing.huge + spacing.xxl,
