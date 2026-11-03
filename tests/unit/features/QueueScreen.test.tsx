@@ -26,6 +26,13 @@ jest.mock('@hooks/useFailedActionCount', () => ({ useFailedActionCount: jest.fn(
 jest.mock('@lib/auth/authStore', () => ({
   useUsername: jest.fn(() => 'medtech'),
 }));
+// The Queue header's bell button reads the shared notifications store; stubbed here so
+// this test doesn't also load its module-level useAuthStore.subscribe side effect, which
+// the mock above doesn't provide a store object for.
+jest.mock('@features/alerts/store/notificationsStore', () => ({
+  useUnreadNotificationCount: jest.fn(() => 0),
+  openNotificationsPreview: jest.fn(),
+}));
 
 const item = (id: string, overrides: Partial<QueueItem> = {}): QueueItem => ({
   id,
