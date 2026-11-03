@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -13,11 +13,19 @@ import { useFieldList } from '../hooks/useFieldList';
 import { useSubmitFields } from '../hooks/useSubmitFields';
 import { getSubmitBlockingReason } from '../lib/submitBlockingReason';
 import type { FieldListItem } from '../types';
+import { SubmitResultModal } from './SubmitResultModal';
 
 export interface FieldListScreenProps {
   specimenId: string;
   localSpecimenId: string;
   minFields: number;
+}
+
+interface SubmitResultState {
+  visible: boolean;
+  variant: 'success' | 'error';
+  title: string;
+  message: string;
 }
 
 /**
@@ -37,6 +45,12 @@ export function FieldListScreen({
   const { fields, acceptedCount, undecidedCount, pendingDecisionsCount, resultServerId } =
     useFieldList(specimenId);
   const { submitFields, isLoading: isSubmitting, error } = useSubmitFields();
+  const [submitResult, setSubmitResult] = useState<SubmitResultState>({
+    visible: false,
+    variant: 'success',
+    title: '',
+    message: '',
+  });
 
   const blockingReason = getSubmitBlockingReason({
     acceptedCount,
@@ -70,19 +84,31 @@ export function FieldListScreen({
     if (!resultServerId || blockingReason) return;
     const ok = await submitFields(resultServerId);
     if (!ok) {
-      Alert.alert(
-        FIELD_CAPTURE_TEXT.submitFailedTitle,
-        error?.message ?? FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage,
-      );
+      setSubmitResult({
+        visible: true,
+        variant: 'error',
+        title: FIELD_CAPTURE_TEXT.submitFailedTitle,
+        message: error?.message ?? FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage,
+      });
       return;
     }
-    Alert.alert(FIELD_CAPTURE_TEXT.submitSucceededTitle, FIELD_CAPTURE_TEXT.submitSucceededMessage);
-    router.replace('/(medtech)/queue');
+    setSubmitResult({
+      visible: true,
+      variant: 'success',
+      title: FIELD_CAPTURE_TEXT.submitSucceededTitle,
+      message: FIELD_CAPTURE_TEXT.submitSucceededMessage,
+    });
   }, [blockingReason, error, resultServerId, submitFields]);
 
   const handleGoBack = useCallback((): void => {
     router.back();
   }, []);
+
+  const handleDismissSubmitResult = useCallback((): void => {
+    const wasSuccess = submitResult.variant === 'success';
+    setSubmitResult((prev) => ({ ...prev, visible: false }));
+    if (wasSuccess) router.replace('/(medtech)/queue');
+  }, [submitResult.variant]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -127,6 +153,14 @@ export function FieldListScreen({
           </Text>
         </TouchableOpacity>
       </View>
+
+      <SubmitResultModal
+        visible={submitResult.visible}
+        variant={submitResult.variant}
+        title={submitResult.title}
+        message={submitResult.message}
+        onDismiss={handleDismissSubmitResult}
+      />
     </SafeAreaView>
   );
 }
