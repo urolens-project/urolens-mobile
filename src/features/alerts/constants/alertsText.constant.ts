@@ -20,6 +20,7 @@ export const ALERTS_TEXT = {
     RESULT_RETURNED: 'Result Returned',
     RESULT_READY_FOR_REVIEW: 'Ready for Review',
     SMART_DIAGNOSIS_UNAVAILABLE: 'Smart Diagnosis Unavailable',
+    CAPTURE_REOPENED: 'More Fields Requested',
     RESULT_RELEASED: 'Result Released',
     LAB_REQUEST_SUBMITTED: 'New Lab Request',
   } as Record<string, string>,

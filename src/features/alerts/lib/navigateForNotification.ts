@@ -18,6 +18,7 @@ export function navigateForNotification(item: NotificationItem): void {
     case 'RESULT_RETURNED':
     case 'RESULT_READY_FOR_REVIEW':
     case 'SMART_DIAGNOSIS_UNAVAILABLE':
+    case 'CAPTURE_REOPENED':
       // entityId is a server id; the sample route needs the local row id.
       navigateToSpecimenByServerId(item.entityId ?? undefined).catch(() => {
         router.push('/(medtech)/queue');
