@@ -188,6 +188,11 @@ export default function MedTechLayout(): React.JSX.Element {
         {/* capture is still pushed to directly from Begin Analysis / Retake
             Image (sample/[id].tsx) — it just no longer has its own tab. */}
         <Tabs.Screen name="capture" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+        <Tabs.Screen name="field-list" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+        <Tabs.Screen
+          name="field-result"
+          options={{ href: null, tabBarStyle: { display: 'none' } }}
+        />
         <Tabs.Screen
           name="sample/[id]"
           options={{ href: null, tabBarStyle: { display: 'none' } }}
