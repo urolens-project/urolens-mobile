@@ -23,6 +23,8 @@ function notificationIcon(type: string): ComponentProps<typeof Ionicons>['name']
       return 'checkmark-circle-outline';
     case 'SMART_DIAGNOSIS_UNAVAILABLE':
       return 'warning-outline';
+    case 'CAPTURE_REOPENED':
+      return 'camera-outline';
     default:
       return 'notifications-outline';
   }

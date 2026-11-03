@@ -211,6 +211,20 @@ describe('tapping an alert', () => {
     );
     expect(navigate).toHaveBeenCalledWith('server-result-2');
   });
+
+  // The website's "Capture More Fields" push had no case until B1: a tap fell through
+  // to the Alerts list, and the alert itself showed as a generic "Notification".
+  it('a capture-reopened alert shows its title and resolves the local sample', async () => {
+    const list = await renderAlerts([
+      notification({ notificationType: 'CAPTURE_REOPENED', entityId: 'server-result-3' }),
+    ]);
+    const n = notification({ notificationType: 'CAPTURE_REOPENED', entityId: 'server-result-3' });
+    const card = render(list.props.renderItem({ item: n }));
+    expect(card.getByText('More Fields Requested')).toBeTruthy();
+
+    fireEvent.press(card.getByText(n.message as string));
+    expect(navigate).toHaveBeenCalledWith('server-result-3');
+  });
 });
 
 describe('the unread-only toggle refetches from the server', () => {
