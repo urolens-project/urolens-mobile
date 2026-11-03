@@ -6,6 +6,7 @@
  * analyse it twice), but a retake or a fresh capture must get its own.
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 jest.mock('expo-camera', () => ({
   useCameraPermissions: jest.fn(() => [{ granted: true }, jest.fn()]),
@@ -16,6 +17,7 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }
 jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   launchImageLibraryAsync: jest.fn(() => Promise.resolve({ canceled: true, assets: [] })),
+  UIImagePickerPreferredAssetRepresentationMode: { Automatic: 'automatic' },
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -32,6 +34,15 @@ jest.mock('@lib/camera/imageUtils', () => ({
 
 jest.mock('@hooks/useNetworkStatus', () => ({
   useNetworkStatus: jest.fn(() => ({ isOnline: true })),
+}));
+
+const mockSynchronize = jest.fn(() => Promise.resolve());
+jest.mock('@db/sync/syncManager', () => ({
+  synchronize: (...args: unknown[]) => mockSynchronize(...args),
+}));
+
+jest.mock('@features/field-capture/hooks/useCurrentlyUploadingFieldId', () => ({
+  useCurrentlyUploadingFieldId: () => null,
 }));
 
 let mockIdCounter = 0;
@@ -80,9 +91,11 @@ jest.mock('@features/image-retake/components/CameraLiveView', () => {
     CameraLiveView: ({
       cameraRef,
       onCapture,
+      onGalleryPick,
     }: {
       cameraRef: { current: unknown };
       onCapture: () => void;
+      onGalleryPick: () => void;
     }) => {
       ReactActual.useEffect(() => {
         cameraRef.current = {
@@ -90,9 +103,18 @@ jest.mock('@features/image-retake/components/CameraLiveView', () => {
         };
       }, [cameraRef]);
       return ReactActual.createElement(
-        Pressable,
-        { testID: 'capture-btn', onPress: onCapture },
-        ReactActual.createElement(Text, null, 'Capture'),
+        ReactActual.Fragment,
+        null,
+        ReactActual.createElement(
+          Pressable,
+          { testID: 'capture-btn', onPress: onCapture },
+          ReactActual.createElement(Text, null, 'Capture'),
+        ),
+        ReactActual.createElement(
+          Pressable,
+          { testID: 'gallery-btn', onPress: onGalleryPick },
+          ReactActual.createElement(Text, null, 'Gallery'),
+        ),
       );
     },
   };
@@ -202,5 +224,96 @@ describe('FieldCaptureSessionScreen capture id', () => {
         'capture-id-1',
       ),
     );
+  });
+});
+
+// Gallery multi-select: queued and uploaded in the background, one at a time,
+// instead of the single-pick preview/confirm flow above.
+describe('FieldCaptureSessionScreen bulk gallery pick', () => {
+  const launchImageLibraryAsync = jest.requireMock('expo-image-picker').launchImageLibraryAsync;
+  const processPickerAsset = jest.requireMock('@lib/camera/imageUtils').processPickerAsset;
+
+  beforeEach(() => {
+    mockCreateQueuedFieldUpload.mockResolvedValue('local-field-id');
+    // Earlier tests in this file switch the shared useNetworkStatus mock to
+    // offline and jest.clearAllMocks() doesn't undo a mockReturnValue — reset
+    // it explicitly so this describe block isn't order-dependent on them.
+    jest.requireMock('@hooks/useNetworkStatus').useNetworkStatus.mockReturnValue({
+      isOnline: true,
+    });
+  });
+
+  it('queues every valid asset sequentially, skips invalid ones, and syncs once while online', async () => {
+    launchImageLibraryAsync.mockResolvedValueOnce({
+      canceled: false,
+      assets: [{ uri: 'a.jpg' }, { uri: 'b.jpg' }, { uri: 'c.jpg' }],
+    });
+    processPickerAsset
+      .mockResolvedValueOnce({ uri: 'file:///a.jpg' })
+      .mockRejectedValueOnce(new Error('bad format'))
+      .mockResolvedValueOnce({ uri: 'file:///c.jpg' });
+
+    render(<FieldCaptureSessionScreen specimenId="srv-1" localSpecimenId="local-1" />);
+    fireEvent.press(await screen.findByTestId('gallery-btn'));
+
+    await waitFor(() => expect(mockCreateQueuedFieldUpload).toHaveBeenCalledTimes(2));
+    expect(mockCreateQueuedFieldUpload).toHaveBeenNthCalledWith(
+      1,
+      'srv-1',
+      'HPF',
+      'file:///a.jpg',
+      expect.any(String),
+    );
+    expect(mockCreateQueuedFieldUpload).toHaveBeenNthCalledWith(
+      2,
+      'srv-1',
+      'HPF',
+      'file:///c.jpg',
+      expect.any(String),
+    );
+    await waitFor(() => expect(mockSynchronize).toHaveBeenCalledTimes(1));
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'Fields Queued',
+      expect.stringContaining('2 fields queued'),
+    );
+    // The camera stays usable throughout — no preview/blocking phase is entered.
+    expect(screen.getByTestId('capture-btn')).toBeTruthy();
+  });
+
+  it('does not kick off a sync while offline, leaving the rows queued for later', async () => {
+    jest.requireMock('@hooks/useNetworkStatus').useNetworkStatus.mockReturnValue({
+      isOnline: false,
+    });
+    launchImageLibraryAsync.mockResolvedValueOnce({
+      canceled: false,
+      assets: [{ uri: 'a.jpg' }, { uri: 'b.jpg' }],
+    });
+    processPickerAsset.mockResolvedValue({ uri: 'file:///a.jpg' });
+
+    render(<FieldCaptureSessionScreen specimenId="srv-1" localSpecimenId="local-1" />);
+    fireEvent.press(await screen.findByTestId('gallery-btn'));
+
+    await waitFor(() => expect(mockCreateQueuedFieldUpload).toHaveBeenCalledTimes(2));
+    expect(mockSynchronize).not.toHaveBeenCalled();
+  });
+
+  it('reports that nothing was queued when every asset fails to process', async () => {
+    launchImageLibraryAsync.mockResolvedValueOnce({
+      canceled: false,
+      assets: [{ uri: 'a.jpg' }, { uri: 'b.jpg' }],
+    });
+    processPickerAsset.mockRejectedValue(new Error('bad format'));
+
+    render(<FieldCaptureSessionScreen specimenId="srv-1" localSpecimenId="local-1" />);
+    fireEvent.press(await screen.findByTestId('gallery-btn'));
+
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Fields Queued',
+        expect.stringContaining('2 images could not be processed'),
+      ),
+    );
+    expect(mockCreateQueuedFieldUpload).not.toHaveBeenCalled();
+    expect(mockSynchronize).not.toHaveBeenCalled();
   });
 });

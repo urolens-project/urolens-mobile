@@ -1,9 +1,18 @@
 import type { RefObject } from 'react';
-import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView } from 'expo-camera';
 
 import { colors, radius, spacing, typography } from '@src/theme';
+import type { FieldThumbnail } from '@features/field-capture/types';
 
 import { Icon } from '@components/Icon';
 
@@ -15,7 +24,7 @@ export interface FieldSessionInfo {
   magnification: 'HPF' | 'LPF';
   onToggleMagnification: () => void;
   onViewFieldList: () => void;
-  thumbnails: string[];
+  thumbnails: FieldThumbnail[];
 }
 
 export interface CameraLiveViewProps {
@@ -109,12 +118,13 @@ export function CameraLiveView({
               onPress={fieldSession.onViewFieldList}
               testID="view-field-list-button"
             >
-              {fieldSession.thumbnails.slice(-3).map((uri, index) => (
+              {fieldSession.thumbnails.slice(-3).map((thumb, index) => (
                 <Image
-                  key={`${uri}-${index}`}
-                  source={{ uri }}
+                  key={thumb.localId}
+                  source={{ uri: thumb.thumbnailUri }}
                   style={[
                     styles.stackedThumbnail,
+                    thumb.status === 'waiting' && styles.stackedThumbnailWaiting,
                     {
                       transform: [{ translateX: index * 10 }, { rotate: `${(index - 1) * 6}deg` }],
                     },
@@ -122,6 +132,20 @@ export function CameraLiveView({
                   ]}
                 />
               ))}
+              {fieldSession.thumbnails.slice(-3).map(
+                (thumb, index) =>
+                  thumb.status === 'uploading' && (
+                    <View
+                      key={`${thumb.localId}-overlay`}
+                      style={[
+                        styles.thumbnailUploadingOverlay,
+                        { transform: [{ translateX: index * 10 }], zIndex: index + 1 },
+                      ]}
+                    >
+                      <ActivityIndicator size="small" color={colors.white} />
+                    </View>
+                  ),
+              )}
               <View style={styles.thumbnailCountBadge}>
                 <Text style={styles.thumbnailCountText}>{fieldSession.acceptedCount}</Text>
               </View>
@@ -176,6 +200,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.xs,
     borderWidth: 1.5,
     borderColor: colors.tealAlt,
+  },
+  // A gallery field still waiting its turn in the background upload queue —
+  // dimmed and muted-bordered, reads as "paused" rather than active.
+  stackedThumbnailWaiting: { opacity: 0.5, borderColor: colors.gray300 },
+  // The one gallery field pushChanges is uploading right now.
+  thumbnailUploadingOverlay: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: radius.xs,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   thumbnailCountBadge: {
     position: 'absolute',
