@@ -17,6 +17,9 @@ jest.mock('@lib/apiClient', () => ({
 jest.mock('@lib/notifications/notificationHandler', () => ({
   navigateToSpecimenByServerId: jest.fn(() => Promise.resolve()),
 }));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 
 const get = apiClient.get as jest.Mock;
 const patch = apiClient.patch as jest.Mock;

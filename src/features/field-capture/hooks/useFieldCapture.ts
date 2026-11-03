@@ -26,6 +26,7 @@ export interface UseFieldCaptureResult {
     image: ProcessedImage,
     magnification: Magnification,
     onProgress: (progress: number) => void,
+    captureId: string,
   ) => Promise<CaptureFieldOutcome | undefined>;
   isLoading: boolean;
 }
@@ -46,9 +47,10 @@ export function useFieldCapture(): UseFieldCaptureResult {
       image: ProcessedImage,
       magnification: Magnification,
       onProgress: (progress: number) => void,
+      captureId: string,
     ): Promise<CaptureFieldOutcome> => {
       try {
-        const form = await buildFieldUploadFormData(image, specimenId, magnification);
+        const form = await buildFieldUploadFormData(image, specimenId, magnification, captureId);
         const data = await uploadFieldViaXhr(form, signal, onProgress);
         const field = await saveUploadedField(specimenId, image.uri, data);
         return { status: 'success', field };

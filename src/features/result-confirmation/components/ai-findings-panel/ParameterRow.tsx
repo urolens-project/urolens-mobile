@@ -19,7 +19,7 @@ export interface ParameterRowProps {
  * @param overriddenValue - MedTech's corrected count, if this parameter was overridden.
  */
 function ParameterRowComponent({ finding, overriddenValue }: ParameterRowProps): React.JSX.Element {
-  const displayValue = overriddenValue ?? finding.count;
+  const displayValue = overriddenValue ?? finding.displayLabel ?? finding.count;
   const isOverridden = overriddenValue !== undefined;
 
   return (

@@ -330,6 +330,27 @@ describe('registerNotificationListeners', () => {
     expect(mockDbGet).not.toHaveBeenCalled();
   });
 
+  // The website's "Capture More Fields" push had no case until B1.
+  it('resolves the local specimen for a CAPTURE_REOPENED tap', async () => {
+    const mockFetch = jest.fn().mockResolvedValue([{ id: 'local-77' }]);
+    mockDbGet.mockReturnValue({ query: jest.fn(() => ({ fetch: mockFetch })) });
+
+    registerNotificationListeners();
+    const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];
+    responseCb({
+      notification: {
+        request: {
+          content: {
+            data: { notification_type: 'CAPTURE_REOPENED', entity_id: 'server-result-9' },
+          },
+        },
+      },
+    });
+    await flush();
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/(medtech)/sample/local-77');
+  });
+
   it('navigates to alerts on unknown notification type', () => {
     registerNotificationListeners();
     const responseCb = mockAddNotificationResponseReceivedListener.mock.calls[0][0];

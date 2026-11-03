@@ -12,11 +12,17 @@ interface NotificationsState {
    * `items` — `items` is only ever a page, so deriving from it undercounts once there are
    * more unread notifications than fit on one page. */
   unreadCount: number;
+  /** Whether the notifications preview overlay is open. Lives here, not in the tab
+   * layout, because the button that opens it (Queue header's bell) and the overlay
+   * itself (rendered once in the tab layout) are in different component subtrees. */
+  isPreviewOpen: boolean;
   setItems: (items: NotificationItem[]) => void;
   appendItems: (items: NotificationItem[]) => void;
   setUnreadCount: (count: number) => void;
   markRead: (notificationId: string) => void;
   markAllRead: () => void;
+  openPreview: () => void;
+  closePreview: () => void;
 }
 
 // Not exported: components and other modules must go through the hooks/functions below.
@@ -24,6 +30,7 @@ const useNotificationsStore = create<NotificationsState>((set) => ({
   items: [],
   hasLoadedOnce: false,
   unreadCount: 0,
+  isPreviewOpen: false,
   setItems: (items): void =>
     set((state): Pick<NotificationsState, 'items' | 'hasLoadedOnce'> => {
       // Read status only moves forward within a session. A refresh can return an
@@ -58,6 +65,8 @@ const useNotificationsStore = create<NotificationsState>((set) => ({
     }),
   markAllRead: () =>
     set((s) => ({ items: s.items.map((n) => ({ ...n, isRead: true })), unreadCount: 0 })),
+  openPreview: (): void => set({ isPreviewOpen: true }),
+  closePreview: (): void => set({ isPreviewOpen: false }),
 }));
 
 let notificationsSession = 0;
@@ -86,6 +95,10 @@ export const useNotificationsLoaded = (): boolean => useNotificationsStore((s) =
  */
 export const useUnreadNotificationCount = (): number => useNotificationsStore((s) => s.unreadCount);
 
+/** @description Read-only: whether the notifications preview overlay is open. */
+export const useNotificationsPreviewOpen = (): boolean =>
+  useNotificationsStore((s) => s.isPreviewOpen);
+
 /** @description Write actions, stable across renders. */
 export const useNotificationsActions = (): Pick<
   NotificationsState,
@@ -94,6 +107,17 @@ export const useNotificationsActions = (): Pick<
   markRead: useNotificationsStore((s) => s.markRead),
   markAllRead: useNotificationsStore((s) => s.markAllRead),
 });
+
+/** @description Opens the notifications preview overlay from anywhere, e.g. the Queue
+ * header's bell button. */
+export function openNotificationsPreview(): void {
+  useNotificationsStore.getState().openPreview();
+}
+
+/** @description Closes the notifications preview overlay. */
+export function closeNotificationsPreview(): void {
+  useNotificationsStore.getState().closePreview();
+}
 
 /**
  * @description Loads a page of notifications and the true unread count for the current

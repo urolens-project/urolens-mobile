@@ -69,7 +69,9 @@ import { apiClient } from '@lib/apiClient';
 import { database } from '@db/database';
 import { deleteFieldImageFile } from '@db/sync/fieldFiles';
 import { FIELD_WORKFLOW_SEEN_KEY } from '@db/sync/legacyQueue';
+import { useMinFieldsStore } from '@lib/stores/minFieldsStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import syncPullGolden from '../fixtures/sync_pull_golden.json';
 
 function fixtureResponse() {
   return {
@@ -502,5 +504,73 @@ describe('pullChanges', () => {
 
       expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(FIELD_WORKFLOW_SEEN_KEY, '1');
     });
+  });
+});
+
+// M1/M2 (mobile-n8-todo-rem.md): the backend's own golden fixture — copied verbatim
+// from urolens-backend/tests/fixtures/sync_pull_golden.json — run through the real
+// pullChanges, so a future casing change on either side of the contract (or a dropped
+// minFields/field_summary key) fails here instead of silently at runtime.
+describe('sync_pull_golden.json contract', () => {
+  function allCreatedRows(): Record<string, unknown>[] {
+    return [...mockCollections.values()].flatMap((state) => state.created);
+  }
+
+  beforeEach(() => {
+    useMinFieldsStore.setState({ minFields: 5 });
+  });
+
+  it('lands every table with no undefined field', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    const rows = allCreatedRows();
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      for (const [key, value] of Object.entries(row)) {
+        expect(value).not.toBeUndefined();
+        void key;
+      }
+    }
+  });
+
+  it("maps a resultFields row's fieldId to serverId", async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    const [created] = mockCollections.get('result_fields')!.created;
+    expect(created).toEqual(
+      expect.objectContaining({ serverId: '00000000-0000-0000-0000-00000000c007' }),
+    );
+  });
+
+  it('stores the top-level minFields (B3)', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    expect(useMinFieldsStore.getState().minFields).toBe(10);
+  });
+
+  it('maps a null field_summary straight through (B4)', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    const [capturing] = mockCollections.get('analysis_results')!.created;
+    expect(capturing).toEqual(expect.objectContaining({ fieldSummaryJson: null }));
+  });
+
+  it('maps a confirmed field_summary to the local JSON column (B4)', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    const [, approved] = mockCollections.get('analysis_results')!.created;
+    const summary = JSON.parse(approved.fieldSummaryJson as string);
+    expect(summary.fieldCount).toBe(10);
+    expect(summary.perClass.erythrocytes.displayValue).toBe('2');
   });
 });

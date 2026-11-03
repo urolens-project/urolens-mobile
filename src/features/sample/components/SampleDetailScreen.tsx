@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import { DEFAULT_MIN_FIELDS } from '@lib/constants/fieldCapture.constant';
+import { useMinFieldsStore } from '@lib/stores/minFieldsStore';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
@@ -57,6 +57,7 @@ export function SampleDetailScreen({
 }: SampleDetailScreenProps): React.JSX.Element {
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
+  const minFields = useMinFieldsStore((s) => s.minFields);
   const { specimen, analysisResult, overrides, acceptedFieldCount, isLoading, notFound } =
     useSampleDetail(specimenId);
 
@@ -154,7 +155,7 @@ export function SampleDetailScreen({
       <SampleDetailShell specimen={specimen} resultStatus={resultStatusValue} onBack={handleBack}>
         <CapturingFieldsCard
           acceptedCount={acceptedFieldCount}
-          minFields={DEFAULT_MIN_FIELDS}
+          minFields={minFields}
           returnReason={analysisResult?.returnReason}
         />
         <SampleActionBar
