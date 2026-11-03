@@ -159,6 +159,12 @@ export function FieldCaptureSessionScreen({
         quality: 1,
         allowsEditing: false,
         exif: false,
+        // iOS defaults to .current, returning HEIC assets as-is (expo-image-picker
+        // changelog, 37569) — getPickerMimeType only accepts JPEG/PNG, so an
+        // unedited iPhone photo would fail format validation. Forcing .automatic
+        // re-encodes HEIC to JPEG before it reaches us.
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Automatic,
       });
 
       if (result.canceled || !result.assets[0]) return;
