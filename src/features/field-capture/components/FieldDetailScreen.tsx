@@ -57,6 +57,10 @@ export function FieldDetailScreen({
     }
   }, [minFields, otherUndecided, specimenId]);
 
+  const handleGoBack = useCallback((): void => {
+    router.back();
+  }, []);
+
   const handleProceed = useCallback(async (): Promise<void> => {
     const outcome = await acceptField(localFieldId);
     if (outcome) goToNextOrBack();
@@ -94,6 +98,7 @@ export function FieldDetailScreen({
       onProceed={handleProceed}
       onDiscard={handleDiscard}
       remainingCount={otherUndecided.length}
+      onGoBack={handleGoBack}
     />
   );
 }
