@@ -25,9 +25,9 @@ export interface CameraLiveViewProps {
   onGoBack: () => void;
   onGalleryPick: () => void;
   onCapture: () => void;
-  /** Multi-field capture session only (SDD Module 2 proposal) — field counter,
-   * magnification switch and accepted-field thumbnail strip. Omitted entirely on
-   * the legacy single-image retake path. */
+  /** Multi-field capture session only (SDD Module 2 proposal) — magnification
+   * switch and the accepted-field thumbnail stack. Omitted entirely on the
+   * legacy single-image retake path. */
   fieldSession?: FieldSessionInfo;
 }
 
@@ -69,12 +69,12 @@ export function CameraLiveView({
           <Text style={styles.cameraTitle}>{IMAGE_RETAKE_TEXT.cameraTitle}</Text>
           {fieldSession ? (
             <TouchableOpacity
-              onPress={fieldSession.onViewFieldList}
-              testID="view-field-list-button"
+              style={styles.magnificationButton}
+              onPress={fieldSession.onToggleMagnification}
+              testID="magnification-switch"
             >
-              <Text style={styles.fieldCounter}>
-                {fieldSession.acceptedCount} of {fieldSession.minFields}
-              </Text>
+              <Icon name="aperture-outline" size={20} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.magnificationLabel}>{fieldSession.magnification}</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.headerSpacer} />
@@ -91,16 +91,8 @@ export function CameraLiveView({
           </View>
         )}
 
-        {fieldSession && fieldSession.thumbnails.length > 0 && (
-          <View style={styles.thumbnailStrip}>
-            {fieldSession.thumbnails.map((uri, index) => (
-              <Image key={`${uri}-${index}`} source={{ uri }} style={styles.thumbnail} />
-            ))}
-          </View>
-        )}
-
-        {/* Bottom controls — gallery left, capture centered, magnification switch
-            (or a mirror spacer, outside a field session) right */}
+        {/* Bottom controls — gallery left, capture centered, accepted-field
+            thumbnail stack right (tapping it opens the field list) */}
         <View style={styles.cameraControls}>
           <TouchableOpacity style={styles.galleryButton} onPress={onGalleryPick}>
             <Icon name="images-outline" size={28} color="rgba(255,255,255,0.85)" />
@@ -111,14 +103,28 @@ export function CameraLiveView({
             <View style={styles.captureButton} />
           </TouchableOpacity>
 
-          {fieldSession ? (
+          {fieldSession && fieldSession.thumbnails.length > 0 ? (
             <TouchableOpacity
-              style={styles.magnificationButton}
-              onPress={fieldSession.onToggleMagnification}
-              testID="magnification-switch"
+              style={styles.thumbnailStack}
+              onPress={fieldSession.onViewFieldList}
+              testID="view-field-list-button"
             >
-              <Icon name="aperture-outline" size={24} color="rgba(255,255,255,0.85)" />
-              <Text style={styles.magnificationLabel}>{fieldSession.magnification}</Text>
+              {fieldSession.thumbnails.slice(-3).map((uri, index) => (
+                <Image
+                  key={`${uri}-${index}`}
+                  source={{ uri }}
+                  style={[
+                    styles.stackedThumbnail,
+                    {
+                      transform: [{ translateX: index * 10 }, { rotate: `${(index - 1) * 6}deg` }],
+                    },
+                    { zIndex: index },
+                  ]}
+                />
+              ))}
+              <View style={styles.thumbnailCountBadge}>
+                <Text style={styles.thumbnailCountText}>{fieldSession.acceptedCount}</Text>
+              </View>
             </TouchableOpacity>
           ) : (
             <View style={styles.captureSpacer} />
@@ -153,29 +159,38 @@ const styles = StyleSheet.create({
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerSpacer: { width: 40 },
   cameraTitle: { ...typography.title, color: colors.white },
-  fieldCounter: {
-    ...typography.subtitle,
-    color: colors.tealAlt,
-    minWidth: 40,
-    textAlign: 'right',
-  },
   magnificationButton: { width: 60, alignItems: 'center', gap: spacing.xs },
   magnificationLabel: { ...typography.micro, color: colors.gray200 },
-  thumbnailStrip: {
-    position: 'absolute',
-    bottom: spacing.jumbo + spacing.huge + spacing.xxl,
-    left: spacing.xl,
-    right: spacing.xl,
+  // Fanned stack of the most recent accepted fields, overlapping on purpose —
+  // tapping it opens the field list instead of a separate counter control.
+  thumbnailStack: {
+    width: 60,
+    height: 36,
     flexDirection: 'row',
-    gap: spacing.xs,
+    alignItems: 'center',
   },
-  thumbnail: {
+  stackedThumbnail: {
+    position: 'absolute',
     width: 36,
     height: 36,
     borderRadius: radius.xs,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.tealAlt,
   },
+  thumbnailCountBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: spacing.xxs,
+    backgroundColor: colors.tealAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  thumbnailCountText: { ...typography.micro, color: colors.white, fontWeight: 'bold' },
   instructionBanner: {
     backgroundColor: 'rgba(0,0,0,0.5)',
     marginHorizontal: spacing.xxl,
