@@ -43,7 +43,9 @@ interface MockField {
   resultId: string;
   imageId: string | null;
   status: string;
+  isReviewed: boolean;
   prepareUpdate: jest.Mock;
+  update: jest.Mock;
 }
 
 function mockField(overrides: Partial<MockField> = {}): MockField {
@@ -53,12 +55,17 @@ function mockField(overrides: Partial<MockField> = {}): MockField {
     resultId: 'server-result-1',
     imageId: 'img-1',
     status: 'ANALYZED',
+    isReviewed: false,
     prepareUpdate: jest.fn(),
+    update: jest.fn(),
     ...overrides,
   };
   field.prepareUpdate.mockImplementation((cb: (f: MockField) => void) => {
     cb(field);
     return { prepared: 'field-update' };
+  });
+  field.update.mockImplementation(async (cb: (f: MockField) => void) => {
+    cb(field);
   });
   return field;
 }
@@ -110,6 +117,18 @@ beforeEach(() => {
 });
 
 describe('useFieldActions — offline accept', () => {
+  it('marks the field reviewed, since Proceed already implies it was looked at', async () => {
+    const field = mockField({ isReviewed: false });
+    setUp({ field, otherAcceptedCount: 4 });
+    const { result } = renderHook(() => useFieldActions());
+
+    await act(async () => {
+      await result.current.acceptField('local-field-1');
+    });
+
+    expect(field.isReviewed).toBe(true);
+  });
+
   it('counts the accepted total live off result_fields, not the stale fieldCount column', async () => {
     setUp({ field: mockField(), otherAcceptedCount: 4 });
     const { result } = renderHook(() => useFieldActions());
@@ -187,6 +206,18 @@ describe('useFieldActions — offline accept', () => {
 });
 
 describe('useFieldActions — offline discard', () => {
+  it('does not mark the field reviewed', async () => {
+    const field = mockField({ status: 'ACCEPTED', isReviewed: false });
+    setUp({ field, otherAcceptedCount: 3 });
+    const { result } = renderHook(() => useFieldActions());
+
+    await act(async () => {
+      await result.current.discardField('local-field-1');
+    });
+
+    expect(field.isReviewed).toBe(false);
+  });
+
   it('excludes the field itself from the live count, so discarding an accepted field does not drop the total twice', async () => {
     setUp({ field: mockField({ status: 'ACCEPTED' }), otherAcceptedCount: 3 });
     const { result } = renderHook(() => useFieldActions());
@@ -212,5 +243,32 @@ describe('useFieldActions — offline discard', () => {
     });
 
     expect(parent.prepareUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('useFieldActions — markFieldReviewed', () => {
+  it('sets isReviewed locally without queuing a pending-sync row', async () => {
+    const field = mockField({ isReviewed: false });
+    setUp({ field, otherAcceptedCount: 0 });
+    const { result } = renderHook(() => useFieldActions());
+
+    await act(async () => {
+      await result.current.markFieldReviewed('local-field-1');
+    });
+
+    expect(field.isReviewed).toBe(true);
+    expect(database.batch).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op for a field already marked reviewed', async () => {
+    const field = mockField({ isReviewed: true });
+    setUp({ field, otherAcceptedCount: 0 });
+    const { result } = renderHook(() => useFieldActions());
+
+    await act(async () => {
+      await result.current.markFieldReviewed('local-field-1');
+    });
+
+    expect(field.update).not.toHaveBeenCalled();
   });
 });
