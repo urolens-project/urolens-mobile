@@ -10,7 +10,7 @@ import { synchronize } from '@db/sync/syncManager';
 import { Icon } from '@components/Icon';
 
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
-import { useFieldList } from '../hooks/useFieldList';
+import { fetchFieldCounts, useFieldList } from '../hooks/useFieldList';
 import { useSubmitFields } from '../hooks/useSubmitFields';
 import { getSubmitBlockingReason } from '../lib/submitBlockingReason';
 import type { FieldListItem } from '../types';
@@ -57,6 +57,7 @@ export function FieldListScreen({
     title: '',
     message: '',
   });
+  const [isPreparingSubmit, setIsPreparingSubmit] = useState(false);
 
   const blockingReason = getSubmitBlockingReason({
     acceptedCount,
@@ -87,7 +88,26 @@ export function FieldListScreen({
   );
 
   const handleSubmit = useCallback(async (): Promise<void> => {
-    if (!resultServerId || blockingReason) return;
+    if (!resultServerId || blockingReason || isPreparingSubmit) return;
+
+    // The guard above can be stale (see FieldListScreen's class doc) — the phone only
+    // resyncs on app foreground/reconnect/tab mount, not while sitting in this screen.
+    // Pull fresh server state and recheck straight from WatermelonDB before risking the
+    // submit call, instead of only cleaning up after the server 409s.
+    setIsPreparingSubmit(true);
+    let freshCounts;
+    try {
+      await synchronize();
+      freshCounts = await fetchFieldCounts(specimenId);
+    } catch (syncErr) {
+      console.error('[FieldListScreen]', syncErr);
+      freshCounts = null;
+    } finally {
+      setIsPreparingSubmit(false);
+    }
+    if (!freshCounts) return;
+    if (getSubmitBlockingReason({ ...freshCounts, minFields, isOnline })) return;
+
     const ok = await submitFields(resultServerId);
     if (!ok) {
       const submitError = getError();
@@ -112,7 +132,16 @@ export function FieldListScreen({
       title: FIELD_CAPTURE_TEXT.submitSucceededTitle,
       message: FIELD_CAPTURE_TEXT.submitSucceededMessage,
     });
-  }, [blockingReason, getError, resultServerId, submitFields]);
+  }, [
+    blockingReason,
+    getError,
+    isOnline,
+    isPreparingSubmit,
+    minFields,
+    resultServerId,
+    specimenId,
+    submitFields,
+  ]);
 
   const handleGoBack = useCallback((): void => {
     router.back();
@@ -123,6 +152,11 @@ export function FieldListScreen({
     setSubmitResult((prev) => ({ ...prev, visible: false }));
     if (wasSuccess) router.replace('/(medtech)/queue');
   }, [submitResult.variant]);
+
+  const isSubmitDisabled = !!blockingReason || isSubmitting || isPreparingSubmit;
+  let submitLabel: string = FIELD_CAPTURE_TEXT.submitForVerificationLabel;
+  if (isPreparingSubmit) submitLabel = FIELD_CAPTURE_TEXT.checkingLatestFieldsLabel;
+  else if (isSubmitting) submitLabel = FIELD_CAPTURE_TEXT.submittingLabel;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -155,16 +189,12 @@ export function FieldListScreen({
         {blockingReason && <Text style={styles.blockingText}>{blockingReason}</Text>}
 
         <TouchableOpacity
-          style={[styles.submitBtn, (!!blockingReason || isSubmitting) && styles.submitBtnDisabled]}
+          style={[styles.submitBtn, isSubmitDisabled && styles.submitBtnDisabled]}
           onPress={handleSubmit}
-          disabled={!!blockingReason || isSubmitting}
+          disabled={isSubmitDisabled}
           testID="submit-for-verification-button"
         >
-          <Text style={styles.submitLabel}>
-            {isSubmitting
-              ? FIELD_CAPTURE_TEXT.submittingLabel
-              : FIELD_CAPTURE_TEXT.submitForVerificationLabel}
-          </Text>
+          <Text style={styles.submitLabel}>{submitLabel}</Text>
         </TouchableOpacity>
       </View>
 

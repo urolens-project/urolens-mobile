@@ -11,8 +11,7 @@ import type PendingSync from '@db/models/PendingSync';
 import { mapFieldListItem } from '../mappers/fieldList.mapper';
 import type { FieldListItem } from '../types';
 
-export interface UseFieldListResult {
-  fields: FieldListItem[];
+export interface FieldCounts {
   acceptedCount: number;
   undecidedCount: number;
   /** Still-queued Accept/Discard/upload decisions for this specimen's fields — see
@@ -21,6 +20,10 @@ export interface UseFieldListResult {
   /** Server id of the specimen's result, once at least one field has synced; null
    * until then (there is nothing to submit yet). */
   resultServerId: string | null;
+}
+
+export interface UseFieldListResult extends FieldCounts {
+  fields: FieldListItem[];
   isLoading: boolean;
 }
 
@@ -78,6 +81,24 @@ export function useFieldList(specimenId: string): UseFieldListResult {
   }, []);
 
   const rows = records ?? [];
+
+  return {
+    fields: rows.map(mapFieldListItem),
+    ...computeFieldCounts(rows, pendingSyncRows),
+    isLoading: records === null,
+  };
+}
+
+/**
+ * @description Derives accepted/undecided/pending-decision counts from already-loaded
+ * rows, shared by the live hook above and fetchFieldCounts below so the two never drift.
+ * @param rows - Specimen's result_fields rows.
+ * @param pendingSyncRows - Queued field actions (ACCEPT_FIELD/DISCARD_FIELD/UPLOAD_IMAGE), unfiltered by specimen.
+ */
+export function computeFieldCounts(
+  rows: ResultField[],
+  pendingSyncRows: PendingSync[],
+): FieldCounts {
   const accepted = rows.filter((f) => f.status === 'ACCEPTED');
   const undecided = rows.filter((f) => f.status === 'ANALYZED' || f.status === 'PENDING_UPLOAD');
 
@@ -92,11 +113,30 @@ export function useFieldList(specimenId: string): UseFieldListResult {
   const pendingDecisionsCount = pendingSyncRows.filter((p) => fieldIds.has(p.entityId)).length;
 
   return {
-    fields: rows.map(mapFieldListItem),
     acceptedCount: accepted.length,
     undecidedCount: undecided.length,
     pendingDecisionsCount,
     resultServerId: rows.find((f) => f.resultId)?.resultId ?? null,
-    isLoading: records === null,
   };
+}
+
+/**
+ * @description One-off (non-live) read of the same counts useFieldList observes. Used
+ * right before Submit to recheck the guard straight from WatermelonDB, since a React
+ * state update from a sync that just ran may not have landed in this render yet.
+ * @param specimenId - Server specimen id.
+ */
+export async function fetchFieldCounts(specimenId: string): Promise<FieldCounts> {
+  const rows = await database
+    .get<ResultField>('result_fields')
+    .query(Q.where('specimen_id', specimenId))
+    .fetch();
+  const pendingSyncRows = await database
+    .get<PendingSync>('pending_sync')
+    .query(
+      Q.where('status', PendingSyncStatus.PENDING),
+      Q.where('action', Q.oneOf(QUEUED_FIELD_ACTIONS)),
+    )
+    .fetch();
+  return computeFieldCounts(rows, pendingSyncRows);
 }

@@ -55,6 +55,7 @@ export const FIELD_CAPTURE_TEXT = {
   captureMoreLabel: 'Capture More Fields',
   submitForVerificationLabel: 'Submit for Verification',
   submittingLabel: 'Submitting…',
+  checkingLatestFieldsLabel: 'Checking latest fields…',
   undecidedFieldsBlockedMessage: (count: number): string =>
     `${count} field${count === 1 ? '' : 's'} not reviewed.`,
   belowMinimumBlockedMessage: (acceptedCount: number, minFields: number): string =>
