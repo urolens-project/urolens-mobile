@@ -480,6 +480,83 @@ describe('pullChanges', () => {
     });
   });
 
+  // A direct accept/discard API call (useFieldActions.ts) writes straight to the
+  // local DB outside the push queue. A pull that races it can resolve with a
+  // snapshot taken before that write committed server-side — applying it would
+  // silently revert the newer local write, since status has no other staleness
+  // guard (conflictResolver's Rule 1 is unconditional SERVER_WINS). result_fields'
+  // version column, bumped on every accept/discard/override, is what protects
+  // against that here.
+  describe("an updated result_fields row older than the local copy's version", () => {
+    function existingResultField(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+      const record: Record<string, unknown> = {
+        serverId: 'field-1',
+        status: 'ACCEPTED',
+        version: 3,
+        ...overrides,
+      };
+      record['update'] = jest.fn(async (fn: (r: Record<string, unknown>) => void) => fn(record));
+      return record;
+    }
+
+    function pullOneFieldUpdate(fieldUpdate: Record<string, unknown>) {
+      return {
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: {
+            resultFields: {
+              created: [],
+              updated: [
+                {
+                  fieldId: 'field-1',
+                  resultId: 'result-1',
+                  specimenId: 'spec-1',
+                  fieldNo: 1,
+                  magnification: 'HPF',
+                  aiFindings: {},
+                  effectiveCounts: {},
+                  confidenceScores: {},
+                  imageWidth: 0,
+                  imageHeight: 0,
+                  smartDiagnosisPreview: null,
+                  smartDiagnosisUnavailable: false,
+                  ...fieldUpdate,
+                },
+              ],
+            },
+          },
+        },
+      };
+    }
+
+    it('is skipped entirely, leaving the newer local write in place', async () => {
+      const existing = existingResultField();
+      mockCollections.set('result_fields', { created: [], existing: [existing] });
+      (apiClient.get as jest.Mock).mockResolvedValue(
+        pullOneFieldUpdate({ status: 'ANALYZED', version: 2 }),
+      );
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(existing['update']).not.toHaveBeenCalled();
+      expect(existing['status']).toBe('ACCEPTED');
+      expect(existing['version']).toBe(3);
+    });
+
+    it('still applies once the server catches up to (or passes) the local version', async () => {
+      const existing = existingResultField();
+      mockCollections.set('result_fields', { created: [], existing: [existing] });
+      (apiClient.get as jest.Mock).mockResolvedValue(
+        pullOneFieldUpdate({ status: 'DISCARDED', version: 4 }),
+      );
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(existing['update']).toHaveBeenCalledTimes(1);
+      expect(existing['status']).toBe('DISCARDED');
+    });
+  });
+
   // Gates the legacy-queue drain (mobile PR #55 review, 1.3): running it before the
   // server's field workflow is confirmed on would mark actions FAILED that the server
   // would still have accepted.

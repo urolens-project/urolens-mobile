@@ -219,10 +219,28 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
         continue;
       }
 
+      // result_fields is versioned (incremented on every accept/discard/override);
+      // every other table has no `version` column, so this is always a no-op for
+      // them. A pull racing a direct action API call (accept/discard write straight
+      // to the DB, outside the push queue — see useFieldActions.ts) can resolve with
+      // a snapshot taken before that call committed server-side. Applying it would
+      // silently revert the newer local write — status has no other staleness guard,
+      // conflictResolver's default (and its explicit status rule) is SERVER_WINS
+      // regardless of which side is actually more recent.
+      const mapped = mapServerToLocal(tableName, serverRecord);
+      const localVersion = localRecord['version'];
+      const serverVersion = mapped['version'];
+      if (
+        typeof localVersion === 'number' &&
+        typeof serverVersion === 'number' &&
+        serverVersion < localVersion
+      ) {
+        continue;
+      }
+
       await (
         localRecord as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> }
       ).update((r) => {
-        const mapped = mapServerToLocal(tableName, serverRecord);
         for (const [key, serverVal] of Object.entries(mapped)) {
           // Local bookkeeping, not server data — always overwrite, never a real conflict.
           if (key === 'syncedAt' || key === 'serverId') {
