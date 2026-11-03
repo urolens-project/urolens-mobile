@@ -201,6 +201,26 @@ describe('read-only reports', (): void => {
     expect(view.queryByText('Retake Image')).toBeNull();
     expect(view.queryByText('Read-only report')).toBeNull();
   });
+
+  it('shows the Approved by Supervisor banner in the Approved report section', async () => {
+    const view = await openScreen(
+      { result: makeResult({ status: 'APPROVED' }) },
+      { id: 'spec-1', readOnly: 'true' },
+    );
+    expect(view.getByText('Approved by Supervisor')).toBeTruthy();
+    expect(
+      view.getByText('This result has been reviewed and approved. It is ready for release.'),
+    ).toBeTruthy();
+  });
+
+  it('shows the Result Released banner, not the Approved one, in the Released report section', async () => {
+    const view = await openScreen(
+      { result: makeResult({ status: 'RELEASED' }) },
+      { id: 'spec-1', readOnly: 'true' },
+    );
+    expect(view.getByText('Result Released')).toBeTruthy();
+    expect(view.queryByText('Approved by Supervisor')).toBeNull();
+  });
 });
 
 // ── Bug 1: Begin Analysis ────────────────────────────────────────────────────
