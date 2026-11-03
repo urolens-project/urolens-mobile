@@ -20,6 +20,12 @@ jest.mock('@lib/apiClient', () => ({
   apiClient: { get: jest.fn() },
 }));
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
+}));
+
 jest.mock('@db/sync/conflictResolver', () => ({
   resolveConflict: jest.fn(() => 'SERVER_WINS'),
   applyResolution: jest.fn((_strategy, serverValue: unknown) => serverValue),
@@ -62,6 +68,8 @@ import { pullChanges } from '../../src/db/sync/pullChanges';
 import { apiClient } from '@lib/apiClient';
 import { database } from '@db/database';
 import { deleteFieldImageFile } from '@db/sync/fieldFiles';
+import { FIELD_WORKFLOW_SEEN_KEY } from '@db/sync/legacyQueue';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function fixtureResponse() {
   return {
@@ -467,6 +475,32 @@ describe('pullChanges', () => {
       expect(deleteFieldImageFile).toHaveBeenCalledWith('file:///fields/local-field-1.jpg');
       expect(database.batch).toHaveBeenCalledWith(preparedDestroy);
       expect(field['destroyPermanently']).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Gates the legacy-queue drain (mobile PR #55 review, 1.3): running it before the
+  // server's field workflow is confirmed on would mark actions FAILED that the server
+  // would still have accepted.
+  describe('field-workflow-seen flag', () => {
+    it('records the flag when the response has a resultFields key, even with empty arrays', async () => {
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: { resultFields: { created: [], updated: [] } },
+        },
+      });
+
+      await pullChanges(null);
+
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith(FIELD_WORKFLOW_SEEN_KEY, '1');
+    });
+
+    it('does not record the flag when resultFields is absent (flag off server-side)', async () => {
+      (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+
+      await pullChanges(null);
+
+      expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(FIELD_WORKFLOW_SEEN_KEY, '1');
     });
   });
 });

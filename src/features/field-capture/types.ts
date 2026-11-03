@@ -98,4 +98,10 @@ export interface CapturedField {
   localImageUri: string;
   acceptedFieldCount: number;
   minFields: number;
+  /** True for a field that has a server id but no local image and no cached AI
+   * boxes yet — captured on another phone, or before a reinstall (mobile PR #55
+   * review, 1.2/3.14). FieldResultScreen shows a loading notice instead of the
+   * image and hides Proceed, so the field is never mistaken for one with no
+   * detections. Always false for a field just captured on this device. */
+  isAwaitingBoxes: boolean;
 }

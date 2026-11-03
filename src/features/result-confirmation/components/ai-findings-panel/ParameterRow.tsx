@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
-import { colors, radius, spacing } from '@src/theme';
+import { colors, spacing } from '@src/theme';
 
 import { RESULT_CONFIRMATION_TEXT } from '../../constants/resultConfirmationText.constant';
 import type { AIFindingEntry } from '../../types';
@@ -9,24 +9,16 @@ import type { AIFindingEntry } from '../../types';
 export interface ParameterRowProps {
   finding: AIFindingEntry;
   overriddenValue?: number;
-  onOverride: (parameter: string, originalValue: number) => void;
-  disabled?: boolean;
 }
 
 /**
  * @description One AI-findings row: parameter name, its value (AI count or MedTech
- * override), anomaly/override badges, and an override button.
+ * override, read-only — overriding now happens on the website, mobile PR #55 review,
+ * #3) and anomaly/override badges.
  * @param finding - AI finding entry to render.
  * @param overriddenValue - MedTech's corrected count, if this parameter was overridden.
- * @param onOverride - Called with the parameter name and its original AI count.
- * @param disabled - Hides the override button when true (e.g. after confirmation).
  */
-function ParameterRowComponent({
-  finding,
-  overriddenValue,
-  onOverride,
-  disabled = false,
-}: ParameterRowProps): React.JSX.Element {
+function ParameterRowComponent({ finding, overriddenValue }: ParameterRowProps): React.JSX.Element {
   const displayValue = overriddenValue ?? finding.count;
   const isOverridden = overriddenValue !== undefined;
 
@@ -59,20 +51,6 @@ function ParameterRowComponent({
         <Text style={[styles.count, finding.isAnomalous && styles.anomalousCount]}>
           {displayValue}
         </Text>
-        {!disabled && (
-          <TouchableOpacity
-            style={styles.overrideButton}
-            onPress={() => onOverride(finding.parameter, finding.count)}
-            accessibilityLabel={RESULT_CONFIRMATION_TEXT.parameterRow.overrideAccessibilityLabel(
-              finding.parameter,
-            )}
-            accessibilityRole="button"
-          >
-            <Text style={styles.overrideButtonText}>
-              {RESULT_CONFIRMATION_TEXT.parameterRow.overrideButton}
-            </Text>
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );
@@ -146,19 +124,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     color: colors.violet800,
-  },
-  overrideButton: {
-    paddingHorizontal: spacing.smd,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.gray300,
-    borderRadius: radius.sm,
-    backgroundColor: colors.white,
-  },
-  overrideButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.gray700,
   },
 });
 

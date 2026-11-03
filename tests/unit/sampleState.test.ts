@@ -53,38 +53,6 @@ describe('getSampleActions', () => {
       expect(getSampleActions(s, null).canReject).toBe(false);
     });
   });
-
-  describe('Confirm and Retake', () => {
-    it("offers both while the result awaits the MedTech's confirmation", () => {
-      const actions = getSampleActions('PROCESSING', 'PENDING_CONFIRM');
-      expect(actions.canConfirm).toBe(true);
-      expect(actions.canRetake).toBe(true);
-    });
-
-    it('offers re-confirmation and Retake after the Supervisor returns the result', () => {
-      const actions = getSampleActions('ASSIGNED', 'RETURNED_FOR_CORRECTION');
-      expect(actions.canConfirm).toBe(true);
-      expect(actions.canRetake).toBe(true);
-    });
-
-    // A rejected specimen's result must never be confirmed or sent to the Supervisor.
-    it('offers neither for a rejected specimen, even with a result awaiting confirmation', () => {
-      const actions = getSampleActions('REJECTED', 'PENDING_CONFIRM');
-      expect(actions.canConfirm).toBe(false);
-      expect(actions.canRetake).toBe(false);
-    });
-
-    it.each<ResultState>([
-      'PENDING_SUPERVISOR_APPROVAL',
-      'CRITICAL_ESCALATED',
-      'APPROVED',
-      'RELEASED',
-    ])('offers neither once the result is %s', (resultStatus) => {
-      const actions = getSampleActions('ASSIGNED', resultStatus);
-      expect(actions.canConfirm).toBe(false);
-      expect(actions.canRetake).toBe(false);
-    });
-  });
 });
 
 describe('getRejectBlockedReason', () => {

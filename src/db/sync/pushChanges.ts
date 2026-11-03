@@ -15,6 +15,7 @@ import type ResultField from '../models/ResultField';
 
 import { database } from '../database';
 import type PendingSync from '../models/PendingSync';
+import { RETIRED_ACTIONS, RETIRED_REASON } from './legacyQueue';
 import { throwIfSyncCancelled } from './syncCancellation';
 
 // A change that keeps failing for a transient reason is retried on every sync for
@@ -166,7 +167,15 @@ export async function pushChanges(signal?: AbortSignal): Promise<PushSummary> {
         continue;
       }
 
-      const message = describeError(err);
+      // A CONFIRM_RESULT/OVERRIDE_PARAMETER/DISCARD_IMAGE queued before this update can
+      // still reach the server once, on the very first sync (drainLegacyQueuedActions
+      // only starts marking these FAILED locally from the *next* sync onward — see
+      // legacyQueue.ts). The server's 410 text ("Update UroLens to continue") is correct
+      // for every other caller of that status code, but confusing here, on a phone that
+      // has just updated — use the clean-out's own reason instead.
+      const isRetiredAction = RETIRED_ACTIONS.includes(item.action as PendingSyncAction);
+      const message =
+        code === 'APP_UPDATE_REQUIRED' && isRetiredAction ? RETIRED_REASON : describeError(err);
       const expired = Date.now() - item.createdAt > MAX_RETRY_AGE_MS;
 
       if (isTransient(err) && !expired) {

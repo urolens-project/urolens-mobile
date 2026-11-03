@@ -13,9 +13,7 @@ interface AIFindingsText {
 
 interface ParameterRowText {
   anomalousBadge: string;
-  overrideButton: string;
   overriddenBadgeLabel: (aiCount: number) => string;
-  overrideAccessibilityLabel: (parameter: string) => string;
 }
 
 interface ResultImageText {
@@ -39,12 +37,6 @@ interface PatientSummaryText {
 }
 
 interface ActionBarText {
-  confirmOnline: string;
-  confirmOffline: string;
-  reconfirm: string;
-  saving: string;
-  retakeAccessibility: string;
-  retake: string;
   continueLabel: string;
 }
 
@@ -75,16 +67,6 @@ interface SmartDiagnosisPanelText {
   supervisorReviewCaption: string;
 }
 
-interface ConfirmAlertsText {
-  confirmationFailedTitle: string;
-  resubmittedTitle: string;
-  confirmedTitle: string;
-  resubmittedMessage: string;
-  confirmedMessage: string;
-  resubmittedQueuedMessage: string;
-  confirmedQueuedMessage: string;
-}
-
 interface ResultConfirmationText {
   aiDisclaimer: AIDisclaimerText;
   aiFindings: AIFindingsText;
@@ -95,7 +77,6 @@ interface ResultConfirmationText {
   titleBarTitle: string;
   pendingConfirmationSubtitle: string;
   submittedForApprovalSubtitle: string;
-  returnedForCorrectionLabel: string;
   actionBar: ActionBarText;
   resultNotFound: ResultNotFoundText;
   refreshAccessibilityLabel: string;
@@ -103,10 +84,7 @@ interface ResultConfirmationText {
   rejectSpecimenLabel: string;
   reviewStatus: ReviewStatusText;
   smartDiagnosisPanel: SmartDiagnosisPanelText;
-  confirmAlerts: ConfirmAlertsText;
-  resultNotFoundRetryMessage: string;
   resultDetailLoadErrorMessage: string;
-  confirmDefaultErrorMessage: string;
 }
 
 export const RESULT_CONFIRMATION_TEXT: ResultConfirmationText = {
@@ -126,9 +104,7 @@ export const RESULT_CONFIRMATION_TEXT: ResultConfirmationText = {
   },
   parameterRow: {
     anomalousBadge: 'Anomalous',
-    overrideButton: 'Override',
     overriddenBadgeLabel: (aiCount: number): string => `Overridden · AI: ${aiCount}`,
-    overrideAccessibilityLabel: (parameter: string): string => `Override ${parameter}`,
   },
   resultImage: {
     title: 'Sample Image',
@@ -150,14 +126,7 @@ export const RESULT_CONFIRMATION_TEXT: ResultConfirmationText = {
   titleBarTitle: 'Analysis Result',
   pendingConfirmationSubtitle: 'Pending your confirmation',
   submittedForApprovalSubtitle: 'Submitted for Supervisor approval',
-  returnedForCorrectionLabel: 'Returned for Correction',
   actionBar: {
-    confirmOnline: 'Confirm Result',
-    confirmOffline: 'Queue Confirmation',
-    reconfirm: 'Re-confirm & Submit',
-    saving: 'Saving & submitting…',
-    retakeAccessibility: 'Retake image',
-    retake: 'Retake Image',
     continueLabel: 'Continue',
   },
   resultNotFound: {
@@ -189,18 +158,5 @@ export const RESULT_CONFIRMATION_TEXT: ResultConfirmationText = {
     previewCaption: 'Preview',
     supervisorReviewCaption: 'Supervisor review',
   },
-  confirmAlerts: {
-    confirmationFailedTitle: 'Confirmation Failed',
-    resubmittedTitle: 'Result Re-submitted',
-    confirmedTitle: 'Result Confirmed',
-    resubmittedMessage: 'The result has been re-submitted for supervisor approval.',
-    confirmedMessage: 'The result has been submitted for supervisor approval.',
-    resubmittedQueuedMessage:
-      'Your re-confirmation is queued and will be re-submitted for supervisor approval when the device syncs.',
-    confirmedQueuedMessage:
-      'Your confirmation is queued and will be sent for supervisor approval when the device syncs.',
-  },
-  resultNotFoundRetryMessage: 'Result not found. Please retry.',
   resultDetailLoadErrorMessage: 'Could not load the result details. Please retry.',
-  confirmDefaultErrorMessage: 'Failed to confirm result',
 };

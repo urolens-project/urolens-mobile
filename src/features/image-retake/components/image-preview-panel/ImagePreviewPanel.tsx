@@ -7,39 +7,25 @@ import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { Icon } from '@components/Icon';
 
 import { IMAGE_RETAKE_TEXT } from '../../constants/imageRetakeText.constant';
-import { DiscardConfirmationModal } from './DiscardConfirmationModal';
-
-// Modal is invisible when showDiscardModal is false, so this is never actually invoked.
-function noop(): void {}
 
 export interface ImagePreviewPanelProps {
   processed: ProcessedImage;
   validationError: string | null;
-  /** Legacy single-image retake path only (existingImageId set). A fresh
-   * multi-field capture's Retake just resets to idle — no modal, no props needed. */
-  showDiscardModal?: boolean;
-  isDiscarding?: boolean;
   onGoBack: () => void;
   onRetake: () => void;
   onUseImage: () => void;
-  onDiscardConfirm?: () => void;
-  onDiscardCancel?: () => void;
 }
 
 /**
  * @description Full-screen preview of the captured/picked image with Retake and
- * Use This Image actions, plus the guarded discard-confirmation modal for retakes.
+ * Use This Image actions.
  */
 export function ImagePreviewPanel({
   processed,
   validationError,
-  showDiscardModal = false,
-  isDiscarding = false,
   onGoBack,
   onRetake,
   onUseImage,
-  onDiscardConfirm,
-  onDiscardCancel,
 }: ImagePreviewPanelProps): React.JSX.Element {
   return (
     <SafeAreaView style={styles.container}>
@@ -90,13 +76,6 @@ export function ImagePreviewPanel({
           <Text style={styles.useLabel}>{IMAGE_RETAKE_TEXT.useThisImageLabel}</Text>
         </TouchableOpacity>
       </View>
-
-      <DiscardConfirmationModal
-        visible={showDiscardModal}
-        isLoading={isDiscarding}
-        onConfirm={onDiscardConfirm ?? noop}
-        onCancel={onDiscardCancel ?? noop}
-      />
     </SafeAreaView>
   );
 }

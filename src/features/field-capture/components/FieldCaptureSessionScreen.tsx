@@ -4,8 +4,9 @@
  * Multi-field capture session: repeats capture → field result (Proceed/Discard)
  * until at least the minimum number of fields is accepted. Replaces the single
  * "one image, one result" flow for a specimen with no result yet, or one already
- * in CAPTURING — the legacy single-image retake path (existingImageId set) stays
- * on ImageCaptureScreen, untouched; see app/(medtech)/capture.tsx for the split.
+ * in CAPTURING. The legacy single-image retake screen this used to coexist with
+ * is gone — retaking a legacy result now happens on the website (mobile PR #55
+ * review, #3).
  *
  * Flow:
  *   idle       → (Take Photo / Gallery) → previewing
