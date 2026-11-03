@@ -17,6 +17,7 @@ import { database } from '../database';
 import type PendingSync from '../models/PendingSync';
 import { RETIRED_ACTIONS, RETIRED_REASON } from './legacyQueue';
 import { throwIfSyncCancelled } from './syncCancellation';
+import { setCurrentlyUploadingFieldId } from './uploadStatus';
 
 // A change that keeps failing for a transient reason is retried on every sync for
 // this long, then given up on (marked FAILED) so it can't sit in the queue forever.
@@ -270,11 +271,19 @@ async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<
       await apiClient.post(`/fields/${item.entityId}/discard`, payload, { signal });
       break;
 
-    // Multi-field workflow: a field captured offline. Unlike every case above,
-    // entityId here is the *local* result_fields id, not a server id — there is
-    // no server id yet. See createQueuedFieldUpload (saveUploadedField.ts).
+    // Multi-field workflow: a field captured offline, or picked in bulk from the
+    // gallery. Unlike every case above, entityId here is the *local* result_fields
+    // id, not a server id — there is no server id yet. See createQueuedFieldUpload
+    // (saveUploadedField.ts). Tracked in uploadStatus.ts while in flight so the field
+    // list and thumbnail stack can show which one is uploading right now, versus
+    // merely waiting its turn in this same loop.
     case PendingSyncAction.UPLOAD_IMAGE:
-      await uploadQueuedField(item, signal);
+      setCurrentlyUploadingFieldId(item.entityId);
+      try {
+        await uploadQueuedField(item, signal);
+      } finally {
+        setCurrentlyUploadingFieldId(null);
+      }
       break;
 
     default:

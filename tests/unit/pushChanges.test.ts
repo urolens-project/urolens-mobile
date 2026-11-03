@@ -50,6 +50,7 @@ import { isRetakeNeededError, uploadFieldViaXhr } from '../../src/lib/camera/upl
 import { discardQueuedField } from '../../src/features/field-capture/lib/saveUploadedField';
 import { PendingSyncAction, PendingSyncStatus } from '../../src/types/enums';
 import { RETIRED_REASON } from '../../src/db/sync/legacyQueue';
+import { getCurrentlyUploadingFieldId } from '../../src/db/sync/uploadStatus';
 
 const post = apiClient.post as jest.Mock;
 const DAY = 24 * 60 * 60 * 1000;
@@ -481,6 +482,48 @@ describe('replaying a queued field upload', () => {
       'HPF',
       undefined,
     );
+  });
+});
+
+// The field list/thumbnail stack distinguish "uploading right now" from "merely
+// queued" off this signal — it must be set only while this exact action is in
+// flight, and cleared again whether the upload succeeds or fails.
+describe('tracks which field is currently uploading', () => {
+  function setFieldRow(item: FakeItem, fieldRow: Record<string, unknown>) {
+    (database.get as jest.Mock).mockImplementation((table: string) => {
+      if (table === 'pending_sync')
+        return { query: () => ({ fetch: jest.fn().mockResolvedValue([item]) }) };
+      if (table === 'result_fields') return { find: jest.fn().mockResolvedValue(fieldRow) };
+      throw new Error(`unexpected table ${table}`);
+    });
+    (database.write as jest.Mock).mockImplementation(async (fn: () => Promise<unknown>) => fn());
+  }
+
+  it('is set to the field being uploaded while the request is in flight, then null on success', async () => {
+    const item = makeItem({ action: PendingSyncAction.UPLOAD_IMAGE, entityId: 'local-field-1' });
+    setFieldRow(item, { localImageUri: 'file:///fields/x.jpg', magnification: 'HPF' });
+
+    let duringUpload: string | null = null;
+    (uploadFieldViaXhr as jest.Mock).mockImplementation(async () => {
+      duringUpload = getCurrentlyUploadingFieldId();
+      return { fieldId: 'server-field-1' };
+    });
+
+    expect(getCurrentlyUploadingFieldId()).toBeNull();
+    await pushChanges();
+
+    expect(duringUpload).toBe('local-field-1');
+    expect(getCurrentlyUploadingFieldId()).toBeNull();
+  });
+
+  it('is cleared back to null even when the upload fails', async () => {
+    const item = makeItem({ action: PendingSyncAction.UPLOAD_IMAGE, entityId: 'local-field-1' });
+    setFieldRow(item, { localImageUri: 'file:///fields/x.jpg', magnification: 'HPF' });
+    (uploadFieldViaXhr as jest.Mock).mockRejectedValue({ code: 'NETWORK_ERROR', message: 'down' });
+
+    await pushChanges();
+
+    expect(getCurrentlyUploadingFieldId()).toBeNull();
   });
 });
 
