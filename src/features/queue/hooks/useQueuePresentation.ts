@@ -21,7 +21,8 @@ import { useReduceMotion } from '@components/DropReveal';
 import { useQueue } from './useQueue';
 import type { UseQueueResult } from './useQueue';
 import { QUEUE_TEXT } from '../constants/queueText.constant';
-import { getQueueStatus } from '../status';
+import { countByQueueStatus, getProceedAction, getQueueStatus } from '../status';
+import type { ProceedAction } from '../status';
 import { getSyncPill } from '../syncPill';
 import type { SyncPill } from '../syncPill';
 import { getStickyRest, rollAwayStyle } from '../scrollEffects';
@@ -32,8 +33,18 @@ import type { QueueItem } from '../types';
 interface QueueCounts {
   assigned: number;
   inProgress: number;
+  capturing: number;
+  verifying: number;
   returned: number;
 }
+
+// One label per ProceedAction (status.ts), in the Queue's own text.
+const PROCEED_LABELS: Record<ProceedAction, string> = {
+  PROCEED_TO_ANALYSIS: QUEUE_TEXT.proceedLabels.proceedToAnalysis,
+  CONTINUE: QUEUE_TEXT.proceedLabels.continue,
+  CONTINUE_CAPTURING: QUEUE_TEXT.proceedLabels.continueCapturing,
+  CONTINUE_ON_WEBSITE: QUEUE_TEXT.proceedLabels.continueOnWebsite,
+};
 
 interface UseQueuePresentationResult extends UseQueueResult {
   username: string | null;
@@ -81,14 +92,14 @@ export function useQueuePresentation(): UseQueuePresentationResult {
   const [filtersHeight, setFiltersHeight] = useState(0);
   const [listHeaderHeight, setListHeaderHeight] = useState(0);
   const counts = useMemo((): QueueCounts => {
-    const totals: QueueCounts = { assigned: 0, inProgress: 0, returned: 0 };
-    for (const item of queue.allItems) {
-      const status = getQueueStatus(item);
-      if (status === 'RETURNED') totals.returned += 1;
-      else if (status === 'PROCESSING') totals.inProgress += 1;
-      else if (status === 'ASSIGNED') totals.assigned += 1;
-    }
-    return totals;
+    const byStatus = countByQueueStatus(queue.allItems);
+    return {
+      assigned: byStatus.ASSIGNED,
+      inProgress: byStatus.PROCESSING,
+      capturing: byStatus.CAPTURING,
+      verifying: byStatus.VERIFYING,
+      returned: byStatus.RETURNED,
+    };
   }, [queue.allItems]);
   const selectedItem = useMemo(
     (): QueueItem | null => queue.items.find((item): boolean => item.id === selectedId) ?? null,
@@ -96,13 +107,7 @@ export function useQueuePresentation(): UseQueuePresentationResult {
   );
   const selectedStatus = selectedItem ? getQueueStatus(selectedItem) : null;
   const proceedLabel =
-    selectedStatus === 'CAPTURING'
-      ? QUEUE_TEXT.proceedLabels.continueCapturing
-      : selectedStatus === 'PROCESSING' ||
-          selectedStatus === 'RETURNED' ||
-          selectedStatus === 'VERIFYING'
-        ? QUEUE_TEXT.proceedLabels.continue
-        : QUEUE_TEXT.proceedLabels.proceedToAnalysis;
+    PROCEED_LABELS[getProceedAction(selectedStatus, selectedItem?.resultStatus ?? null)];
   const canRejectSelected =
     !!selectedItem &&
     getSampleActions(

@@ -578,7 +578,10 @@ describe('useQueue', () => {
   // anything a Supervisor returned for correction (SRS UC 3.4) — tracked via
   // analysis_results, not the specimen's own status.
   describe('returned-for-correction tracking (UC 3.4)', () => {
-    it('RETURNED filter falls back to a sentinel (matches nothing) before any result is tracked', () => {
+    // A status chip (mobile-queue-status-n8, Q3) loads the Queue's usual scope — the
+    // same query as ALL — and leaves which rows actually match a status to the
+    // in-memory getQueueStatus filter in the subscription callback, not the DB query.
+    it('a status chip (e.g. RETURNED) queries the same scope as ALL before any result is tracked', () => {
       const { result } = renderHook(() => useQueue());
 
       act(() => {
@@ -587,8 +590,7 @@ describe('useQueue', () => {
 
       const clauses = lastFilterQueryClauses();
       expect(clauses).toHaveLength(1);
-      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'server_id' });
-      expect((clauses[0] as any).value).toMatchObject({ _type: 'oneOf', vals: ['__none__'] });
+      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status' });
     });
 
     it('ALL/default query becomes an OR of status + server_id once a result is returned', () => {
@@ -623,6 +625,43 @@ describe('useQueue', () => {
       });
 
       expect(result.current.items[0].isReturnedForCorrection).toBe(true);
+    });
+
+    // mobile-queue-status-n8, Q1: the website's Capture More Fields reopens a
+    // returned result back to CAPTURING with return_reason still set (sync only
+    // sends it while the return is open) — that still counts as returned, and the
+    // reason is kept so the card can show why it came back.
+    it('flags a CAPTURING result with a return reason as returned, and keeps its reason', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitReturnedResults([
+          { specimenId: 'srv-reopened', status: 'CAPTURING', returnReason: 'Check RBC count' },
+        ]);
+      });
+
+      const freshFilterCb = subscribeCalls[subscribeCalls.length - 2].cb;
+      await act(async () => {
+        freshFilterCb([
+          makeSpecimen({ id: 'spec-reopened', serverId: 'srv-reopened', status: 'PROCESSING' }),
+        ]);
+      });
+
+      expect(result.current.items[0].isReturnedForCorrection).toBe(true);
+      expect(result.current.items[0].returnReason).toBe('Check RBC count');
+    });
+
+    it('does not flag a CAPTURING result with no return reason as returned', async () => {
+      const { result } = renderHook(() => useQueue());
+
+      await act(async () => {
+        emitItems([
+          makeSpecimen({ id: 'spec-capturing', serverId: 'srv-capturing', status: 'PROCESSING' }),
+        ]);
+        emitReturnedResults([{ specimenId: 'srv-capturing', status: 'CAPTURING' }]);
+      });
+
+      expect(result.current.items[0]?.isReturnedForCorrection).toBe(false);
     });
 
     it('does not flag a specimen whose server_id is not in the returned set', async () => {
@@ -724,7 +763,9 @@ describe('useQueue', () => {
   // keep showing in their Queue just because specimen.status still says
   // ASSIGNED.
   describe('finished-result exclusion (confirmed-but-not-yet-approved specimens)', () => {
-    it.each(['PENDING_SUPERVISOR_APPROVAL', 'APPROVED', 'RELEASED'])(
+    // CRITICAL_ESCALATED (mobile-queue-status-n8, Q5): nothing sets it today, but
+    // defensively it must leave the Queue the same as the other finished statuses.
+    it.each(['PENDING_SUPERVISOR_APPROVAL', 'APPROVED', 'RELEASED', 'CRITICAL_ESCALATED'])(
       'ALL/default query excludes server_id via notIn once a result is %s',
       (status) => {
         renderHook(() => useQueue());
@@ -743,7 +784,7 @@ describe('useQueue', () => {
       },
     );
 
-    it('the ASSIGNED status filter also excludes a finished specimen', () => {
+    it('the ASSIGNED status chip loads the same Queue scope as ALL, finished specimen excluded', () => {
       const { result } = renderHook(() => useQueue());
 
       act(() => {
@@ -755,9 +796,11 @@ describe('useQueue', () => {
       });
 
       const clauses = lastFilterQueryClauses();
-      expect(clauses).toHaveLength(2);
-      expect(clauses[1]).toMatchObject({ _type: 'where', field: 'server_id' });
-      expect((clauses[1] as any).value).toMatchObject({ _type: 'notIn', vals: ['srv-9'] });
+      expect(clauses).toHaveLength(1);
+      expect(clauses[0]).toMatchObject({ _type: 'and' });
+      const andClauses = (clauses[0] as any).clauses;
+      expect(andClauses[1]).toMatchObject({ _type: 'where', field: 'server_id' });
+      expect(andClauses[1].value).toMatchObject({ _type: 'notIn', vals: ['srv-9'] });
     });
 
     it('does not exclude anything before any result has been tracked', () => {
@@ -896,16 +939,52 @@ describe('status filters keep each sample in one group', () => {
       });
 
       const clauses = lastFilterQueryClauses();
-      expect(clauses[0]).toMatchObject({ _type: 'where', field: 'status', value: filter });
-      expect(clauses).toContainEqual(
-        expect.objectContaining({
-          _type: 'where',
-          field: 'server_id',
-          value: expect.objectContaining({ _type: 'notIn', vals: ['srv-9'] }),
-        }),
-      );
+      expect(clauses).toHaveLength(1);
+      expect(clauses[0]).toMatchObject({ _type: 'or' });
     },
   );
+
+  // mobile-queue-status-n8, Q3: the DB query is now the same Queue scope for every
+  // status chip (above) — which of the five statuses a row actually has, and so
+  // which chip it shows under, is decided in memory by getQueueStatus, the exact
+  // rule the badge, counts and sort already use.
+  it('each of the five Queue statuses shows only under its own chip', async () => {
+    const { result } = renderHook(() => useQueue());
+
+    await act(async () => {
+      emitReturnedResults([
+        { specimenId: 'srv-capturing', status: 'CAPTURING' },
+        { specimenId: 'srv-verifying', status: 'PENDING_CONFIRM' },
+      ]);
+    });
+
+    const specimens = [
+      makeSpecimen({ id: 'capturing', serverId: 'srv-capturing', status: 'PROCESSING' }),
+      makeSpecimen({ id: 'verifying', serverId: 'srv-verifying', status: 'PROCESSING' }),
+      makeSpecimen({ id: 'progressing', serverId: 'srv-progressing', status: 'PROCESSING' }),
+      makeSpecimen({ id: 'assigned', serverId: 'srv-assigned', status: 'ASSIGNED' }),
+    ];
+    // resultStatusByServerId changing re-subscribes items, then allItems.
+    await act(async () => {
+      subscribeCalls[subscribeCalls.length - 2].cb(specimens);
+    });
+
+    const cases: Array<[FilterOption, string]> = [
+      ['CAPTURING', 'capturing'],
+      ['VERIFYING', 'verifying'],
+      ['PROCESSING', 'progressing'],
+      ['ASSIGNED', 'assigned'],
+    ];
+    for (const [filter, expectedId] of cases) {
+      act(() => {
+        result.current.setFilter(filter);
+      });
+      await act(async () => {
+        subscribeCalls[subscribeCalls.length - 1].cb(specimens);
+      });
+      expect(result.current.items.map((item) => item.id)).toEqual([expectedId]);
+    }
+  });
 
   it('excludes both finished and returned samples when both exist', () => {
     const { result } = renderHook(() => useQueue());
@@ -920,10 +999,11 @@ describe('status filters keep each sample in one group', () => {
       result.current.setFilter('ASSIGNED');
     });
 
-    const notIn = lastFilterQueryClauses()
-      .filter((c) => (c as any).field === 'server_id')
-      .map((c) => (c as any).value.vals);
-    expect(notIn).toEqual(expect.arrayContaining([['srv-returned'], ['srv-done']]));
+    const clauses = lastFilterQueryClauses();
+    expect(clauses).toHaveLength(1);
+    expect(clauses[0]).toMatchObject({ _type: 'or' });
+    const [statusClause] = (clauses[0] as any).clauses;
+    expect(statusClause).toMatchObject({ _type: 'and' });
   });
 });
 

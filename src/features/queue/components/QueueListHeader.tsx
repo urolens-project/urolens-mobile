@@ -14,7 +14,7 @@ import type { SyncPill } from '../syncPill';
 import type { FilterOption } from '../types';
 
 export interface QueueListHeaderProps {
-  counts: { assigned: number; inProgress: number; returned: number };
+  counts: { assigned: number; inProgress: number; capturing: number; returned: number };
   lastSyncAt: number | null;
   syncPill: SyncPill;
   playKey: number;

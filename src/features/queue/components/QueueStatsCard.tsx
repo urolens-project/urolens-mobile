@@ -9,7 +9,7 @@ import { Icon } from '@components/Icon';
 import { QUEUE_STATS_TILES, QUEUE_STATUS_STYLES } from '../constants';
 
 export interface QueueStatsCardProps {
-  counts: { assigned: number; inProgress: number; returned: number };
+  counts: { assigned: number; inProgress: number; capturing: number; returned: number };
   reduceMotion: boolean;
 }
 

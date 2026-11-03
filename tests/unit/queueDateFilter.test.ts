@@ -61,7 +61,16 @@ async function seed(rows: Record<string, unknown>[]) {
 }
 
 async function run(
-  filter: 'DATE' | 'LATEST' | 'EARLIEST' | 'ALL' | 'ASSIGNED' | 'PROCESSING' | 'RETURNED',
+  filter:
+    | 'DATE'
+    | 'LATEST'
+    | 'EARLIEST'
+    | 'ALL'
+    | 'ASSIGNED'
+    | 'PROCESSING'
+    | 'CAPTURING'
+    | 'VERIFYING'
+    | 'RETURNED',
   returned: string[] = [],
   finished: string[] = [],
 ) {
@@ -140,6 +149,15 @@ describe('Queue Date filter', () => {
   });
 });
 
+// mobile-queue-status-n8, Q2: nothing in the backend sets IN_QUEUE today, but older
+// rows may have it, and it's startable work the same as ASSIGNED.
+describe('IN_QUEUE is in the Queue scope', () => {
+  it('shows an IN_QUEUE specimen under ALL', async () => {
+    await seed([{ serverId: 'today-in-queue', status: 'IN_QUEUE', receivedAt: TODAY }]);
+    expect(await run('ALL')).toContain('today-in-queue');
+  });
+});
+
 describe('unchanged filters', () => {
   it('Latest and Earliest still show everything in the Queue, oldest included', async () => {
     const latest = await run('LATEST', ['old-returned'], ['old-processing-finished']);
@@ -151,36 +169,22 @@ describe('unchanged filters', () => {
   });
 });
 
-// The Assigned / In Progress / Returned filters and counts partition the Queue: each
-// active sample is in exactly one, so they add up to the whole list.
-describe('status filters keep each sample in one group', () => {
-  it('Assigned does not include a returned sample, even though its specimen is ASSIGNED', async () => {
-    const ids = await run('ASSIGNED', ['old-returned']);
-    expect(ids).toEqual(expect.arrayContaining(['today-assigned', 'old-assigned']));
-    expect(ids).not.toContain('old-returned');
-  });
-
-  it('In Progress does not include a returned sample that is also being re-analyzed', async () => {
-    const ids = await run('PROCESSING', ['old-processing'], ['old-processing-finished']);
-    expect(ids).toEqual(['today-processing']);
-  });
-
-  it('Returned shows the returned samples', async () => {
-    expect(await run('RETURNED', ['old-returned'])).toEqual(['old-returned']);
-  });
-
-  it('Assigned + In Progress + Returned together are exactly the Queue', async () => {
-    const returned = ['old-returned'];
-    const finished = ['old-processing-finished'];
-    const all = await run('ALL', returned, finished);
-    const grouped = [
-      ...(await run('ASSIGNED', returned, finished)),
-      ...(await run('PROCESSING', returned, finished)),
-      ...(await run('RETURNED', returned, finished)),
-    ];
-    expect([...grouped].sort()).toEqual([...all].sort());
-    expect(new Set(grouped).size).toBe(grouped.length); // no sample in two groups
-  });
+// A status chip (mobile-queue-status-n8, Q3) no longer narrows the DB query — every
+// chip loads the same Queue scope as ALL, and useQueue.ts (tested separately, with a
+// mocked DB) keeps only the rows matching that chip's getQueueStatus in memory. This
+// is what makes the chip, the counts, the badge and the sort unable to disagree:
+// they all run the one rule, instead of the DB query duplicating it.
+describe('a status chip loads the same Queue scope as ALL', () => {
+  it.each(['ASSIGNED', 'PROCESSING', 'CAPTURING', 'VERIFYING', 'RETURNED'] as const)(
+    '%s returns exactly what ALL returns',
+    async (filter) => {
+      const returned = ['old-returned'];
+      const finished = ['old-processing-finished'];
+      const all = await run('ALL', returned, finished);
+      const chip = await run(filter, returned, finished);
+      expect([...chip].sort()).toEqual([...all].sort());
+    },
+  );
 });
 
 // "Today" is the clinic's (Manila) day, whatever timezone the phone is set to.
