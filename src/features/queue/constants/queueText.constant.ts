@@ -85,12 +85,16 @@ export function formatReturnReasonLabel(reason: string | null | undefined): stri
 
 /**
  * @description Formats the field progress shown on a CAPTURING queue card
- * (SDD Module 2 proposal) — e.g. "7 of 10 fields".
+ * (SDD Module 2 proposal) — e.g. "7 of 10 fields". minFields is a minimum, not a
+ * cap, so once met this switches to a plain count instead of "12 of 10 fields",
+ * which reads like a limit (or a bug) once the accepted count exceeds it.
  * @param acceptedCount - Accepted field count so far.
  * @param minFields - Minimum accepted fields required.
  */
 export function formatFieldCounterLabel(acceptedCount: number, minFields: number): string {
-  return `${acceptedCount} of ${minFields} fields`;
+  return acceptedCount >= minFields
+    ? `${acceptedCount} fields (min. ${minFields} met)`
+    : `${acceptedCount} of ${minFields} fields`;
 }
 
 /**

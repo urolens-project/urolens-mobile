@@ -2,8 +2,13 @@
 export const FIELD_CAPTURE_TEXT = {
   // Capture session (CameraLiveView additions)
   magnificationLabel: 'Magnification',
+  // minFields is a minimum, not a cap — capturing beyond it is expected and fine,
+  // so once it's met this reads as a count with the minimum satisfied rather than
+  // "X of 10" (which looks like a limit, or outright broken, once X > 10).
   fieldCounterLabel: (acceptedCount: number, minFields: number): string =>
-    `${acceptedCount} of ${minFields} fields`,
+    acceptedCount >= minFields
+      ? `${acceptedCount} fields (min. ${minFields} met)`
+      : `${acceptedCount} of ${minFields} fields`,
 
   // FieldResultScreen
   fieldResultTitle: (fieldNo: number): string => `Field ${fieldNo}`,
@@ -70,6 +75,7 @@ export const FIELD_CAPTURE_TEXT = {
   emptyFieldListMessage: 'No fields captured yet.',
   fieldDiscardedLabel: 'Discarded',
   fieldWaitingToUploadLabel: 'Waiting to upload…',
+  fieldUploadingNowLabel: 'Uploading…',
   fieldNeedsDecisionLabel: 'Needs your decision — tap to review',
   fieldReviewedPendingDecisionLabel: 'Reviewed — tap to decide',
 
@@ -77,6 +83,19 @@ export const FIELD_CAPTURE_TEXT = {
   offlineCaptureQueuedTitle: 'Saved',
   offlineCaptureQueuedMessage:
     'It will upload once you are back online — check the field list to decide on it then.',
+
+  // Gallery multi-select bulk upload — queued fields upload and analyse one at a
+  // time in the background; see FieldCaptureSessionScreen's handleBulkGalleryPick.
+  bulkUploadQueuedTitle: 'Fields Queued',
+  bulkUploadQueuedMessage: (queuedCount: number, failedCount: number): string => {
+    if (queuedCount === 0) {
+      return `${failedCount} image${failedCount === 1 ? '' : 's'} could not be processed. Please try again.`;
+    }
+    const base = `${queuedCount} field${queuedCount === 1 ? '' : 's'} queued — uploading one at a time in the background.`;
+    return failedCount > 0
+      ? `${base} ${failedCount} image${failedCount === 1 ? '' : 's'} could not be processed and were skipped.`
+      : base;
+  },
 
   // UploadRetryModal — shown when a field upload fails to reach the server at all
   // (offline, unreachable, timed out), distinct from a real analysis failure.
