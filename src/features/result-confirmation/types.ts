@@ -5,6 +5,11 @@ export interface AIFindingEntry {
   parameter: string;
   count: number;
   isAnomalous: boolean;
+  /** Overrides the plain `count` in the UI, e.g. "2 per field" or "<1 per field" — set
+   * only when a multi-field result's confirmed `field_summary` (backend #105) is the
+   * source, so a per-class mean never renders as a bare decimal (mobile-n8-todo-rem.md
+   * B4). Absent for a single count (legacy single-image, or no field_summary yet). */
+  displayLabel?: string;
 }
 
 export interface SmartDiagnosisResult {

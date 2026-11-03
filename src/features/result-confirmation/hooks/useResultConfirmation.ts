@@ -18,16 +18,43 @@ interface ResultSnapshot {
   result: AnalysisResult | null;
 }
 
+interface FindingsSource {
+  aiFindings: Record<string, number>;
+  particleClasses?: Record<string, number>;
+  fieldSummary?: AnalysisResult['fieldSummary'];
+}
+
 /**
- * @description Derives a structured `AIFindingEntry` list from the raw findings map.
- * A particle is anomalous when its count exceeds the 5-per-field threshold.
- * @param raw - Raw particle-name → count map from the analysis result.
+ * @description Derives a structured `AIFindingEntry` list for display (mobile-n8-todo-rem.md
+ * B4). Prefers the confirmed `field_summary` per-class averages (backend #105) — each mean
+ * shown as "<displayValue> per field" rather than a bare decimal — then the confirmed
+ * `particle_classes`, falling back to the raw AI findings only when neither is present
+ * (older local data, or a result predating the multi-field workflow). A particle is
+ * anomalous when its raw count/mean exceeds the 5-per-field threshold, or when
+ * `field_summary` itself flags the class as above normal in any field.
+ * @param result - The analysis result's findings sources.
  */
-function deriveFindings(raw: Record<string, number>): AIFindingEntry[] {
-  return Object.entries(raw).map(
+function deriveFindings(result: FindingsSource): AIFindingEntry[] {
+  const summary = result.fieldSummary;
+  if (summary && Object.keys(summary.perClass).length > 0) {
+    return Object.entries(summary.perClass).map(
+      ([parameter, agg]): AIFindingEntry => ({
+        parameter,
+        count: Math.round(agg.mean),
+        isAnomalous: (agg.fieldsAboveNormal?.length ?? 0) > 0,
+        displayLabel: `${agg.displayValue} per field`,
+      }),
+    );
+  }
+
+  const source =
+    result.particleClasses && Object.keys(result.particleClasses).length > 0
+      ? result.particleClasses
+      : result.aiFindings;
+  return Object.entries(source).map(
     ([parameter, count]): AIFindingEntry => ({
       parameter,
-      count,
+      count: Math.round(count),
       isAnomalous: count > 5,
     }),
   );
@@ -59,7 +86,7 @@ export function useResultConfirmation(resultId: string): UseResultConfirmationRe
   }, [resultId]);
 
   const aiFindings = useMemo<AIFindingEntry[]>(
-    (): AIFindingEntry[] => (snapshot.result ? deriveFindings(snapshot.result.aiFindings) : []),
+    (): AIFindingEntry[] => (snapshot.result ? deriveFindings(snapshot.result) : []),
     [snapshot],
   );
 
