@@ -52,13 +52,15 @@ async function upsertCapturingResult(specimenId: string, resultId: string): Prom
 
 /**
  * @description Writes (or overwrites) a field's AI boxes into field_detections. Must
- * run inside an active database.write().
+ * run inside an active database.write(). Exported for fetchRemoteFields.ts (C5): the
+ * same write, whether the boxes come from this device's own capture response or from
+ * `GET /fields/{fieldId}` for a field captured elsewhere.
  * @param localFieldId - Local WatermelonDB id of the result_fields row.
  * @param detections - AI boxes from the capture response.
  * @param imageWidth - Width of the upright stored image the boxes refer to.
  * @param imageHeight - Height of the upright stored image the boxes refer to.
  */
-async function writeFieldDetections(
+export async function writeFieldDetections(
   localFieldId: string,
   detections: FieldAnalysisResponseDto['detections'],
   imageWidth: number,
