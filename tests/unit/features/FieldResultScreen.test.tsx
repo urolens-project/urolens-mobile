@@ -80,3 +80,50 @@ describe('FieldResultScreen — awaiting boxes (1.2/3.14)', () => {
     expect(screen.getByTestId('discard-field-button')).toBeTruthy();
   });
 });
+
+// C6 (mobile-n8-todo-rem.md, decision #1): the step-through's "N more waiting" hint.
+describe('FieldResultScreen — remainingCount header (C6)', () => {
+  it('shows how many other fields still need a decision', () => {
+    render(
+      <FieldResultScreen
+        field={makeField()}
+        isSubmitting={false}
+        errorMessage={null}
+        onProceed={noop}
+        onDiscard={noop}
+        remainingCount={2}
+      />,
+    );
+
+    expect(screen.getByText(/2 more waiting/)).toBeTruthy();
+  });
+
+  it('shows nothing extra when nothing else is waiting', () => {
+    render(
+      <FieldResultScreen
+        field={makeField()}
+        isSubmitting={false}
+        errorMessage={null}
+        onProceed={noop}
+        onDiscard={noop}
+        remainingCount={0}
+      />,
+    );
+
+    expect(screen.queryByText(/more waiting/)).toBeNull();
+  });
+
+  it('shows nothing extra for a field opened from a live capture session (no backlog)', () => {
+    render(
+      <FieldResultScreen
+        field={makeField()}
+        isSubmitting={false}
+        errorMessage={null}
+        onProceed={noop}
+        onDiscard={noop}
+      />,
+    );
+
+    expect(screen.queryByText(/more waiting/)).toBeNull();
+  });
+});

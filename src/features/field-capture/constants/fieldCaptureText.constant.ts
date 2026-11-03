@@ -7,6 +7,9 @@ export const FIELD_CAPTURE_TEXT = {
 
   // FieldResultScreen
   fieldResultTitle: (fieldNo: number): string => `Field ${fieldNo}`,
+  // Shown only when this field was opened from the list (the offline backlog's
+  // step-through, mobile-n8-todo-rem.md C6) and others still need a decision.
+  moreFieldsWaitingLabel: (count: number): string => `${count} more waiting`,
   thisFieldOnlyCaption: 'This field only — not the reported diagnosis',
   smartDiagnosisUnavailableMessage: 'Smart Diagnosis preview unavailable for this field.',
   noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
