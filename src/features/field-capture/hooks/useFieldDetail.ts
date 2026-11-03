@@ -95,6 +95,7 @@ export function useFieldDetail(
       acceptedFieldCount,
       minFields,
       isAwaitingBoxes,
+      isReviewed: record.isReviewed,
     },
     isLoading: false,
   };

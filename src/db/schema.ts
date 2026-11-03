@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 8,
+  version: 9,
   tables: [
     tableSchema({
       name: 'specimens',
@@ -125,6 +125,10 @@ export const schema = appSchema({
         // / IMAGE_EXPOSURE) — so the field list can show why, distinct from a
         // MedTech's own discard decision. Null for every other discard.
         { name: 'discard_reason', type: 'string', isOptional: true },
+        // Client-only acknowledgement that a MedTech has opened and looked at a
+        // field still needing a decision (status ANALYZED) — distinct from the
+        // Proceed/Discard decision itself, and never synced to the server.
+        { name: 'is_reviewed', type: 'boolean' },
       ],
     }),
     // Device-only cache of one field's AI boxes, so a field shows its

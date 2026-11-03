@@ -35,6 +35,7 @@ const FIELD_LIST_COLUMNS = [
   'ai_findings_json',
   'local_image_uri',
   'discard_reason',
+  'is_reviewed',
 ];
 
 const QUEUED_FIELD_ACTIONS = [

@@ -77,6 +77,9 @@ export interface FieldListItem {
    * for a queued offline capture the engine's gate refused, which creates no field
    * server-side at all; null for a MedTech's own discard decision. */
   discardReason: string | null;
+  /** True once the MedTech has opened this field and tapped Mark as Reviewed —
+   * client-only, never synced to the server. */
+  isReviewed: boolean;
 }
 
 /** UI model for the field a MedTech just captured, ready for Proceed/Discard. */
@@ -104,4 +107,7 @@ export interface CapturedField {
    * image and hides Proceed, so the field is never mistaken for one with no
    * detections. Always false for a field just captured on this device. */
   isAwaitingBoxes: boolean;
+  /** True once the MedTech has opened this field and tapped Mark as Reviewed —
+   * client-only, never synced to the server. */
+  isReviewed: boolean;
 }

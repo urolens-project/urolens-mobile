@@ -229,7 +229,11 @@ function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
   let subtitle = `${item.particleCount} particles`;
   if (isDiscarded) subtitle = item.discardReason ?? FIELD_CAPTURE_TEXT.fieldDiscardedLabel;
   else if (isPendingUpload) subtitle = FIELD_CAPTURE_TEXT.fieldWaitingToUploadLabel;
-  else if (needsDecision) subtitle = FIELD_CAPTURE_TEXT.fieldNeedsDecisionLabel;
+  else if (needsDecision) {
+    subtitle = item.isReviewed
+      ? FIELD_CAPTURE_TEXT.fieldReviewedPendingDecisionLabel
+      : FIELD_CAPTURE_TEXT.fieldNeedsDecisionLabel;
+  }
 
   return (
     <TouchableOpacity

@@ -15,6 +15,8 @@ export const FIELD_CAPTURE_TEXT = {
   noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
   proceedLabel: 'Proceed',
   discardLabel: 'Discard',
+  markAsReviewedLabel: 'Mark as Reviewed',
+  reviewedLabel: 'Reviewed',
   backToFieldListA11yLabel: 'Back to field list',
   // A field synced from another phone (or from before a reinstall) with no local
   // image or AI boxes yet (mobile PR #55 review, 1.2/3.14) — never shown as if it
@@ -69,6 +71,7 @@ export const FIELD_CAPTURE_TEXT = {
   fieldDiscardedLabel: 'Discarded',
   fieldWaitingToUploadLabel: 'Waiting to upload…',
   fieldNeedsDecisionLabel: 'Needs your decision — tap to review',
+  fieldReviewedPendingDecisionLabel: 'Reviewed — tap to decide',
 
   // Offline capture backlog
   offlineCaptureQueuedTitle: 'Saved',
