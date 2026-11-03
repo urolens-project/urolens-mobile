@@ -25,11 +25,19 @@ export function mapResultReviewDetail(
     imageUrl: dto.imageUrl ?? null,
     status: dto.status,
     returnReason: dto.returnReason ?? null,
-    aiFindings: Object.entries(dto.aiFindings).map(
+    // Prefers the confirmed particleClasses over the raw aiFindings (mobile-n8-todo-rem.md
+    // B4) — the same fallback order as the local path's deriveFindings, minus field_summary:
+    // FullResultDetail doesn't carry it (only GET /sync/pull does, backend #105), so a
+    // multi-field result's decimal AI mean is only ever rounded here, not shown "per field".
+    aiFindings: Object.entries(
+      dto.particleClasses && Object.keys(dto.particleClasses).length > 0
+        ? dto.particleClasses
+        : (dto.aiFindings ?? {}),
+    ).map(
       ([parameter, count]): AIFindingEntry => ({
         parameter,
-        count: typeof count === 'number' ? count : 0,
-        isAnomalous: !!dto.flaggedAnomalies[parameter],
+        count: typeof count === 'number' ? Math.round(count) : 0,
+        isAnomalous: !!dto.flaggedAnomalies?.[parameter],
       }),
     ),
     smartDiagnosis: mapSmartDiagnosis(dto.smartDiagnosis),

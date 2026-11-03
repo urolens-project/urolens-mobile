@@ -5,6 +5,8 @@
 export const RESULT_COLUMNS = [
   'status',
   'ai_findings_json',
+  'particle_classes_json',
+  'field_summary_json',
   'smart_diagnosis_json',
   'smart_diagnosis_unavailable',
   'is_synced',
