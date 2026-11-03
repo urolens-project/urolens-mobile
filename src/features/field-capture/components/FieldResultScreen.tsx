@@ -19,6 +19,10 @@ export interface FieldResultScreenProps {
   errorMessage: string | null;
   onProceed: () => void;
   onDiscard: () => void;
+  /** Other fields still needing a decision, for the step-through's "N more waiting"
+   * header (mobile-n8-todo-rem.md C6) — only set when this field was opened from the
+   * list; omitted for a field just captured in a live session, which has no backlog. */
+  remainingCount?: number;
 }
 
 /**
@@ -33,6 +37,7 @@ export function FieldResultScreen({
   errorMessage,
   onProceed,
   onDiscard,
+  remainingCount,
 }: FieldResultScreenProps): React.JSX.Element {
   const counts = Object.entries(field.aiFindings).filter(([, count]) => count > 0);
   // The overlay's boxes are percentages of the stored image, so the wrapper must
@@ -54,6 +59,9 @@ export function FieldResultScreen({
         <Text style={styles.title}>{FIELD_CAPTURE_TEXT.fieldResultTitle(field.fieldNo)}</Text>
         <Text style={styles.counterText}>
           {FIELD_CAPTURE_TEXT.fieldCounterLabel(field.acceptedFieldCount, field.minFields)}
+          {!!remainingCount &&
+            remainingCount > 0 &&
+            ` · ${FIELD_CAPTURE_TEXT.moreFieldsWaitingLabel(remainingCount)}`}
         </Text>
       </View>
 
