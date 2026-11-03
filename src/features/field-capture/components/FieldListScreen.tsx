@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { synchronize } from '@db/sync/syncManager';
 
 import { Icon } from '@components/Icon';
 
@@ -28,6 +29,11 @@ interface SubmitResultState {
   message: string;
 }
 
+/** Error codes where the phone and server disagree on field state (the server
+ * has a field the phone is missing) — sync first so the server's message lines
+ * up with what the field list then shows (N8 field-post-analysis-report, Bug 2). */
+const SYNC_ON_SUBMIT_ERROR_CODES = new Set(['FIELDS_UNDECIDED', 'FIELDS_BELOW_MINIMUM']);
+
 /**
  * @description Lists a specimen's captured fields with their status, and gates Submit
  * for Verification on the minimum accepted count and no field left undecided — the
@@ -44,7 +50,7 @@ export function FieldListScreen({
   const { isOnline } = useNetworkStatus();
   const { fields, acceptedCount, undecidedCount, pendingDecisionsCount, resultServerId } =
     useFieldList(specimenId);
-  const { submitFields, isLoading: isSubmitting, error } = useSubmitFields();
+  const { submitFields, isLoading: isSubmitting, getError } = useSubmitFields();
   const [submitResult, setSubmitResult] = useState<SubmitResultState>({
     visible: false,
     variant: 'success',
@@ -84,11 +90,19 @@ export function FieldListScreen({
     if (!resultServerId || blockingReason) return;
     const ok = await submitFields(resultServerId);
     if (!ok) {
+      const submitError = getError();
+      if (submitError?.code && SYNC_ON_SUBMIT_ERROR_CODES.has(submitError.code)) {
+        try {
+          await synchronize();
+        } catch (syncErr) {
+          console.error('[FieldListScreen]', syncErr);
+        }
+      }
       setSubmitResult({
         visible: true,
         variant: 'error',
         title: FIELD_CAPTURE_TEXT.submitFailedTitle,
-        message: error?.message ?? FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage,
+        message: submitError?.message ?? FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage,
       });
       return;
     }
@@ -98,7 +112,7 @@ export function FieldListScreen({
       title: FIELD_CAPTURE_TEXT.submitSucceededTitle,
       message: FIELD_CAPTURE_TEXT.submitSucceededMessage,
     });
-  }, [blockingReason, error, resultServerId, submitFields]);
+  }, [blockingReason, getError, resultServerId, submitFields]);
 
   const handleGoBack = useCallback((): void => {
     router.back();
