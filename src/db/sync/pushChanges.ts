@@ -307,10 +307,14 @@ async function uploadQueuedField(item: PendingSync, signal?: AbortSignal): Promi
   }
 
   const filename = field.localImageUri.split('/').pop() ?? `field-${item.entityId}.jpg`;
+  // Older queued rows predate the capture id (payloadJson was '{}') — they replay
+  // with none, exactly as they did before B2.
+  const { captureId } = item.payload as { captureId?: string };
   const form = await buildFieldUploadFormData(
     { uri: field.localImageUri, filename, mimeType: 'image/jpeg' },
     field.specimenId,
     field.magnification as Magnification,
+    captureId,
   );
 
   try {

@@ -20,6 +20,8 @@ import { View, Alert, StyleSheet } from 'react-native';
 import { useCameraPermissions, type CameraView } from 'expo-camera';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { randomId } from '@nozbe/watermelondb/utils/common';
+import { useMinFieldsStore } from '@lib/stores/minFieldsStore';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { processCapture, processPickerAsset, isImageValidationError } from '@lib/camera/imageUtils';
@@ -71,13 +73,22 @@ export function FieldCaptureSessionScreen({
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<ScreenPhase>('idle');
   const [processed, setProcessed] = useState<ProcessedImage | null>(null);
+  // Generated once per photo, not per upload attempt: kept across a retried
+  // Use Image after a failure (backend #108), so a retry whose first answer the
+  // phone never saw doesn't analyse — or store — the same photo twice. A retake
+  // or a new pick gets its own, since setProcessed and setCaptureId are always
+  // set together.
+  const [captureId, setCaptureId] = useState<string>('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [magnification, setMagnification] = useState<Magnification>('HPF');
   const [capturedField, setCapturedField] = useState<CapturedField | null>(null);
   const [acceptedCount, setAcceptedCount] = useState(0);
-  const [minFields, setMinFields] = useState(10);
+  // Seeded from the last sync's server minimum (backend #105) so the counter before
+  // this session's own first capture response reflects reality instead of the
+  // hard-coded fallback.
+  const [minFields, setMinFields] = useState(() => useMinFieldsStore.getState().minFields);
   const [thumbnails, setThumbnails] = useState<string[]>([]);
 
   const cameraRef = useRef<CameraView>(null);
@@ -105,6 +116,7 @@ export function FieldCaptureSessionScreen({
 
       const img = await processCapture(picture as any);
       setProcessed(img);
+      setCaptureId(randomId());
       setPhase('previewing');
     } catch (err) {
       if (isImageValidationError(err)) {
@@ -140,6 +152,7 @@ export function FieldCaptureSessionScreen({
 
       const img = await processPickerAsset(result.assets[0]);
       setProcessed(img);
+      setCaptureId(randomId());
       setPhase('previewing');
     } catch (err) {
       if (isImageValidationError(err)) {
@@ -165,7 +178,7 @@ export function FieldCaptureSessionScreen({
     // Queue the upload and get straight back to the camera for the next shot —
     // this field joins the backlog on the field list once it's back online.
     if (!isOnline) {
-      await createQueuedFieldUpload(specimenId, magnification, processed.uri);
+      await createQueuedFieldUpload(specimenId, magnification, processed.uri, captureId);
       setProcessed(null);
       setValidationError(null);
       setPhase('idle');
@@ -179,7 +192,13 @@ export function FieldCaptureSessionScreen({
     setPhase('uploading');
     setUploadProgress(0);
 
-    const outcome = await captureField(specimenId, processed, magnification, setUploadProgress);
+    const outcome = await captureField(
+      specimenId,
+      processed,
+      magnification,
+      setUploadProgress,
+      captureId,
+    );
     if (!outcome || outcome.status === 'failed') {
       // A real analysis failure: keep the image, let the MedTech retry the upload
       // without recapturing.
@@ -199,7 +218,7 @@ export function FieldCaptureSessionScreen({
     setMinFields(outcome.field.minFields);
     setCapturedField(outcome.field);
     setPhase('fieldResult');
-  }, [captureField, isOnline, magnification, processed, specimenId]);
+  }, [captureField, captureId, isOnline, magnification, processed, specimenId]);
 
   // ── Field result: Proceed / Discard ──────────────────────────────────────
   const handleProceed = useCallback(async (): Promise<void> => {
