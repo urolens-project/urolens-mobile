@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
@@ -30,6 +31,7 @@ export function NotificationsPreview({
   visible,
   onClose,
 }: NotificationsPreviewProps): React.JSX.Element {
+  const insets = useSafeAreaInsets();
   const notifications = useNotificationsList();
   const { markAllRead } = useNotificationsActions();
   const { openNotification } = useOpenNotification();
@@ -66,7 +68,10 @@ export function NotificationsPreview({
       onRequestClose={onClose}
     >
       <Pressable testID="notifications-preview-backdrop" style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable
+          style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}
+          onPress={() => {}}
+        >
           <View style={styles.header}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>{ALERTS_TEXT.previewTitle}</Text>
@@ -115,7 +120,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.xxl,
     borderTopRightRadius: radius.xxl,
     paddingTop: spacing.lg,
-    paddingBottom: Platform.OS === 'ios' ? spacing.huge : spacing.xxl,
     maxHeight: '70%',
   },
   header: {
