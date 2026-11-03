@@ -1,5 +1,13 @@
 import { useCallback, useState } from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -12,6 +20,7 @@ import { Icon } from '@components/Icon';
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
 import { fetchFieldCounts, useFieldList } from '../hooks/useFieldList';
 import { useSubmitFields } from '../hooks/useSubmitFields';
+import { useCurrentlyUploadingFieldId } from '../hooks/useCurrentlyUploadingFieldId';
 import { getSubmitBlockingReason } from '../lib/submitBlockingReason';
 import type { FieldListItem } from '../types';
 import { SubmitResultModal } from './SubmitResultModal';
@@ -217,10 +226,14 @@ interface FieldRowProps {
 }
 
 function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
+  const uploadingFieldId = useCurrentlyUploadingFieldId();
   const isDiscarded = item.status === 'DISCARDED';
   const isPendingUpload = item.status === 'PENDING_UPLOAD';
   const isAccepted = item.status === 'ACCEPTED';
   const needsDecision = item.status === 'ANALYZED';
+  // True only for the one PENDING_UPLOAD row pushChanges is dispatching right
+  // now — every other queued row is merely waiting its turn in the same loop.
+  const isUploadingNow = isPendingUpload && item.localId === uploadingFieldId;
   // ACCEPTED reopens read-only (view-and-Discard) — see FieldResultScreen's
   // isReadOnly (mobile PR #55 review, 3.7).
   const isOpenable = needsDecision || isAccepted;
@@ -228,6 +241,7 @@ function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
 
   let subtitle = `${item.particleCount} particles`;
   if (isDiscarded) subtitle = item.discardReason ?? FIELD_CAPTURE_TEXT.fieldDiscardedLabel;
+  else if (isUploadingNow) subtitle = FIELD_CAPTURE_TEXT.fieldUploadingNowLabel;
   else if (isPendingUpload) subtitle = FIELD_CAPTURE_TEXT.fieldWaitingToUploadLabel;
   else if (needsDecision) {
     subtitle = item.isReviewed
@@ -251,9 +265,23 @@ function FieldRow({ item, onPress }: FieldRowProps): React.JSX.Element {
         <Text style={styles.rowTitle}>
           Field {item.fieldNo} · {item.magnification}
         </Text>
-        <Text style={[styles.rowSubtitle, needsDecision && styles.rowSubtitleAttention]}>
-          {subtitle}
-        </Text>
+        <View style={styles.rowSubtitleRow}>
+          {isUploadingNow && (
+            <ActivityIndicator
+              size="small"
+              color={colors.indigo800}
+              style={styles.rowSubtitleSpinner}
+            />
+          )}
+          <Text
+            style={[
+              styles.rowSubtitle,
+              (needsDecision || isUploadingNow) && styles.rowSubtitleAttention,
+            ]}
+          >
+            {subtitle}
+          </Text>
+        </View>
       </View>
       {isOpenable && <Icon name="chevron-forward" size={18} color={colors.indigo800} />}
     </TouchableOpacity>
@@ -294,7 +322,9 @@ const styles = StyleSheet.create({
   thumbnailPlaceholder: { backgroundColor: colors.gray200 },
   rowDetails: { flex: 1 },
   rowTitle: { ...typography.label, color: colors.gray900 },
-  rowSubtitle: { ...typography.caption, color: colors.gray500, marginTop: spacing.xxs },
+  rowSubtitleRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xxs },
+  rowSubtitleSpinner: { marginRight: spacing.xxs },
+  rowSubtitle: { ...typography.caption, color: colors.gray500 },
   rowSubtitleAttention: { color: colors.indigo800, fontWeight: fontWeight.semibold },
   footer: {
     padding: spacing.lg,

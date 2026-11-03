@@ -27,6 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { processCapture, processPickerAsset, isImageValidationError } from '@lib/camera/imageUtils';
 import type { ProcessedImage } from '@lib/camera/imageUtils';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { synchronize } from '@db/sync/syncManager';
 import { colors } from '@src/theme';
 
 import { CameraPermissionRequest } from '@features/image-retake/components/CameraPermissionRequest';
@@ -43,8 +44,9 @@ import { LAST_MAGNIFICATION_KEY } from '../constants/magnification.constant';
 import { useFieldCapture } from '../hooks/useFieldCapture';
 import { useFieldActions } from '../hooks/useFieldActions';
 import { useFieldList } from '../hooks/useFieldList';
+import { useCurrentlyUploadingFieldId } from '../hooks/useCurrentlyUploadingFieldId';
 import { createQueuedFieldUpload } from '../lib/saveUploadedField';
-import type { CapturedField, Magnification } from '../types';
+import type { CapturedField, FieldThumbnail, Magnification } from '../types';
 
 function isMagnification(value: string | null): value is Magnification {
   return value === 'HPF' || value === 'LPF';
@@ -95,19 +97,37 @@ export function FieldCaptureSessionScreen({
     visible: false,
     message: '',
   });
+  // Guards against a second gallery tap launching an overlapping batch while one
+  // is still being queued — createQueuedFieldUpload's fieldNo depends on each call
+  // fully completing before the next one starts (see handleBulkGalleryPick).
+  const [isQueuingBulkUpload, setIsQueuingBulkUpload] = useState(false);
   // Read from the local DB rather than kept as local state: capture.tsx remounts this
   // screen on every focus (so a previous session's uploading/previewing state never
   // leaks into a fresh one), which would otherwise reset these back to empty every
   // time a MedTech returns from the field list — even though the fields themselves
   // were never lost.
   const { fields: dbFields, acceptedCount } = useFieldList(specimenId);
+  const uploadingFieldId = useCurrentlyUploadingFieldId();
+  // ACCEPTED fields plus, for a gallery bulk upload, PENDING_UPLOAD ones still
+  // queued in the background — dropped again once analysis finishes (ANALYZED),
+  // same as any other backlog field, decided from the field list instead.
   const thumbnails = useMemo(
-    (): string[] =>
+    (): FieldThumbnail[] =>
       dbFields
-        .filter((f) => f.status === 'ACCEPTED')
-        .map((f) => f.thumbnailUri)
-        .filter((uri): uri is string => uri != null),
-    [dbFields],
+        .filter((f) => (f.status === 'ACCEPTED' || f.status === 'PENDING_UPLOAD') && f.thumbnailUri)
+        .map(
+          (f): FieldThumbnail => ({
+            localId: f.localId,
+            thumbnailUri: f.thumbnailUri as string,
+            status:
+              f.status === 'ACCEPTED'
+                ? 'accepted'
+                : f.localId === uploadingFieldId
+                  ? 'uploading'
+                  : 'waiting',
+          }),
+        ),
+    [dbFields, uploadingFieldId],
   );
   // Seeded from the last sync's server minimum (backend #105) so the counter before
   // this session's own first capture response reflects reality instead of the
@@ -150,8 +170,45 @@ export function FieldCaptureSessionScreen({
     }
   }, []);
 
+  // ── Bulk-queue a gallery multi-select — background upload, no preview ───────
+  const handleBulkGalleryPick = useCallback(
+    async (assets: ImagePicker.ImagePickerAsset[]): Promise<void> => {
+      let queuedCount = 0;
+      let failedCount = 0;
+
+      // Sequential, not Promise.all: createQueuedFieldUpload reads the specimen's
+      // current field count before writing its own row, so two overlapping calls
+      // would both read the same count and collide on fieldNo. Awaiting each one
+      // fully before starting the next keeps field numbers correct.
+      for (const asset of assets) {
+        try {
+          const img = await processPickerAsset(asset);
+          await createQueuedFieldUpload(specimenId, magnification, img.uri, randomId());
+          queuedCount += 1;
+        } catch {
+          // Per-asset validation/processing failure — skip it, keep going; the
+          // summary alert below reports the final counts either way.
+          failedCount += 1;
+        }
+      }
+
+      if (queuedCount > 0 && isOnline) {
+        synchronize().catch((err: unknown): void =>
+          console.error('[FieldCapture] bulk upload kickoff failed', err),
+        );
+      }
+
+      Alert.alert(
+        FIELD_CAPTURE_TEXT.bulkUploadQueuedTitle,
+        FIELD_CAPTURE_TEXT.bulkUploadQueuedMessage(queuedCount, failedCount),
+      );
+    },
+    [isOnline, magnification, specimenId],
+  );
+
   // ── Pick from gallery ─────────────────────────────────────────────────────
   const handleGalleryPick = useCallback(async (): Promise<void> => {
+    if (isQueuingBulkUpload) return;
     setValidationError(null);
 
     try {
@@ -169,6 +226,7 @@ export function FieldCaptureSessionScreen({
         quality: 1,
         allowsEditing: false,
         exif: false,
+        allowsMultipleSelection: true,
         // iOS defaults to .current, returning HEIC assets as-is (expo-image-picker
         // changelog, 37569) — getPickerMimeType only accepts JPEG/PNG, so an
         // unedited iPhone photo would fail format validation. Forcing .automatic
@@ -178,6 +236,18 @@ export function FieldCaptureSessionScreen({
       });
 
       if (result.canceled || !result.assets[0]) return;
+
+      // A single pick keeps today's preview-then-confirm flow unchanged; only a
+      // deliberate multi-select switches to the background bulk path.
+      if (result.assets.length > 1) {
+        setIsQueuingBulkUpload(true);
+        try {
+          await handleBulkGalleryPick(result.assets);
+        } finally {
+          setIsQueuingBulkUpload(false);
+        }
+        return;
+      }
 
       const img = await processPickerAsset(result.assets[0]);
       setProcessed(img);
@@ -190,7 +260,7 @@ export function FieldCaptureSessionScreen({
         setValidationError(IMAGE_RETAKE_TEXT.galleryPickFailedMessage);
       }
     }
-  }, []);
+  }, [handleBulkGalleryPick, isQueuingBulkUpload]);
 
   // ── Upload the field ──────────────────────────────────────────────────────
   const handleUseImage = useCallback(async (): Promise<void> => {

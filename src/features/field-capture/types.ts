@@ -82,6 +82,18 @@ export interface FieldListItem {
   isReviewed: boolean;
 }
 
+/** One thumbnail in the camera screen's thumbnail stack (CameraLiveView) — covers
+ * an accepted field plus, for a gallery bulk upload, one still queued in the
+ * background. */
+export interface FieldThumbnail {
+  /** Local WatermelonDB id of the result_fields row. */
+  localId: string;
+  thumbnailUri: string;
+  /** 'uploading' is the one field pushChanges is dispatching right now (see
+   * useCurrentlyUploadingFieldId); 'waiting' is every other still-queued field. */
+  status: 'uploading' | 'waiting' | 'accepted';
+}
+
 /** UI model for the field a MedTech just captured, ready for Proceed/Discard. */
 export interface CapturedField {
   /** Local WatermelonDB id of the result_fields row — used for all further actions. */
