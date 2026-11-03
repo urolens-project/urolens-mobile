@@ -39,8 +39,12 @@ export const SAMPLE_TEXT = {
   rejectSpecimen: 'Reject Specimen',
 
   capturingFieldsTitle: 'Capturing Fields',
+  // minFields is a minimum, not a cap — once met, say so instead of continuing to
+  // show "X of 10 fields", which reads like a limit once X exceeds it.
   getCapturingFieldsBody(acceptedCount: number, minFields: number): string {
-    return `${acceptedCount} of ${minFields} fields accepted so far. Continue capturing until the minimum is reached, then submit for verification on the website.`;
+    return acceptedCount >= minFields
+      ? `${acceptedCount} fields accepted — minimum of ${minFields} met. Submit for verification on the website when ready.`
+      : `${acceptedCount} of ${minFields} fields accepted so far. Continue capturing until the minimum is reached, then submit for verification on the website.`;
   },
   awaitingWebVerificationTitle: 'Continue on the Website',
   awaitingWebVerificationBody:
