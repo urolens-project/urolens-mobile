@@ -41,7 +41,9 @@ export interface ResultReviewScreenProps {
 }
 
 /**
- * @description Reviews patient context, the microscopy image and AI findings before confirmation.
+ * @description Read-only review of patient context, the microscopy image and AI findings for
+ * a result past the MedTech's own sign-off — confirming, retaking and overriding now happen on
+ * the website (mobile PR #55 review, #3).
  * @param resultId - Server result identifier.
  * @param specimenId - Local specimen identifier used by the queue and capture flow.
  * @param specimen - Optional local patient/sample context for offline review.
@@ -53,8 +55,7 @@ export function ResultReviewScreen({
 }: ResultReviewScreenProps): React.JSX.Element {
   const { isOnline } = useNetworkStatus();
   const insets = useSafeAreaInsets();
-  const { result, aiFindings, isLoading, isConfirming, error, confirmResult } =
-    useResultConfirmation(resultId);
+  const { result, aiFindings, isLoading } = useResultConfirmation(resultId);
   const localRevision = result
     ? JSON.stringify([
         result.status,
@@ -71,16 +72,15 @@ export function ResultReviewScreen({
     error: detailError,
     refresh,
   } = useResultReviewDetail(resultId, localRevision);
-  const isQueuedSubmission = result?.status === 'PENDING_SUPERVISOR_APPROVAL' && !result.isSynced;
-  const status = isQueuedSubmission ? result.status : (detail?.status ?? result?.status ?? '');
-  const canEdit = status === 'PENDING_CONFIRM' || status === 'RETURNED_FOR_CORRECTION';
-  const isReturned = status === 'RETURNED_FOR_CORRECTION';
-  const isBusy = isConfirming;
-  const isConfirmed = !canEdit;
-  let subtitle = RESULT_CONFIRMATION_TEXT.pendingConfirmationSubtitle;
-  if (isReturned) subtitle = RESULT_CONFIRMATION_TEXT.returnedForCorrectionLabel;
-  else if (isConfirmed)
-    subtitle = getSampleStatusLabel(specimen?.status ?? 'PROCESSING', status as `${ResultStatus}`);
+  const status = detail?.status ?? result?.status ?? '';
+  // Confirm, Retake and Override all moved to the website (mobile PR #55 review,
+  // #3): PENDING_CONFIRM/RETURNED_FOR_CORRECTION/IMAGE_RETAKE_REQUESTED/FAILED
+  // never reach this screen (SampleDetailScreen routes them to "Continue on the
+  // website" instead), so every status rendered here is already read-only.
+  const subtitle = getSampleStatusLabel(
+    specimen?.status ?? 'PROCESSING',
+    status as `${ResultStatus}`,
+  );
   const canReject =
     !!specimen && getSampleActions(specimen.status, status as `${ResultStatus}`).canReject;
   const smartDiagnosis =
@@ -88,18 +88,10 @@ export function ResultReviewScreen({
   const isDiagnosisUnavailable =
     detail?.smartDiagnosisUnavailable ?? result?.smartDiagnosisUnavailable ?? false;
 
-  const { handleBack, handleOverride, handleReject, handleRetake, handleConfirm } =
-    useResultReviewActions({
-      resultId,
-      specimenId,
-      result,
-      isOnline,
-      isBusy,
-      canEdit,
-      canReject,
-      isReturned,
-      confirmResult,
-    });
+  const { handleBack, handleReject } = useResultReviewActions({
+    specimenId,
+    canReject,
+  });
 
   if (isLoading)
     return (
@@ -132,7 +124,7 @@ export function ResultReviewScreen({
       {!isOnline && <OfflineBanner />}
       <ResultReviewTitleBar
         topInset={insets.top}
-        isConfirmed={isConfirmed}
+        isConfirmed
         subtitle={subtitle}
         onBack={handleBack}
       />
@@ -144,12 +136,9 @@ export function ResultReviewScreen({
           <RefreshControl
             accessibilityLabel={RESULT_CONFIRMATION_TEXT.refreshAccessibilityLabel}
             refreshing={isDetailLoading}
-            enabled={!isBusy}
             tintColor={colors.teal}
             colors={[colors.teal]}
-            onRefresh={(): void => {
-              if (!isBusy) void refresh();
-            }}
+            onRefresh={(): void => void refresh()}
           />
         }
       >
@@ -174,47 +163,21 @@ export function ResultReviewScreen({
           </Text>
         )}
         <ResultImagePanel key={detail?.imageUrl} imageUrl={detail?.imageUrl ?? null} />
-        <AIFindingsPanel
-          resultId={resultId}
-          findings={detail?.aiFindings ?? aiFindings}
-          onOverride={handleOverride}
-          isConfirmed={!canEdit || isBusy}
-        />
+        <AIFindingsPanel resultId={resultId} findings={detail?.aiFindings ?? aiFindings} />
         <SmartDiagnosisPanel
           smartDiagnosis={smartDiagnosis}
           unavailable={isDiagnosisUnavailable}
           emptyMessage={diagnosisMessage}
-          isPreview={canEdit || isQueuedSubmission}
         />
         {canReject && (
-          <Pressable
-            style={[styles.rejectButton, isBusy && styles.rejectButtonDisabled]}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isBusy }}
-            disabled={isBusy}
-            onPress={handleReject}
-          >
+          <Pressable style={styles.rejectButton} accessibilityRole="button" onPress={handleReject}>
             <Text style={styles.rejectButtonText}>
               {RESULT_CONFIRMATION_TEXT.rejectSpecimenLabel}
             </Text>
           </Pressable>
         )}
-        {error && (
-          <Text accessibilityRole="alert" style={styles.errorText}>
-            {error}
-          </Text>
-        )}
       </ScrollView>
-      <ResultReviewActionBar
-        bottomInset={insets.bottom}
-        isOnline={isOnline}
-        isConfirmed={isConfirmed}
-        isConfirming={isBusy}
-        isReturned={isReturned}
-        onRetake={handleRetake}
-        onConfirm={handleConfirm}
-        onContinue={handleBack}
-      />
+      <ResultReviewActionBar bottomInset={insets.bottom} onContinue={handleBack} />
     </View>
   );
 }
@@ -244,7 +207,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.red200,
   },
-  rejectButtonDisabled: { opacity: 0.5 },
   rejectButtonText: { ...typography.title, color: colors.red700 },
   errorText: { ...typography.body, color: colors.red700, padding: spacing.lg },
 });

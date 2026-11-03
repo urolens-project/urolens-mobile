@@ -4,12 +4,10 @@ import { field } from '@nozbe/watermelondb/decorators';
 import type { ResultStatus as ResultStatusEnum } from '@app-types/enums';
 
 // Derived from the canonical enum (@app-types/enums), which matches the
-// backend's ResultStatus exactly (analysis_result.py's ResultStatus). This
-// used to declare two extra values here — IMAGE_RETAKE_REQUESTED and
-// FAILED — that were never read, written, or synced anywhere, and that the
-// backend enum doesn't have (writing either would be rejected by its
-// Postgres enum constraint). Removed rather than documented as
-// intentionally-local, since nothing ever used them either way.
+// backend's ResultStatus exactly (analysis_result.py's ResultStatus),
+// including IMAGE_RETAKE_REQUESTED and FAILED — a legacy single-image result
+// can sit in either, and mobile PR #55 review (#3) found the backend still
+// has both.
 export type ResultStatus = `${ResultStatusEnum}`;
 
 export interface AIFindings {

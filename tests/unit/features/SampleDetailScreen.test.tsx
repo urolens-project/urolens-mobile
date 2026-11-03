@@ -3,7 +3,6 @@ import { Alert } from 'react-native';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import SampleDetailRoute from '../../../app/(medtech)/sample/[id]';
 import { database } from '@db/database';
-import { useConfirmAction } from '@features/result-confirmation/hooks/useConfirmAction';
 import { startAnalysis } from '@features/queue/lib/startAnalysis';
 
 const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
@@ -23,9 +22,6 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 jest.mock('@db/database', () => ({ database: { get: jest.fn() } }));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: () => ({ isOnline: true }) }));
-jest.mock('@features/result-confirmation/hooks/useConfirmAction', () => ({
-  useConfirmAction: jest.fn(),
-}));
 jest.mock('@features/queue/lib/startAnalysis', () => ({ startAnalysis: jest.fn() }));
 jest.mock('@features/result-confirmation/hooks/useResultReviewDetail', () => ({
   useResultReviewDetail: () => ({
@@ -143,16 +139,9 @@ async function openScreen(setup: DbSetup = {}, params = { id: 'spec-1' } as type
   return view;
 }
 
-const mockConfirm = jest.fn();
-
 beforeEach(() => {
   jest.clearAllMocks();
   mockParams = {};
-  (useConfirmAction as jest.Mock).mockReturnValue({
-    confirmResult: mockConfirm,
-    isConfirming: false,
-    error: null,
-  });
   (startAnalysis as jest.Mock).mockResolvedValue({ started: true });
 });
 
@@ -188,7 +177,6 @@ describe('read-only reports', (): void => {
       expect(view.queryByText('Retake Image')).toBeNull();
       expect(view.queryByText('Reject Specimen')).toBeNull();
       expect(view.queryByLabelText('Annotation notes')).toBeNull();
-      expect(mockConfirm).not.toHaveBeenCalled();
       expect(mockRouter.push).not.toHaveBeenCalled();
     },
   );
@@ -201,16 +189,16 @@ describe('read-only reports', (): void => {
     expect(view.queryByText('Read-only report')).toBeNull();
   });
 
-  it('opens the editable review when the same report result is later opened from Queue', async (): Promise<void> => {
+  it('shows "Continue on the Website" when the same report result is later opened from Queue', async (): Promise<void> => {
     const view = await openScreen({ result: makeResult() }, { id: 'spec-1', readOnly: 'true' });
     expect(view.getByText('Read-only report')).toBeTruthy();
 
     mockParams = { id: 'spec-1' };
     view.rerender(<SampleDetailRoute />);
 
-    await view.findByText('Analysis Result');
-    expect(view.getByText('Confirm Result')).toBeTruthy();
-    expect(view.getByText('Retake Image')).toBeTruthy();
+    await view.findByText('Continue on the Website');
+    expect(view.queryByText('Confirm Result')).toBeNull();
+    expect(view.queryByText('Retake Image')).toBeNull();
     expect(view.queryByText('Read-only report')).toBeNull();
   });
 });
@@ -326,53 +314,6 @@ describe('Reject Specimen', () => {
   });
 });
 
-// ── Bug 3: error alerts ──────────────────────────────────────────────────────
-
-describe('confirming a result', () => {
-  it('alerts with the actual reason it failed, not a generic fallback', async () => {
-    mockConfirm.mockResolvedValue({
-      status: 'failed',
-      message: "This specimen was rejected, so its result can't be confirmed.",
-    });
-    const view = await openScreen({ result: makeResult() });
-
-    fireEvent.press(view.getByText('Confirm Result'));
-
-    await waitFor(() =>
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Confirmation Failed',
-        "This specimen was rejected, so its result can't be confirmed.",
-      ),
-    );
-  });
-
-  it('does not alert when a double-tap is ignored because one is already running', async () => {
-    mockConfirm.mockResolvedValue({ status: 'busy' });
-    const view = await openScreen({ result: makeResult() });
-
-    fireEvent.press(view.getByText('Confirm Result'));
-
-    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
-    expect(Alert.alert).not.toHaveBeenCalled();
-  });
-
-  it('reports success and returns to the Confirmation Queue', async () => {
-    mockConfirm.mockResolvedValue({ status: 'confirmed' });
-    const view = await openScreen({ result: makeResult() });
-
-    fireEvent.press(view.getByText('Confirm Result'));
-
-    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
-    await waitFor(() =>
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Result Confirmed',
-        expect.stringContaining('submitted for supervisor approval'),
-      ),
-    );
-    expect(mockRouter.replace).toHaveBeenCalledWith('/(medtech)/queue');
-  });
-});
-
 // ── Bug 4: state when the screen is reused ───────────────────────────────────
 
 describe('when the screen is re-used for another sample', () => {
@@ -460,38 +401,6 @@ describe('when the screen is re-used for another sample', () => {
   });
 });
 
-// ── Bug 5: retake and overrides ──────────────────────────────────────────────
-
-describe('Retake Image', () => {
-  it("warns before discarding the MedTech's overrides", async () => {
-    const view = await openScreen({
-      result: makeResult(),
-      overrides: [{ parameter: 'wbc', correctedValue: 5 }],
-    });
-
-    fireEvent.press(view.getByText('Retake Image'));
-
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Discard Overrides?',
-      expect.stringContaining('manual overrides will be removed'),
-      expect.any(Array),
-    );
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('goes straight to capture when there are no overrides', async () => {
-    const view = await openScreen({ result: makeResult() });
-
-    fireEvent.press(view.getByText('Retake Image'));
-
-    expect(Alert.alert).not.toHaveBeenCalled();
-    expect(mockRouter.push).toHaveBeenCalledWith({
-      pathname: '/(medtech)/capture',
-      params: { specimenId: 'srv-spec-1', localSpecimenId: 'spec-1', existingImageId: 'img-1' },
-    });
-  });
-});
-
 // ── Bug 6: escalated results ─────────────────────────────────────────────────
 
 describe('an escalated result', () => {
@@ -509,15 +418,41 @@ describe('an escalated result', () => {
 // ── Returned / status label ──────────────────────────────────────────────────
 
 describe('a result returned for correction', () => {
-  it('shows the banner and offers Retake and Reject', async () => {
+  // Status rule (mobile PR #55 review, #3): RETURNED_FOR_CORRECTION now sends the
+  // MedTech to the website, legacy or multi-field alike — no more Confirm/Retake on mobile.
+  it('shows "Continue on the Website" and still offers Reject', async () => {
     const view = await openScreen({ result: makeResult({ status: 'RETURNED_FOR_CORRECTION' }) });
 
-    expect(view.getAllByText('Returned for Correction').length).toBeGreaterThan(0);
-    expect(view.getByText('Re-confirm & Submit')).toBeTruthy();
-    expect(view.getByText('Retake Image')).toBeTruthy();
+    expect(view.getByText('Continue on the Website')).toBeTruthy();
+    expect(view.queryByText('Re-confirm & Submit')).toBeNull();
+    expect(view.queryByText('Retake Image')).toBeNull();
     expect(view.queryByText('Confirm Result')).toBeNull();
     expect(view.getByText('Reject Specimen')).toBeTruthy();
   });
+
+  it("shows the supervisor's return reason when there is one", async () => {
+    const view = await openScreen({
+      result: makeResult({ status: 'RETURNED_FOR_CORRECTION', returnReason: 'Blurry image' }),
+    });
+
+    expect(view.getByText('Continue on the Website')).toBeTruthy();
+    expect(view.getByText(/Blurry image/)).toBeTruthy();
+  });
+});
+
+// ── Decision #3: legacy statuses the backend still has ──────────────────────
+
+describe('legacy single-image statuses (mobile PR #55 review, #3)', () => {
+  it.each(['IMAGE_RETAKE_REQUESTED', 'FAILED'])(
+    'sends a %s result to the website, like PENDING_CONFIRM and RETURNED_FOR_CORRECTION',
+    async (status) => {
+      const view = await openScreen({ result: makeResult({ status }) });
+
+      expect(view.getByText('Continue on the Website')).toBeTruthy();
+      expect(view.queryByText('Confirm Result')).toBeNull();
+      expect(view.queryByText('Retake Image')).toBeNull();
+    },
+  );
 });
 
 describe('the Status row', () => {
@@ -539,9 +474,14 @@ describe('the Status row', () => {
 
 // ── Bug 7: overrides ─────────────────────────────────────────────────────────
 
+// These results are PENDING_SUPERVISOR_APPROVAL (not PENDING_CONFIRM): past the
+// MedTech's own sign-off, so they reach the review screen rather than the
+// "Continue on the Website" card (mobile PR #55 review, #3).
 describe('AI Findings', () => {
   it('shows the AI counts as reported when nothing was overridden', async () => {
-    const view = await openScreen({ result: makeResult() });
+    const view = await openScreen({
+      result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL' }),
+    });
     expect(view.getByText('wbc')).toBeTruthy();
     expect(view.getByText('12')).toBeTruthy();
     expect(view.queryByText(/Overridden/)).toBeNull();
@@ -549,7 +489,7 @@ describe('AI Findings', () => {
 
   it('marks a corrected value as overridden and keeps the AI value visible', async () => {
     const view = await openScreen({
-      result: makeResult(),
+      result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL' }),
       overrides: [{ parameter: 'wbc', correctedValue: 5 }],
     });
 
@@ -560,7 +500,7 @@ describe('AI Findings', () => {
 
   it('keeps a parameter overridden to zero, and still shows the findings card', async () => {
     const view = await openScreen({
-      result: makeResult({ aiFindings: { bacteria: 4 } }),
+      result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL', aiFindings: { bacteria: 4 } }),
       overrides: [{ parameter: 'bacteria', correctedValue: 0 }],
     });
 
@@ -569,8 +509,10 @@ describe('AI Findings', () => {
     expect(view.queryByText('No particles detected.')).toBeNull();
   });
 
-  it('says "No particles detected." when there is nothing to list', async () => {
-    const view = await openScreen({ result: makeResult({ aiFindings: {} }) });
+  it('says "No particles detected" when there is nothing to list', async () => {
+    const view = await openScreen({
+      result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL', aiFindings: {} }),
+    });
     expect(view.getByText('No particles detected')).toBeTruthy();
   });
 });
@@ -585,13 +527,13 @@ describe('Smart Diagnosis', () => {
     no_significant_indicators: true,
   };
 
-  it('explains that a missing preview will be recalculated on confirmation', async () => {
+  // PENDING_CONFIRM now sends the MedTech straight to "Continue on the Website"
+  // (mobile PR #55 review, #3) — there's no Smart Diagnosis section to show here;
+  // the preview-unavailable message only ever applied to the old Confirm screen.
+  it('shows no Smart Diagnosis section for a result awaiting the website', async () => {
     const view = await openScreen({ result: makeResult({ status: 'PENDING_CONFIRM' }) });
-    expect(
-      view.getByText(
-        'Smart Diagnosis preview is unavailable. It will be recalculated when you confirm this result.',
-      ),
-    ).toBeTruthy();
+    expect(view.getByText('Continue on the Website')).toBeTruthy();
+    expect(view.queryByText(/Smart Diagnosis preview is unavailable/)).toBeNull();
     expect(view.queryByText('Diagnosis unavailable')).toBeNull();
   });
 
@@ -642,7 +584,7 @@ describe('Smart Diagnosis', () => {
 
 describe('the result-review route (resultId param)', () => {
   it('shows the review screen', async () => {
-    setupDb({ result: makeResult() });
+    setupDb({ result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL' }) });
     mockParams = { id: 'spec-1', resultId: 'srv-res-1' };
     const view = render(<SampleDetailRoute />);
     await view.findByText('Analysis Result');

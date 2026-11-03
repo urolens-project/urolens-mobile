@@ -8,18 +8,26 @@ import { throwIfSyncCancelled } from './syncCancellation';
 
 const LEGACY_QUEUE_DRAINED_KEY = 'urolens_legacy_queue_drained_v1';
 
+// Set by pullChanges the first time a pull response contains the
+// changes.resultFields key — present only while the backend's
+// FIELD_WORKFLOW_ENABLED flag is on. Gates the drain below (mobile PR #55
+// review, 1.3): running it against a server that still has the flag off would
+// mark actions FAILED that server would still have accepted.
+export const FIELD_WORKFLOW_SEEN_KEY = 'urolens_field_workflow_seen';
+
 // Retired by the multi-field capture workflow: CONFIRM_RESULT and
 // OVERRIDE_PARAMETER move to the web verification workspace, and
 // DISCARD_IMAGE's route answers 410 APP_UPDATE_REQUIRED. A phone that queued
 // one of these before updating would otherwise retry it forever against a
 // route that will never again accept it.
-const RETIRED_ACTIONS: PendingSyncAction[] = [
+export const RETIRED_ACTIONS: PendingSyncAction[] = [
   PendingSyncAction.CONFIRM_RESULT,
   PendingSyncAction.OVERRIDE_PARAMETER,
   PendingSyncAction.DISCARD_IMAGE,
 ];
 
-const RETIRED_REASON = 'Replaced by the field workflow. Continue this sample on the website.';
+export const RETIRED_REASON =
+  'Replaced by the field workflow. Continue this sample on the website.';
 
 /**
  * @description One-time, run before the first sync of a new app version (SDD Module 2
@@ -32,6 +40,10 @@ const RETIRED_REASON = 'Replaced by the field workflow. Continue this sample on 
  */
 export async function drainLegacyQueuedActions(signal?: AbortSignal): Promise<void> {
   throwIfSyncCancelled(signal);
+  const fieldWorkflowSeen = await AsyncStorage.getItem(FIELD_WORKFLOW_SEEN_KEY);
+  throwIfSyncCancelled(signal);
+  if (!fieldWorkflowSeen) return;
+
   const alreadyDrained = await AsyncStorage.getItem(LEGACY_QUEUE_DRAINED_KEY);
   throwIfSyncCancelled(signal);
   if (alreadyDrained) return;

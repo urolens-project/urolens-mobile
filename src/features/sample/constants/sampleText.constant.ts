@@ -9,11 +9,9 @@ export const SAMPLE_TEXT = {
   noParticlesDetected: 'No particles detected.',
   noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
 
-  confirmationFailedTitle: 'Confirmation Failed',
   notSyncedTitle: 'Not Synced',
   specimenNotSyncedMessage:
     'This specimen has not been synced with the server yet. Please wait or pull to refresh.',
-  retakeNotSyncedMessage: 'Specimen has not synced yet. Please wait.',
   cannotBeginAnalysisTitle: 'Cannot Begin Analysis',
 
   specimenRejectedTitle: 'Specimen Rejected',
@@ -43,11 +41,6 @@ export const SAMPLE_TEXT = {
   awaitingWebVerificationTitle: 'Continue on the Website',
   awaitingWebVerificationBody:
     'This result has been submitted and is checked and confirmed on the website, not on the phone.',
-
-  confirmResult: 'Confirm Result',
-  confirmAnalysisResultAccessibilityLabel: 'Confirm analysis result',
-  retakeImage: 'Retake Image',
-  retakeImageAccessibilityLabel: 'Retake image',
 
   patientSampleTitle: 'Patient & Sample',
   patientUidLabel: 'Patient UID',

@@ -13,14 +13,6 @@ const STATUS_RANK: Record<QueueStatus, number> = {
   VERIFYING: 4,
 };
 
-// A result only ever gets a field_count once the multi-field capture flow has
-// touched it (see saveUploadedField.ts); null/0 means either no result yet or
-// a legacy single-image one, which the Queue continues to treat exactly as
-// before (SDD Module 2 proposal, section 2.1).
-function isMultiField(item: Pick<QueueItem, 'fieldCount'>): boolean {
-  return !!item.fieldCount && item.fieldCount > 0;
-}
-
 /**
  * @description The one status a Queue sample counts as. Every active sample is exactly
  * one of these, and the card badge, the stats counts, the status filters and the sort
@@ -34,20 +26,25 @@ function isMultiField(item: Pick<QueueItem, 'fieldCount'>): boolean {
  *     status CAPTURING is unambiguous, it never applies to a legacy result.
  *  3. PROCESSING — the MedTech has begun (legacy) analysis.
  *  4. ASSIGNED — waiting to be started.
- *  5. VERIFYING — a multi-field result has been submitted and is awaiting the
- *     MedTech's check on the website; nothing to do here on mobile. Submit can also
- *     reply RETURNED_FOR_CORRECTION (backend #102, when the result answers an
- *     already-open return) — that still ranks as RETURNED, not here.
+ *  5. VERIFYING — the result is waiting on a check on the website, multi-field or
+ *     legacy single-image alike (mobile PR #55 review, #3): PENDING_CONFIRM,
+ *     IMAGE_RETAKE_REQUESTED and FAILED all land here regardless of field count,
+ *     since confirming/retaking/overriding all happen on the website now, not on
+ *     mobile. Submit can also reply RETURNED_FOR_CORRECTION (backend #102, when the
+ *     result answers an already-open return) — that still ranks as RETURNED, not here.
  * Anything else has no Queue status.
- * @param item - The specimen's status, correction flag, result status and field count.
+ * @param item - The specimen's status, correction flag and result status.
  */
 export function getQueueStatus(
-  item: Pick<QueueItem, 'status' | 'isReturnedForCorrection' | 'resultStatus' | 'fieldCount'>,
+  item: Pick<QueueItem, 'status' | 'isReturnedForCorrection' | 'resultStatus'>,
 ): QueueStatus | null {
   if (item.resultStatus === 'CAPTURING') return 'CAPTURING';
   if (item.isReturnedForCorrection) return 'RETURNED';
-  const multiFieldAwaitingWeb = isMultiField(item) && item.resultStatus === 'PENDING_CONFIRM';
-  if (multiFieldAwaitingWeb) return 'VERIFYING';
+  const awaitingWeb =
+    item.resultStatus === 'PENDING_CONFIRM' ||
+    item.resultStatus === 'IMAGE_RETAKE_REQUESTED' ||
+    item.resultStatus === 'FAILED';
+  if (awaitingWeb) return 'VERIFYING';
   if (item.status === 'PROCESSING') return 'PROCESSING';
   if (item.status === 'ASSIGNED') return 'ASSIGNED';
   return null;
@@ -64,10 +61,7 @@ function receivedTime(item: Pick<QueueItem, 'receivedAt'>): number {
  * @param items - Queue items to order; only status-related fields are read.
  */
 export function orderByStatus<
-  T extends Pick<
-    QueueItem,
-    'status' | 'isReturnedForCorrection' | 'resultStatus' | 'fieldCount' | 'receivedAt'
-  >,
+  T extends Pick<QueueItem, 'status' | 'isReturnedForCorrection' | 'resultStatus' | 'receivedAt'>,
 >(items: T[]): T[] {
   const rank = (item: T): number => {
     const status = getQueueStatus(item);

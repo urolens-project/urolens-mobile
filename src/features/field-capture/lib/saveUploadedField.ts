@@ -106,6 +106,7 @@ function toCapturedField(
     localImageUri,
     acceptedFieldCount: data.acceptedFieldCount,
     minFields: data.minFields,
+    isAwaitingBoxes: false,
   };
 }
 

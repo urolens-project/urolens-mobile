@@ -27,6 +27,10 @@ export function useFieldDetail(
 ): UseFieldDetailResult {
   const [record, setRecord] = useState<ResultField | null>(null);
   const [detectionsJson, setDetectionsJson] = useState<string>('[]');
+  // Distinct from detectionsJson: a field with real but empty boxes also ends up
+  // with '[]', so only "no row at all" means boxes have never reached this device
+  // (mobile PR #55 review, 1.2/3.14).
+  const [hasDetectionsRow, setHasDetectionsRow] = useState(false);
 
   useEffect((): (() => void) => {
     setRecord(null);
@@ -43,7 +47,10 @@ export function useFieldDetail(
       .query(Q.where('field_id', localFieldId))
       .observe()
       .subscribe({
-        next: (records) => setDetectionsJson(records[0]?.detectionsJson ?? '[]'),
+        next: (records) => {
+          setDetectionsJson(records[0]?.detectionsJson ?? '[]');
+          setHasDetectionsRow(records.length > 0);
+        },
         error: (err: unknown) => console.error('[FieldDetail]', err),
       });
 
@@ -62,6 +69,16 @@ export function useFieldDetail(
     detections = [];
   }
 
+  // A field captured on another phone, or before a reinstall, has a server id but
+  // neither a local image nor cached boxes — it must never look like a field with
+  // no detections (mobile PR #55 review, 1.2/3.14). PENDING_UPLOAD fields always
+  // have their own local image, so this never fires for one.
+  const isAwaitingBoxes =
+    !!record.serverId &&
+    !hasDetectionsRow &&
+    !record.localImageUri &&
+    record.status !== 'PENDING_UPLOAD';
+
   return {
     field: {
       localId: record.id,
@@ -77,6 +94,7 @@ export function useFieldDetail(
       localImageUri: record.localImageUri ?? '',
       acceptedFieldCount,
       minFields,
+      isAwaitingBoxes,
     },
     isLoading: false,
   };

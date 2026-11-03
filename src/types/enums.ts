@@ -32,6 +32,12 @@ export enum ResultStatus {
   RELEASED = 'RELEASED',
   RETURNED_FOR_CORRECTION = 'RETURNED_FOR_CORRECTION',
   CRITICAL_ESCALATED = 'CRITICAL_ESCALATED',
+  // Legacy single-image statuses (analysis_result.py's ResultStatus still has
+  // both). A legacy result can sit in either; mobile only needs to recognize
+  // them to show "Continue on the website" (mobile PR #55 review, #3) — both
+  // confirming and retaking now happen on the website, not the phone.
+  IMAGE_RETAKE_REQUESTED = 'IMAGE_RETAKE_REQUESTED',
+  FAILED = 'FAILED',
 }
 
 export enum RejectionReason {
