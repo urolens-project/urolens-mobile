@@ -21,6 +21,7 @@ import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
 import { fetchFieldCounts, useFieldList } from '../hooks/useFieldList';
 import { useSubmitFields } from '../hooks/useSubmitFields';
 import { useCurrentlyUploadingFieldId } from '../hooks/useCurrentlyUploadingFieldId';
+import { resyncAfterSubmitRefusal } from '../lib/resyncAfterSubmitRefusal';
 import { getSubmitBlockingReason } from '../lib/submitBlockingReason';
 import type { FieldListItem } from '../types';
 import { SubmitResultModal } from './SubmitResultModal';
@@ -37,11 +38,6 @@ interface SubmitResultState {
   title: string;
   message: string;
 }
-
-/** Error codes where the phone and server disagree on field state (the server
- * has a field the phone is missing) — sync first so the server's message lines
- * up with what the field list then shows (N8 field-post-analysis-report, Bug 2). */
-const SYNC_ON_SUBMIT_ERROR_CODES = new Set(['FIELDS_UNDECIDED', 'FIELDS_BELOW_MINIMUM']);
 
 /**
  * @description Lists a specimen's captured fields with their status, and gates Submit
@@ -130,13 +126,7 @@ export function FieldListScreen({
     const ok = await submitFields(resultServerId);
     if (!ok) {
       const submitError = getError();
-      if (submitError?.code && SYNC_ON_SUBMIT_ERROR_CODES.has(submitError.code)) {
-        try {
-          await synchronizeAfterCurrent();
-        } catch (syncErr) {
-          console.error('[FieldListScreen]', syncErr);
-        }
-      }
+      await resyncAfterSubmitRefusal(submitError);
       setSubmitResult({
         visible: true,
         variant: 'error',

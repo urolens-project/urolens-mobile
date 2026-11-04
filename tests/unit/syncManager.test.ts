@@ -46,6 +46,7 @@ jest.mock('@lib/auth/tokenStorage', () => ({
 // Fresh module + fresh mock instances per test (resets isSyncing = false)
 let synchronize: () => Promise<void>;
 let synchronizeAfterCurrent: () => Promise<void>;
+let requestFullPull: () => Promise<void>;
 let getIsSyncing: () => boolean;
 let mockPull: jest.Mock;
 let mockPush: jest.Mock;
@@ -72,6 +73,7 @@ beforeEach(() => {
   ({
     synchronize,
     synchronizeAfterCurrent,
+    requestFullPull,
     getIsSyncing,
     getSyncStatus,
     subscribeSyncStatus,
@@ -225,6 +227,18 @@ describe('synchronize', () => {
 
 // Submit for Verification needs a pull that started after it asked: a cycle already
 // running (uploads draining) may have pulled before the server changed.
+describe('requestFullPull', () => {
+  it('makes the next sync pull everything and then clears the request', async () => {
+    stored[LAST_SYNC_KEY] = '2026-05-25T00:00:00Z';
+
+    await requestFullPull();
+    await synchronize();
+
+    expect(mockPull).toHaveBeenCalledWith(null, expect.anything());
+    expect(stored[FULL_PULL_NEEDED_KEY]).toBeUndefined();
+  });
+});
+
 describe('synchronizeAfterCurrent', () => {
   it('runs a sync straight away when none is running', async () => {
     await synchronizeAfterCurrent();
