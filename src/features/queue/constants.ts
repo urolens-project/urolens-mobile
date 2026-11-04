@@ -70,13 +70,16 @@ export const QUEUE_STATUS_STYLES: Record<QueueStatus, QueueStatusStyle> = {
 export interface QueueStatsTile {
   status: QueueStatus;
   label: string;
-  key: 'assigned' | 'inProgress' | 'returned';
+  key: 'assigned' | 'inProgress' | 'capturing' | 'returned';
 }
 
 // Order the Queue Stats tiles render in — one per status, most-attention-first.
+// No Verify on Website tile: there's nothing left to do on the phone for those
+// samples, so it isn't counted as work here (mobile-queue-status-n8, Q4).
 export const QUEUE_STATS_TILES: QueueStatsTile[] = [
   { status: 'ASSIGNED', label: 'Assigned', key: 'assigned' },
   { status: 'PROCESSING', label: 'In Progress', key: 'inProgress' },
+  { status: 'CAPTURING', label: 'Capturing', key: 'capturing' },
   { status: 'RETURNED', label: 'Returned', key: 'returned' },
 ];
 
@@ -117,15 +120,18 @@ export const DATE_SUB_FILTERS: DateSubFilter[] = [
 ];
 
 export interface StatusSubFilter {
-  key: Extract<FilterOption, 'ASSIGNED' | 'PROCESSING' | 'RETURNED'>;
+  key: Extract<FilterOption, 'ASSIGNED' | 'PROCESSING' | 'CAPTURING' | 'VERIFYING' | 'RETURNED'>;
   label: string;
   color: string;
   bg: string;
 }
 
-// The Status group's sub-chips, in the Filter Bar — same colors as QUEUE_STATUS_STYLES.
+// The Status group's sub-chips, in the Filter Bar — one per Queue status, same order
+// and colors as QUEUE_STATUS_STYLES/the sort order (most-attention-first).
 export const STATUS_SUB_FILTERS: StatusSubFilter[] = [
-  { key: 'ASSIGNED', label: 'Assigned', color: colors.teal, bg: colors.tealTint },
-  { key: 'PROCESSING', label: 'In Progress', color: colors.violet600, bg: colors.violet100 },
   { key: 'RETURNED', label: 'Returned', color: colors.amber600, bg: colors.amber100 },
+  { key: 'CAPTURING', label: 'Capturing', color: colors.indigo800, bg: colors.indigo100 },
+  { key: 'PROCESSING', label: 'In Progress', color: colors.violet600, bg: colors.violet100 },
+  { key: 'ASSIGNED', label: 'Assigned', color: colors.teal, bg: colors.tealTint },
+  { key: 'VERIFYING', label: 'Verify on Website', color: colors.blueAlt, bg: colors.blue50 },
 ];

@@ -1,7 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { colors, radius, typography } from '@src/theme';
+import { radius } from '@src/theme';
 
+import { getParticleColor } from '../lib/particleColor';
 import type { Detection } from '../types';
 
 export interface DetectionOverlayProps {
@@ -13,6 +14,9 @@ export interface DetectionOverlayProps {
  * editing is a web-only action in the multi-field workflow (SDD Module 2 proposal,
  * section 3.4). Boxes are percent (0-100) of the image, so this overlay must be
  * rendered as an absolutely-positioned sibling of an Image sized to its container.
+ * Hollow outline, no fill, no label — identification is the color legend's job
+ * (ParticleLegend), since a crowded field makes inline labels illegible anyway
+ * (field-post-analysis-report.md, Section 2 items 1-2).
  * @param detections - AI boxes for the currently displayed field.
  */
 export function DetectionOverlay({ detections }: DetectionOverlayProps): React.JSX.Element {
@@ -28,13 +32,10 @@ export function DetectionOverlay({ detections }: DetectionOverlayProps): React.J
               top: `${detection.y}%`,
               width: `${detection.w}%`,
               height: `${detection.h}%`,
+              borderColor: getParticleColor(detection.particleType),
             },
           ]}
-        >
-          <Text style={styles.label} numberOfLines={1}>
-            {detection.particleType}
-          </Text>
-        </View>
+        />
       ))}
     </View>
   );
@@ -45,14 +46,7 @@ const styles = StyleSheet.create({
   box: {
     position: 'absolute',
     borderWidth: 1.5,
-    borderColor: colors.tealAlt,
     borderRadius: radius.xs,
-  },
-  label: {
-    ...typography.tiny,
-    color: colors.white,
-    backgroundColor: colors.tealAlt,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 3,
+    backgroundColor: 'transparent',
   },
 });

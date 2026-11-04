@@ -201,6 +201,26 @@ describe('read-only reports', (): void => {
     expect(view.queryByText('Retake Image')).toBeNull();
     expect(view.queryByText('Read-only report')).toBeNull();
   });
+
+  it('shows the Approved by Supervisor banner in the Approved report section', async () => {
+    const view = await openScreen(
+      { result: makeResult({ status: 'APPROVED' }) },
+      { id: 'spec-1', readOnly: 'true' },
+    );
+    expect(view.getByText('Approved by Supervisor')).toBeTruthy();
+    expect(
+      view.getByText('This result has been reviewed and approved. It is ready for release.'),
+    ).toBeTruthy();
+  });
+
+  it('shows the Result Released banner, not the Approved one, in the Released report section', async () => {
+    const view = await openScreen(
+      { result: makeResult({ status: 'RELEASED' }) },
+      { id: 'spec-1', readOnly: 'true' },
+    );
+    expect(view.getByText('Result Released')).toBeTruthy();
+    expect(view.queryByText('Approved by Supervisor')).toBeNull();
+  });
 });
 
 // ── Bug 1: Begin Analysis ────────────────────────────────────────────────────
@@ -514,6 +534,26 @@ describe('AI Findings', () => {
       result: makeResult({ status: 'PENDING_SUPERVISOR_APPROVAL', aiFindings: {} }),
     });
     expect(view.getByText('No particles detected')).toBeTruthy();
+  });
+
+  it('notes the counts are per-field averages for a multi-field result', async () => {
+    const view = await openScreen(
+      { result: makeResult({ status: 'APPROVED', fieldCount: 4 }) },
+      { id: 'spec-1', readOnly: 'true' },
+    );
+    expect(
+      view.getByText('Values shown are the average particle count across all captured fields.'),
+    ).toBeTruthy();
+  });
+
+  it('does not show the average note for a legacy single-image result', async () => {
+    const view = await openScreen(
+      { result: makeResult({ status: 'APPROVED' }) },
+      { id: 'spec-1', readOnly: 'true' },
+    );
+    expect(
+      view.queryByText('Values shown are the average particle count across all captured fields.'),
+    ).toBeNull();
   });
 });
 

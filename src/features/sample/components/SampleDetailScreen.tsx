@@ -230,6 +230,7 @@ export function SampleDetailScreen({
       })
     : 'PREVIEW_UNAVAILABLE';
   const findingRows = buildFindingRows(analysisResult?.aiFindings ?? {}, overrides);
+  const isMultiFieldResult = !!analysisResult?.fieldCount;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -282,7 +283,12 @@ export function SampleDetailScreen({
                 <Text style={styles.sectionSubTitle}>{SAMPLE_TEXT.aiFindingsSectionTitle}</Text>
               </View>
               {findingRows.length > 0 ? (
-                <AIFindingsSection rows={findingRows} />
+                <>
+                  <AIFindingsSection rows={findingRows} />
+                  {isMultiFieldResult && (
+                    <Text style={styles.averageNoteText}>{SAMPLE_TEXT.aiFindingsAverageNote}</Text>
+                  )}
+                </>
               ) : (
                 <Text style={styles.emptyResultText}>{SAMPLE_TEXT.noParticlesDetected}</Text>
               )}
@@ -410,6 +416,12 @@ const styles = StyleSheet.create({
     color: colors.gray700,
   },
   emptyResultText: { ...typography.body, color: colors.gray500, lineHeight: 18 },
+  averageNoteText: {
+    ...typography.caption,
+    color: colors.gray400,
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
+  },
 
   notFoundText: { fontSize: 17, color: colors.warmGray600, marginBottom: spacing.lg },
   backBtn: {

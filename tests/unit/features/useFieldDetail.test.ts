@@ -24,6 +24,7 @@ interface MockField {
   smartDiagnosis: Record<string, unknown> | null;
   smartDiagnosisUnavailable: boolean;
   localImageUri: string | null;
+  isReviewed: boolean;
 }
 
 function mockField(overrides: Partial<MockField> = {}): MockField {
@@ -39,6 +40,7 @@ function mockField(overrides: Partial<MockField> = {}): MockField {
     smartDiagnosis: null,
     smartDiagnosisUnavailable: true,
     localImageUri: null,
+    isReviewed: false,
     ...overrides,
   };
 }

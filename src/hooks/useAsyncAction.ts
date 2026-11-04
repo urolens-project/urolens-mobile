@@ -1,9 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+export type ActionError = Error & { code?: string };
+
 export interface UseAsyncActionResult<TArgs extends unknown[], TResult> {
   run: (...args: TArgs) => Promise<TResult | undefined>;
   isLoading: boolean;
-  error: Error | null;
+  error: ActionError | null;
+  /** Reads the error set by the most recently settled `run()` call, bypassing the
+   * render closure — `error` state lags one render behind inside a just-awaited
+   * `run()` caller, since React hasn't re-rendered yet when the promise resolves. */
+  getError: () => ActionError | null;
+}
+
+/** API errors (@app-types/domain ApiError) are plain `{ code, message }` objects,
+ * not Error instances — stringifying them with `String(err)` yields "[object Object]". */
+function toActionError(err: unknown): ActionError {
+  if (err instanceof Error) return err;
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const { message, code } = err as { message: unknown; code?: unknown };
+    const error: ActionError = new Error(String(message));
+    if (typeof code === 'string') error.code = code;
+    return error;
+  }
+  return new Error(String(err));
 }
 
 /**
@@ -17,9 +36,10 @@ export function useAsyncAction<TArgs extends unknown[], TResult>(
   action: (signal: AbortSignal, ...args: TArgs) => Promise<TResult>,
 ): UseAsyncActionResult<TArgs, TResult> {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<ActionError | null>(null);
 
   const controllerRef = useRef<AbortController | null>(null);
+  const errorRef = useRef<ActionError | null>(null);
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
@@ -30,13 +50,16 @@ export function useAsyncAction<TArgs extends unknown[], TResult>(
       controllerRef.current = controller;
 
       setIsLoading(true);
+      errorRef.current = null;
       setError(null);
       try {
         return await action(controller.signal, ...args);
       } catch (err: unknown) {
         if (controller.signal.aborted) return undefined;
         console.error(`[${tag}]`, err);
-        setError(err instanceof Error ? err : new Error(String(err)));
+        const actionError = toActionError(err);
+        errorRef.current = actionError;
+        setError(actionError);
         return undefined;
       } finally {
         if (controllerRef.current === controller) setIsLoading(false);
@@ -45,5 +68,7 @@ export function useAsyncAction<TArgs extends unknown[], TResult>(
     [tag, action],
   );
 
-  return { run, isLoading, error };
+  const getError = useCallback((): ActionError | null => errorRef.current, []);
+
+  return { run, isLoading, error, getError };
 }

@@ -2,6 +2,7 @@ import { Q } from '@nozbe/watermelondb';
 
 import { database } from '@db/database';
 import { useAsyncAction } from '@hooks/useAsyncAction';
+import type { ActionError } from '@hooks/useAsyncAction';
 import type AnalysisResult from '@db/models/AnalysisResult';
 
 import { fieldCaptureApi } from '../api/fieldCaptureApi';
@@ -11,7 +12,11 @@ export interface UseSubmitFieldsResult {
    * PENDING_CONFIRM. Online only — never queued (SDD Module 2 proposal, section 8). */
   submitFields: (resultServerId: string) => Promise<boolean | undefined>;
   isLoading: boolean;
-  error: Error | null;
+  error: ActionError | null;
+  /** The error from the most recently settled `submitFields()` call — read this
+   * right after awaiting it instead of `error`, which only updates on the next
+   * render (see useAsyncAction's getError). */
+  getError: () => ActionError | null;
 }
 
 /**
@@ -20,7 +25,7 @@ export interface UseSubmitFieldsResult {
  * waiting for the next sync.
  */
 export function useSubmitFields(): UseSubmitFieldsResult {
-  const { run, isLoading, error } = useAsyncAction(
+  const { run, isLoading, error, getError } = useAsyncAction(
     'SubmitFields',
     async (signal: AbortSignal, resultServerId: string): Promise<boolean> => {
       const response = await fieldCaptureApi.submitFields(resultServerId, signal);
@@ -42,5 +47,5 @@ export function useSubmitFields(): UseSubmitFieldsResult {
     },
   );
 
-  return { submitFields: run, isLoading, error };
+  return { submitFields: run, isLoading, error, getError };
 }

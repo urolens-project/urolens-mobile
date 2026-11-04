@@ -161,6 +161,8 @@ export function QueueScreen(): React.JSX.Element {
                 ALL: allItems.length,
                 ASSIGNED: counts.assigned,
                 PROCESSING: counts.inProgress,
+                CAPTURING: counts.capturing,
+                VERIFYING: counts.verifying,
                 RETURNED: counts.returned,
               }}
             />

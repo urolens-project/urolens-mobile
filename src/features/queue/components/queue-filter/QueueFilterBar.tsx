@@ -28,7 +28,11 @@ export function QueueFilterBar({
 }: QueueFilterBarProps): React.JSX.Element {
   const isDateFilter = selected === 'LATEST' || selected === 'EARLIEST';
   const isStatusFilter =
-    selected === 'ASSIGNED' || selected === 'PROCESSING' || selected === 'RETURNED';
+    selected === 'ASSIGNED' ||
+    selected === 'PROCESSING' ||
+    selected === 'CAPTURING' ||
+    selected === 'VERIFYING' ||
+    selected === 'RETURNED';
 
   const [expandedGroup, setExpandedGroup] = useState<ExpandedGroup>(
     isDateFilter ? 'date' : isStatusFilter ? 'status' : null,

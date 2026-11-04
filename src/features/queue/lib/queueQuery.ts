@@ -4,18 +4,28 @@ import { clinicDayRange } from '@lib/dateTime';
 
 import type { FilterOption, SpecimenStatus } from '../types';
 
-// The Queue's own actionable statuses (SRS UC 2.2 + product decision). A
-// sample returned for correction (UC 3.4) is included separately below since
-// that's a property of its analysis_results row, not the specimen's status.
-export const QUEUE_STATUSES: SpecimenStatus[] = ['ASSIGNED', 'PROCESSING'];
+// The Queue's own actionable statuses (SRS UC 2.2 + product decision). IN_QUEUE
+// (unassigned pool) counts as active work too — the backend treats it as
+// startable (queue_service._ACTIVE_WORK_STATUSES, specimen_service.
+// STARTABLE_SPECIMEN_STATUSES) even though nothing sets it today; older rows
+// may have it. A sample returned for correction (UC 3.4) is included
+// separately below since that's a property of its analysis_results row, not
+// the specimen's status.
+export const QUEUE_STATUSES: SpecimenStatus[] = ['ASSIGNED', 'PROCESSING', 'IN_QUEUE'];
 // Backend only ever advances specimen.status to COMPLETED once a Supervisor
 // approves/releases — it stays ASSIGNED for the entire window from MedTech
 // confirmation through Supervisor review. Without this, a specimen the
 // MedTech already confirmed (nothing left for them to do) keeps showing in
-// their Queue until a Supervisor finally acts on it.
-export const FINISHED_RESULT_STATUSES = ['PENDING_SUPERVISOR_APPROVAL', 'APPROVED', 'RELEASED'];
+// their Queue until a Supervisor finally acts on it. CRITICAL_ESCALATED is
+// included defensively — nothing sets it today (supervisor queries only read
+// it), but it would otherwise keep a sample in the Queue as PROCESSING/ASSIGNED.
+export const FINISHED_RESULT_STATUSES = [
+  'PENDING_SUPERVISOR_APPROVAL',
+  'APPROVED',
+  'RELEASED',
+  'CRITICAL_ESCALATED',
+];
 export const RETURNED_RESULT_STATUS = 'RETURNED_FOR_CORRECTION';
-const NO_RETURNED_SENTINEL = ['__none__'];
 
 /**
  * @description Samples in scope for "the Queue": ASSIGNED/PROCESSING by status — minus
@@ -39,20 +49,6 @@ export function baseClause(returnedServerIds: string[], finishedServerIds: strin
   return Q.or(statusClause, Q.where('server_id', Q.oneOf(returnedServerIds)));
 }
 
-// Clauses that keep a status filter to its own group. Finished work is out of
-// the Queue altogether, and a returned sample belongs to Returned only — so the
-// Assigned and In Progress lists (and their counts) never overlap with it.
-function exclusionClauses(returnedServerIds: string[], finishedServerIds: string[]): Q.Clause[] {
-  const clauses: Q.Clause[] = [];
-  if (finishedServerIds.length > 0) {
-    clauses.push(Q.where('server_id', Q.notIn(finishedServerIds)));
-  }
-  if (returnedServerIds.length > 0) {
-    clauses.push(Q.where('server_id', Q.notIn(returnedServerIds)));
-  }
-  return clauses;
-}
-
 // The Date filter: what needs the MedTech's attention today. Received today,
 // plus work already started or sent back — an In Progress or Returned sample
 // stays visible no matter what day it arrived, otherwise picking Date would hide
@@ -73,7 +69,10 @@ function dateClause(returnedServerIds: string[]): Q.Clause {
 
 /**
  * @description The WatermelonDB query clauses for a given Queue filter. Exported for
- * tests.
+ * tests. A status chip (Assigned/Processing/Capturing/Verifying/Returned) loads the
+ * Queue's usual scope and nothing more — which of those five statuses a row actually
+ * has is decided by getQueueStatus, in memory (useQueue.ts), the same rule the badge,
+ * counts and sort already use, so the chip can never disagree with them.
  * @param filter - The active queue filter.
  * @param returnedServerIds - Server ids currently flagged returned-for-correction.
  * @param finishedServerIds - Server ids whose latest result means the MedTech is done.
@@ -95,24 +94,11 @@ export function buildQuery(
     case 'EARLIEST':
       return [baseClause(returnedServerIds, finishedServerIds), Q.sortBy('received_at', Q.asc)];
     case 'STATUS':
-      return [baseClause(returnedServerIds, finishedServerIds)];
     case 'ASSIGNED':
-      return [
-        Q.where('status', 'ASSIGNED'),
-        ...exclusionClauses(returnedServerIds, finishedServerIds),
-      ];
     case 'PROCESSING':
-      return [
-        Q.where('status', 'PROCESSING'),
-        ...exclusionClauses(returnedServerIds, finishedServerIds),
-      ];
+    case 'CAPTURING':
+    case 'VERIFYING':
     case 'RETURNED':
-      return [
-        Q.where(
-          'server_id',
-          Q.oneOf(returnedServerIds.length ? returnedServerIds : NO_RETURNED_SENTINEL),
-        ),
-      ];
     case 'ALL':
     default:
       return [baseClause(returnedServerIds, finishedServerIds)];
