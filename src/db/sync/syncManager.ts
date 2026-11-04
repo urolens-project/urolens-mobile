@@ -78,6 +78,16 @@ export function synchronize(): Promise<void> {
 }
 
 /**
+ * @description Makes the next sync with nothing left to send pull everything again, for
+ * a caller that found the phone out of step with the server (a field the server still
+ * waits on is missing here, or shows a decision the server never got). A delta pull
+ * can't fix that: it only brings rows the server changed, and the server's didn't.
+ */
+export async function requestFullPull(): Promise<void> {
+  await AsyncStorage.setItem(FULL_PULL_NEEDED_KEY, '1');
+}
+
+/**
  * @description Runs a sync whose pull starts after this call, for a caller about to act
  * on what the server holds (Submit for Verification). `synchronize()` returns at once
  * while another cycle runs, and that cycle may have pulled before the server changed —
