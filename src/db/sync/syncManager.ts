@@ -77,6 +77,20 @@ export function synchronize(): Promise<void> {
   return cycle.completion;
 }
 
+/**
+ * @description Runs a sync whose pull starts after this call, for a caller about to act
+ * on what the server holds (Submit for Verification). `synchronize()` returns at once
+ * while another cycle runs, and that cycle may have pulled before the server changed —
+ * so wait for it, then join a cycle that started since, or start one. The earlier
+ * cycle's outcome is ignored; this rejects only if the fresh cycle fails.
+ */
+export async function synchronizeAfterCurrent(): Promise<void> {
+  const running = activeSync;
+  if (running) await running.completion.catch((): void => {});
+  if (activeSync) return activeSync.completion;
+  return synchronize();
+}
+
 async function runSync(cycle: ActiveSync): Promise<void> {
   const { signal } = cycle.controller;
   try {
