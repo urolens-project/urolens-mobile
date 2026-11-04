@@ -2,6 +2,7 @@ import { buildFieldUploadFormData } from '@lib/camera/imageUtils';
 import type { ProcessedImage } from '@lib/camera/imageUtils';
 import {
   getUploadErrorCode,
+  isNetworkUploadError,
   isRetakeNeededError,
   uploadFieldViaXhr,
 } from '@lib/camera/uploadField';
@@ -17,6 +18,11 @@ export type CaptureFieldOutcome =
   /** The engine's input gate refused the photo outright (not a microscopy image,
    * or badly exposed) — retaking the same image will fail the same way again. */
   | { status: 'retake'; message: string }
+  /** The upload never reached the server (offline, unreachable, timed out) — worth
+   * a distinct "Try Again" prompt rather than the generic failed message, since
+   * retrying is likely to just work once connectivity returns (field-post-analysis
+   * -report.md, Section 2 item 7). */
+  | { status: 'networkError'; message: string }
   | { status: 'failed'; message: string };
 
 export interface UseFieldCaptureResult {
@@ -61,6 +67,11 @@ export function useFieldCapture(): UseFieldCaptureResult {
 
         if (isRetakeNeededError(err)) {
           return { status: 'retake', message: err.message };
+        }
+        if (isNetworkUploadError(err)) {
+          const message =
+            (err instanceof Error && err.message) || FIELD_CAPTURE_TEXT.uploadFailedFallbackMessage;
+          return { status: 'networkError', message };
         }
         // Codes the backend answers with no MedTech-facing message of their own
         // (core/exceptions.py) get a clear one here; everything else already

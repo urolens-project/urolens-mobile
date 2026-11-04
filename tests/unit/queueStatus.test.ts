@@ -1,4 +1,9 @@
-import { getQueueStatus, orderByStatus } from '../../src/features/queue/status';
+import {
+  countByQueueStatus,
+  getProceedAction,
+  getQueueStatus,
+  orderByStatus,
+} from '../../src/features/queue/status';
 
 type Sample = Parameters<typeof getQueueStatus>[0] & { id: string; receivedAt: string };
 
@@ -58,6 +63,86 @@ describe('getQueueStatus', () => {
     expect(
       getQueueStatus(sample('x', 'PROCESSING', true, undefined, 'RETURNED_FOR_CORRECTION')),
     ).toBe('RETURNED');
+  });
+
+  // mobile-queue-status-n8, Q1: the website's Capture More Fields reopens a
+  // returned result back to CAPTURING. It still needs the MedTech, so it has
+  // to keep ranking as RETURNED, not CAPTURING, until it's resubmitted.
+  it('a reopened return (CAPTURING, isReturnedForCorrection) is RETURNED, not CAPTURING', () => {
+    expect(getQueueStatus(sample('x', 'PROCESSING', true, undefined, 'CAPTURING'))).toBe(
+      'RETURNED',
+    );
+  });
+
+  it('a CAPTURING result without an open return is still CAPTURING', () => {
+    expect(getQueueStatus(sample('x', 'PROCESSING', false, undefined, 'CAPTURING'))).toBe(
+      'CAPTURING',
+    );
+  });
+
+  // mobile-queue-status-n8, Q2: nothing sets IN_QUEUE today, but older rows may
+  // have it, and the backend treats it as startable work same as ASSIGNED.
+  it('IN_QUEUE counts as ASSIGNED', () => {
+    expect(getQueueStatus(sample('x', 'IN_QUEUE'))).toBe('ASSIGNED');
+  });
+});
+
+// mobile-queue-status-n8, Q1: a returned sample reads Continue Capturing once the
+// website's Capture More Fields has reopened it, and Continue on the website
+// until then (not reopened, i.e. result is still RETURNED_FOR_CORRECTION).
+describe('getProceedAction', () => {
+  it('a returned sample whose result is CAPTURING offers Continue Capturing', () => {
+    expect(getProceedAction('RETURNED', 'CAPTURING')).toBe('CONTINUE_CAPTURING');
+  });
+
+  it('a returned sample whose result is RETURNED_FOR_CORRECTION says Continue on the website', () => {
+    expect(getProceedAction('RETURNED', 'RETURNED_FOR_CORRECTION')).toBe('CONTINUE_ON_WEBSITE');
+  });
+
+  it('a CAPTURING sample (not returned) offers Continue Capturing', () => {
+    expect(getProceedAction('CAPTURING', 'CAPTURING')).toBe('CONTINUE_CAPTURING');
+  });
+
+  it.each(['PROCESSING', 'VERIFYING'] as const)('%s offers Continue', (status) => {
+    expect(getProceedAction(status, null)).toBe('CONTINUE');
+  });
+
+  it('ASSIGNED offers Proceed to Analysis', () => {
+    expect(getProceedAction('ASSIGNED', null)).toBe('PROCEED_TO_ANALYSIS');
+  });
+
+  it('no Queue status offers Proceed to Analysis', () => {
+    expect(getProceedAction(null, null)).toBe('PROCEED_TO_ANALYSIS');
+  });
+});
+
+describe('countByQueueStatus', () => {
+  it('counts each status, including Capturing', () => {
+    const items = [
+      sample('capturing', 'PROCESSING', false, undefined, 'CAPTURING'),
+      sample('verifying', 'PROCESSING', false, undefined, 'PENDING_CONFIRM'),
+      sample('progressing', 'PROCESSING'),
+      sample('assigned', 'ASSIGNED'),
+      sample('returned', 'ASSIGNED', true),
+      sample('done', 'COMPLETED'),
+    ];
+    expect(countByQueueStatus(items)).toEqual({
+      RETURNED: 1,
+      CAPTURING: 1,
+      PROCESSING: 1,
+      ASSIGNED: 1,
+      VERIFYING: 1,
+    });
+  });
+
+  it('counts nothing for an empty list', () => {
+    expect(countByQueueStatus([])).toEqual({
+      RETURNED: 0,
+      CAPTURING: 0,
+      PROCESSING: 0,
+      ASSIGNED: 0,
+      VERIFYING: 0,
+    });
   });
 });
 

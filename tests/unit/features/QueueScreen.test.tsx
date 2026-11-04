@@ -122,7 +122,13 @@ describe('the Proceed / Continue button', () => {
       setQueue([sample]);
       const view = render(<QueueScreen />);
       tapCard(view, sample);
-      fireEvent.press(view.getByText(status === 'ASSIGNED' ? 'Proceed to Analysis' : 'Continue'));
+      const label =
+        status === 'ASSIGNED'
+          ? 'Proceed to Analysis'
+          : status === 'RETURNED'
+            ? 'Continue on the website'
+            : 'Continue';
+      fireEvent.press(view.getByText(label));
       expect(mockPush).toHaveBeenCalledWith({
         pathname: '/(medtech)/sample/[id]',
         params: { id: 'A' },
@@ -147,12 +153,27 @@ describe('the Proceed / Continue button', () => {
   });
 
   // Its specimen still reads ASSIGNED — the returned flag is what makes it "returned".
-  it('says "Continue" for a returned sample', () => {
+  // Not reopened (no CAPTURING result yet): nothing left to do on the phone.
+  it('says "Continue on the website" for a returned sample not yet reopened', () => {
     const sample = item('A', { status: 'ASSIGNED', isReturnedForCorrection: true });
     setQueue([sample]);
     const view = render(<QueueScreen />);
     tapCard(view, sample);
-    expect(view.getByText('Continue')).toBeTruthy();
+    expect(view.getByText('Continue on the website')).toBeTruthy();
+  });
+
+  // mobile-queue-status-n8, Q1: the website's Capture More Fields reopened the
+  // return (result back to CAPTURING) — there's work for the MedTech again.
+  it('says "Continue Capturing" for a reopened return', () => {
+    const sample = item('A', {
+      status: 'PROCESSING',
+      isReturnedForCorrection: true,
+      resultStatus: 'CAPTURING',
+    });
+    setQueue([sample]);
+    const view = render(<QueueScreen />);
+    tapCard(view, sample);
+    expect(view.getByText('Continue Capturing')).toBeTruthy();
   });
 });
 
@@ -171,7 +192,7 @@ describe('the Reject button in the preview bar', () => {
     const view = render(<QueueScreen />);
     tapCard(view, sample);
     expect(view.getByText('Reject')).toBeTruthy();
-    expect(view.getByText('Continue')).toBeTruthy();
+    expect(view.getByText('Continue on the website')).toBeTruthy();
   });
 });
 

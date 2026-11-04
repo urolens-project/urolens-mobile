@@ -206,5 +206,16 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 9,
+      steps: [
+        // Client-only "I've looked at this field" acknowledgement, separate from
+        // the Proceed/Discard decision — see schema.ts for the column note.
+        addColumns({
+          table: 'result_fields',
+          columns: [{ name: 'is_reviewed', type: 'boolean' }],
+        }),
+      ],
+    },
   ],
 });

@@ -1,3 +1,8 @@
+// Shared between proceedLabels.continueOnWebsite and itemCard.verifyOnWebsite — a
+// returned sample not yet reopened, and a sample awaiting the website's check, both
+// have nothing left to do on the phone but go check the website.
+const CONTINUE_ON_WEBSITE = 'Continue on the website';
+
 export const QUEUE_TEXT = {
   filterChips: {
     all: 'All',
@@ -18,12 +23,13 @@ export const QUEUE_TEXT = {
   proceedLabels: {
     continue: 'Continue',
     continueCapturing: 'Continue Capturing',
+    continueOnWebsite: CONTINUE_ON_WEBSITE,
     proceedToAnalysis: 'Proceed to Analysis',
   },
   itemCard: {
     returnedForCorrection: 'Returned for correction',
     selectHint: 'Select sample, then use Proceed or Continue to open its details.',
-    verifyOnWebsite: 'Continue on the website',
+    verifyOnWebsite: CONTINUE_ON_WEBSITE,
   },
   loadState: {
     errorTitle: 'Couldn’t load queue',
@@ -79,12 +85,16 @@ export function formatReturnReasonLabel(reason: string | null | undefined): stri
 
 /**
  * @description Formats the field progress shown on a CAPTURING queue card
- * (SDD Module 2 proposal) — e.g. "7 of 10 fields".
+ * (SDD Module 2 proposal) — e.g. "7 of 10 fields". minFields is a minimum, not a
+ * cap, so once met this switches to a plain count instead of "12 of 10 fields",
+ * which reads like a limit (or a bug) once the accepted count exceeds it.
  * @param acceptedCount - Accepted field count so far.
  * @param minFields - Minimum accepted fields required.
  */
 export function formatFieldCounterLabel(acceptedCount: number, minFields: number): string {
-  return `${acceptedCount} of ${minFields} fields`;
+  return acceptedCount >= minFields
+    ? `${acceptedCount} fields (min. ${minFields} met)`
+    : `${acceptedCount} of ${minFields} fields`;
 }
 
 /**

@@ -6,6 +6,10 @@ export const SAMPLE_TEXT = {
   analysisResultsTitle: 'Analysis Results',
   smartDiagnosisSectionTitle: 'Smart Diagnosis',
   aiFindingsSectionTitle: 'AI Findings',
+  // Shown only for multi-field results (AnalysisResult.fieldCount > 0): the backend
+  // stores the per-class mean across all captured fields in ai_findings, not a sum,
+  // so the counts here would otherwise read as exact totals.
+  aiFindingsAverageNote: 'Values shown are the average particle count across all captured fields.',
   noParticlesDetected: 'No particles detected.',
   noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
 
@@ -35,8 +39,12 @@ export const SAMPLE_TEXT = {
   rejectSpecimen: 'Reject Specimen',
 
   capturingFieldsTitle: 'Capturing Fields',
+  // minFields is a minimum, not a cap — once met, say so instead of continuing to
+  // show "X of 10 fields", which reads like a limit once X exceeds it.
   getCapturingFieldsBody(acceptedCount: number, minFields: number): string {
-    return `${acceptedCount} of ${minFields} fields accepted so far. Continue capturing until the minimum is reached, then submit for verification on the website.`;
+    return acceptedCount >= minFields
+      ? `${acceptedCount} fields accepted — minimum of ${minFields} met. Submit for verification on the website when ready.`
+      : `${acceptedCount} of ${minFields} fields accepted so far. Continue capturing until the minimum is reached, then submit for verification on the website.`;
   },
   awaitingWebVerificationTitle: 'Continue on the Website',
   awaitingWebVerificationBody:

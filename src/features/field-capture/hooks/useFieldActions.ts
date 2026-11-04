@@ -25,6 +25,9 @@ export interface UseFieldActionsResult {
   acceptField: (localFieldId: string) => Promise<FieldActionOutcome | undefined>;
   /** Discard: drops a field, optionally with a reason. */
   discardField: (localFieldId: string, reason?: string) => Promise<FieldActionOutcome | undefined>;
+  /** Mark as Reviewed: records that the MedTech has looked at a field still
+   * needing a decision. Client-only — never queued or synced to the server. */
+  markFieldReviewed: (localFieldId: string) => Promise<void | undefined>;
   isLoading: boolean;
   error: Error | null;
 }
@@ -46,11 +49,11 @@ export function useFieldActions(): UseFieldActionsResult {
       if (!field.serverId) throw new Error('Field has no server id yet.');
 
       if (!isOnline) {
-        return applyOptimistic(field, 'ACCEPTED', PendingSyncAction.ACCEPT_FIELD, null);
+        return applyOptimistic(field, 'ACCEPTED', PendingSyncAction.ACCEPT_FIELD, null, true);
       }
 
       const response = await fieldCaptureApi.accept(field.serverId, signal);
-      await applyServerResponse(field, response);
+      await applyServerResponse(field, response, true);
       return pickCounts(response);
     },
   );
@@ -66,18 +69,38 @@ export function useFieldActions(): UseFieldActionsResult {
       if (!field.serverId) throw new Error('Field has no server id yet.');
 
       if (!isOnline) {
-        return applyOptimistic(field, 'DISCARDED', PendingSyncAction.DISCARD_FIELD, reason ?? null);
+        return applyOptimistic(
+          field,
+          'DISCARDED',
+          PendingSyncAction.DISCARD_FIELD,
+          reason ?? null,
+          false,
+        );
       }
 
       const response = await fieldCaptureApi.discard(field.serverId, reason, signal);
-      await applyServerResponse(field, response);
+      await applyServerResponse(field, response, false);
       return pickCounts(response);
+    },
+  );
+
+  const markReviewedAction = useAsyncAction(
+    'FieldMarkReviewed',
+    async (_signal: AbortSignal, localFieldId: string): Promise<void> => {
+      const field = await database.get<ResultField>('result_fields').find(localFieldId);
+      if (field.isReviewed) return;
+      await database.write(async () => {
+        await field.update((f) => {
+          f.isReviewed = true;
+        });
+      });
     },
   );
 
   return {
     acceptField: acceptAction.run,
     discardField: discardAction.run,
+    markFieldReviewed: markReviewedAction.run,
     isLoading: acceptAction.isLoading || discardAction.isLoading,
     error: acceptAction.error ?? discardAction.error,
   };
@@ -90,10 +113,13 @@ export function useFieldActions(): UseFieldActionsResult {
  * parent result's accepted-field count and image pointer up to date — the
  * same two things the backend updates on accept/discard (field_count, the
  * first-accepted field's image).
+ * @param markReviewed - Set on Proceed only — accepting a field already implies
+ * the MedTech looked at it, so it should never still show "needs your decision."
  */
 async function applyServerResponse(
   field: ResultField,
   response: FieldActionResponseDto,
+  markReviewed: boolean,
 ): Promise<void> {
   const { field: summary, acceptedFieldCount } = response;
 
@@ -104,6 +130,7 @@ async function applyServerResponse(
       f.version = summary.version;
       f.isSynced = true;
       f.syncedAt = new Date().toISOString();
+      if (markReviewed) f.isReviewed = true;
     });
 
     const results = database.get<AnalysisResult>('analysis_results');
@@ -130,12 +157,14 @@ async function applyServerResponse(
  * Queue does the same, since analysis_results.field_count is never synced by
  * the backend — mobile PR #55 review, 3.1) rather than read from this field's
  * own parent row.
+ * @param markReviewed - Set on Proceed only — see applyServerResponse.
  */
 async function applyOptimistic(
   field: ResultField,
   nextStatus: 'ACCEPTED' | 'DISCARDED',
   action: PendingSyncAction,
   reason: string | null,
+  markReviewed: boolean,
 ): Promise<FieldActionOutcome> {
   const createdAt = Date.now();
 
@@ -154,6 +183,7 @@ async function applyOptimistic(
       field.prepareUpdate((f) => {
         f.status = nextStatus;
         f.isSynced = false;
+        if (markReviewed) f.isReviewed = true;
       }),
     ];
 

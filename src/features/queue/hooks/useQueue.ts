@@ -19,7 +19,7 @@ import {
   QUEUE_RESULT_COLUMNS,
   QUEUE_SPECIMEN_COLUMNS,
 } from '../constants/queue.constant';
-import { orderByStatus } from '../status';
+import { getQueueStatus, orderByStatus } from '../status';
 import {
   baseClause,
   buildQuery,
@@ -30,6 +30,17 @@ import { dedupeQueueItems, sameIds, sameMap, specimenToQueueItem } from '../lib/
 import type { FilterOption, QueueItem } from '../types';
 
 type QueueSource = 'items' | 'totals' | 'results';
+
+// A status chip's filter value is also a QueueStatus, so the DB only needs to load
+// the Queue's usual scope (buildQuery collapses these to baseClause) and the chip,
+// counts, badge and sort all agree on which rows match (mobile-queue-status-n8, Q3).
+const STATUS_CHIP_FILTERS: FilterOption[] = [
+  'ASSIGNED',
+  'PROCESSING',
+  'CAPTURING',
+  'VERIFYING',
+  'RETURNED',
+];
 
 export interface UseQueueResult {
   items: QueueItem[];
@@ -131,7 +142,12 @@ export function useQueue(): UseQueueResult {
               ),
           ),
         );
-        setFilteredItems(filter === 'ALL' || filter === 'STATUS' ? orderByStatus(next) : next);
+        const statusFiltered = STATUS_CHIP_FILTERS.includes(filter)
+          ? next.filter((item): boolean => getQueueStatus(item) === filter)
+          : next;
+        setFilteredItems(
+          filter === 'ALL' || filter === 'STATUS' ? orderByStatus(statusFiltered) : statusFiltered,
+        );
         handleSourceLoaded('items');
       },
       {
@@ -193,8 +209,14 @@ export function useQueue(): UseQueueResult {
       (): Query<AnalysisResult> => database.get<AnalysisResult>('analysis_results').query(),
       (results): void => {
         const latest = Array.from(latestAnalysisResultsBySpecimen(results).values());
+        // A CAPTURING result with a return_reason is a reopened return (the
+        // website's Capture More Fields, after a Supervisor return): sync only
+        // sends return_reason while the return is still open, so this still
+        // counts as returned until it's resubmitted (mobile-queue-status-n8, Q1).
         const returned = latest.filter(
-          (result): boolean => result.status === RETURNED_RESULT_STATUS,
+          (result): boolean =>
+            result.status === RETURNED_RESULT_STATUS ||
+            (result.status === 'CAPTURING' && !!result.returnReason),
         );
         const nextReturned = returned.map((result): string => result.specimenId);
         const nextFinished = latest
