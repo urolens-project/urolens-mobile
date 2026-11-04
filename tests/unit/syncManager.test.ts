@@ -45,6 +45,7 @@ jest.mock('@lib/auth/tokenStorage', () => ({
 
 // Fresh module + fresh mock instances per test (resets isSyncing = false)
 let synchronize: () => Promise<void>;
+let synchronizeAfterCurrent: () => Promise<void>;
 let getIsSyncing: () => boolean;
 let mockPull: jest.Mock;
 let mockPush: jest.Mock;
@@ -70,6 +71,7 @@ beforeEach(() => {
 
   ({
     synchronize,
+    synchronizeAfterCurrent,
     getIsSyncing,
     getSyncStatus,
     subscribeSyncStatus,
@@ -218,6 +220,63 @@ describe('synchronize', () => {
   it('resets isSyncing to false after a successful sync', async () => {
     await synchronize();
     expect(getIsSyncing()).toBe(false);
+  });
+});
+
+// Submit for Verification needs a pull that started after it asked: a cycle already
+// running (uploads draining) may have pulled before the server changed.
+describe('synchronizeAfterCurrent', () => {
+  it('runs a sync straight away when none is running', async () => {
+    await synchronizeAfterCurrent();
+
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(mockPull).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for a running sync, then runs a fresh one', async () => {
+    let unblockPush: () => void;
+    mockPush.mockReturnValueOnce(
+      new Promise<typeof NOTHING_REFUSED>((res) => {
+        unblockPush = () => res(NOTHING_REFUSED);
+      }),
+    );
+    const first = synchronize();
+    await new Promise((res) => setImmediate(res)); // let the first sync reach its push
+
+    const fresh = synchronizeAfterCurrent();
+    await new Promise((res) => setImmediate(res));
+    expect(mockPull).not.toHaveBeenCalled(); // still waiting on the first cycle
+
+    unblockPush!();
+    await first;
+    await fresh;
+
+    expect(mockPush).toHaveBeenCalledTimes(2);
+    expect(mockPull).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores the running sync failing and still runs its own', async () => {
+    let failPush: () => void;
+    mockPush.mockReturnValueOnce(
+      new Promise<typeof NOTHING_REFUSED>((_res, rej) => {
+        failPush = () => rej(new Error('Network failure'));
+      }),
+    );
+    const first = synchronize();
+    await new Promise((res) => setImmediate(res));
+
+    const fresh = synchronizeAfterCurrent();
+    failPush!();
+
+    await expect(first).rejects.toThrow('Network failure');
+    await expect(fresh).resolves.toBeUndefined();
+    expect(mockPull).toHaveBeenCalledTimes(1); // only the fresh cycle got to pull
+  });
+
+  it('rejects when its own sync fails', async () => {
+    mockPull.mockRejectedValue(new Error('Server error'));
+
+    await expect(synchronizeAfterCurrent()).rejects.toThrow('Server error');
   });
 });
 
