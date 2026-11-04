@@ -4,7 +4,8 @@
  * API errors reach the hook as plain `{ code, message }` objects (apiClient's
  * ApiError), not Error instances. The screens show `message` and branch on `code`
  * (FieldListScreen syncs on FIELDS_UNDECIDED), so both must survive; stringifying
- * the object used to show "[object Object]".
+ * the object used to show "[object Object]". `details` survives too: the field list
+ * checks FIELDS_UNDECIDED's undecidedFields against its own rows.
  */
 import { act, renderHook } from '@testing-library/react-native';
 
@@ -36,6 +37,27 @@ describe('useAsyncAction errors', () => {
     expect(error?.message).toBe('1 field not reviewed.');
     expect(error?.code).toBe('FIELDS_UNDECIDED');
     expect(result.current.error?.message).toBe('1 field not reviewed.');
+  });
+
+  it('keeps the details of a plain API error object', async () => {
+    const details = { undecidedFields: [{ fieldId: 'srv-field-9', fieldNo: 9 }] };
+    const { result } = renderFailingAction({ code: 'FIELDS_UNDECIDED', message: 'x', details });
+
+    await act(async () => {
+      await result.current.run();
+    });
+
+    expect(result.current.getError()?.details).toEqual(details);
+  });
+
+  it('leaves details unset when the API error has none', async () => {
+    const { result } = renderFailingAction({ code: 'X', message: 'boom' });
+
+    await act(async () => {
+      await result.current.run();
+    });
+
+    expect(result.current.getError()?.details).toBeUndefined();
   });
 
   it('returns the error from getError() right after run() settles, before a re-render', async () => {
