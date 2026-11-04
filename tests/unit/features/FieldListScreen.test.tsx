@@ -8,9 +8,9 @@
  * "Waiting to upload…" until its own turn comes.
  *
  * Submit syncs before calling the server, shows the server's own message when it
- * refuses, and syncs again when the refusal means the phone is missing a field
- * (FIELDS_UNDECIDED / FIELDS_BELOW_MINIMUM). A failed check never leaves the tap
- * doing nothing.
+ * refuses, and hands the refusal to resyncAfterSubmitRefusal (tested on its own),
+ * which decides how to get back in step. A failed check never leaves the tap doing
+ * nothing.
  */
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
@@ -31,13 +31,22 @@ jest.mock('@db/sync/syncManager', () => ({
   LAST_SYNC_KEY: 'urolens_last_sync_at',
 }));
 
+const mockResyncAfterSubmitRefusal = jest.fn((_error: unknown) => Promise.resolve());
+jest.mock('@features/field-capture/lib/resyncAfterSubmitRefusal', () => ({
+  resyncAfterSubmitRefusal: (error: unknown) => mockResyncAfterSubmitRefusal(error),
+}));
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve(null)),
   setItem: jest.fn(() => Promise.resolve()),
 }));
 
 const mockSubmitFields = jest.fn();
-let mockSubmitError: { message: string; code?: string } | null = null;
+let mockSubmitError: {
+  message: string;
+  code?: string;
+  details?: Record<string, unknown>;
+} | null = null;
 jest.mock('@features/field-capture/hooks/useSubmitFields', () => ({
   useSubmitFields: () => ({
     submitFields: mockSubmitFields,
@@ -82,6 +91,7 @@ beforeEach(() => {
   mockUploadingFieldId = null;
   mockSubmitError = null;
   mockSynchronizeAfterCurrent.mockImplementation(() => Promise.resolve());
+  mockResyncAfterSubmitRefusal.mockImplementation(() => Promise.resolve());
 });
 
 // FlatList is a stub in the jest setup and never renders its rows, so pull
@@ -145,33 +155,31 @@ function renderReadyToSubmit(): ReturnType<typeof render> {
 }
 
 describe('FieldListScreen Submit for Verification', () => {
-  it('shows the server message and syncs again when a field is undecided on the server', async () => {
+  it('shows the server message and hands the refusal over to get back in step', async () => {
     mockSubmitFields.mockResolvedValue(undefined);
-    mockSubmitError = { message: '1 field not reviewed.', code: 'FIELDS_UNDECIDED' };
+    mockSubmitError = {
+      message: '1 field not reviewed.',
+      code: 'FIELDS_UNDECIDED',
+      details: { undecidedFields: [{ fieldId: 'srv-field-9', fieldNo: 9 }] },
+    };
     const view = renderReadyToSubmit();
 
     fireEvent.press(view.getByTestId('submit-for-verification-button'));
 
     await waitFor(() => expect(view.getByText('1 field not reviewed.')).toBeTruthy());
     expect(mockSubmitFields).toHaveBeenCalledWith('srv-result-1');
-    // Once before submitting, once after the refusal to bring the missing field in.
-    expect(mockSynchronizeAfterCurrent).toHaveBeenCalledTimes(2);
+    expect(mockSynchronizeAfterCurrent).toHaveBeenCalledTimes(1); // the check before submitting
+    expect(mockResyncAfterSubmitRefusal).toHaveBeenCalledWith(mockSubmitError);
   });
 
-  it('does not sync again for a refusal that is not about the fields', async () => {
-    mockSubmitFields.mockResolvedValue(undefined);
-    mockSubmitError = {
-      message: 'This result can no longer be edited.',
-      code: 'RESULT_NOT_EDITABLE',
-    };
+  it('shows the success modal and does not resync after a submit the server accepts', async () => {
+    mockSubmitFields.mockResolvedValue(true);
     const view = renderReadyToSubmit();
 
     fireEvent.press(view.getByTestId('submit-for-verification-button'));
 
-    await waitFor(() =>
-      expect(view.getByText('This result can no longer be edited.')).toBeTruthy(),
-    );
-    expect(mockSynchronizeAfterCurrent).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(view.getByText('Submitted for Verification')).toBeTruthy());
+    expect(mockResyncAfterSubmitRefusal).not.toHaveBeenCalled();
   });
 
   it('shows a message instead of doing nothing when the check before submitting fails', async () => {
