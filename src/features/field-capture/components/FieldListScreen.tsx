@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import { synchronize } from '@db/sync/syncManager';
+import { synchronizeAfterCurrent } from '@db/sync/syncManager';
 
 import { Icon } from '@components/Icon';
 
@@ -102,11 +102,12 @@ export function FieldListScreen({
     // The guard above can be stale (see FieldListScreen's class doc) — the phone only
     // resyncs on app foreground/reconnect/tab mount, not while sitting in this screen.
     // Pull fresh server state and recheck straight from WatermelonDB before risking the
-    // submit call, instead of only cleaning up after the server 409s.
+    // submit call, instead of only cleaning up after the server 409s. A sync already
+    // running (uploads draining) may have pulled too early, so wait for a fresh one.
     setIsPreparingSubmit(true);
     let freshCounts;
     try {
-      await synchronize();
+      await synchronizeAfterCurrent();
       freshCounts = await fetchFieldCounts(specimenId);
     } catch (syncErr) {
       console.error('[FieldListScreen]', syncErr);
@@ -114,7 +115,16 @@ export function FieldListScreen({
     } finally {
       setIsPreparingSubmit(false);
     }
-    if (!freshCounts) return;
+    if (!freshCounts) {
+      // Never a silent no-op: without a fresh check the tap would otherwise do nothing.
+      setSubmitResult({
+        visible: true,
+        variant: 'error',
+        title: FIELD_CAPTURE_TEXT.submitFailedTitle,
+        message: FIELD_CAPTURE_TEXT.submitCheckFailedMessage,
+      });
+      return;
+    }
     if (getSubmitBlockingReason({ ...freshCounts, minFields, isOnline })) return;
 
     const ok = await submitFields(resultServerId);
@@ -122,7 +132,7 @@ export function FieldListScreen({
       const submitError = getError();
       if (submitError?.code && SYNC_ON_SUBMIT_ERROR_CODES.has(submitError.code)) {
         try {
-          await synchronize();
+          await synchronizeAfterCurrent();
         } catch (syncErr) {
           console.error('[FieldListScreen]', syncErr);
         }
