@@ -42,7 +42,9 @@ export function CurvedHeaderContent({
           <Text style={styles.name} numberOfLines={1}>
             {username ?? REPORTS_TEXT.defaultMedtechName}
           </Text>
-          <Text style={styles.role}>{REPORTS_TEXT.medtechRoleLabel}</Text>
+          <Text style={styles.role} numberOfLines={1}>
+            {REPORTS_TEXT.medtechRoleLabel}
+          </Text>
         </View>
         <View
           style={styles.totalCircle}
@@ -54,22 +56,24 @@ export function CurvedHeaderContent({
         </View>
       </View>
 
-      <Text style={styles.title} accessibilityRole="header">
+      <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
         {REPORTS_TEXT.headerTitle}
       </Text>
-      <Text style={styles.subtitle}>{REPORTS_TEXT.headerSubtitle}</Text>
+      <Text style={styles.subtitle} numberOfLines={1}>
+        {REPORTS_TEXT.headerSubtitle}
+      </Text>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   avatar: {
     width: spacing.jumbo - spacing.sm,
@@ -78,7 +82,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     // TODO(theme): translucent white overlay (0.55 alpha) not in palette.
     borderColor: 'rgba(255,255,255,0.55)',
   },
@@ -99,7 +103,6 @@ const styles = StyleSheet.create({
     ...typography.micro,
     // TODO(theme): translucent white overlay (0.8 alpha) not in palette.
     color: 'rgba(255,255,255,0.8)',
-    marginTop: 1,
   },
   totalCircle: {
     width: spacing.jumbo - spacing.xs,

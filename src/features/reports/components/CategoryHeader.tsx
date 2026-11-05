@@ -162,31 +162,31 @@ export function CategoryHeader({
         <Bubble size={30} style={{ right: 96, top: topInset + 58 }} />
       </Animated.View>
 
-      <Animated.View style={[styles.row, { paddingTop: topInset + spacing.sm }, contentStyle]}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel={REPORTS_TEXT.categoryHeaderBackLabel}
-        >
-          <Icon name="chevron-back" size={24} color={colors.white} />
-        </TouchableOpacity>
+      <Animated.View style={[styles.content, { paddingTop: topInset + spacing.sm }, contentStyle]}>
+        <View style={styles.row}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={onBack}
+            accessibilityRole="button"
+            accessibilityLabel={REPORTS_TEXT.categoryHeaderBackLabel}
+          >
+            <Icon name="chevron-back" size={24} color={colors.white} />
+          </TouchableOpacity>
 
-        <View style={styles.textCol}>
-          <Text style={styles.title} numberOfLines={2} accessibilityRole="header">
-            {title}
-          </Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          <Animated.View style={[styles.chip, chipStyle]} accessibilityElementsHidden>
+            <Icon
+              family="material-community"
+              name={CATEGORY_ICONS[category]}
+              size={24}
+              color={color}
+            />
+          </Animated.View>
         </View>
 
-        <Animated.View style={[styles.chip, chipStyle]} accessibilityElementsHidden>
-          <Icon
-            family="material-community"
-            name={CATEGORY_ICONS[category]}
-            size={24}
-            color={color}
-          />
-        </Animated.View>
+        <Text style={styles.title} numberOfLines={2} accessibilityRole="header">
+          {title}
+        </Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
       </Animated.View>
     </View>
   );
@@ -196,12 +196,13 @@ const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
   },
+  content: {
+    paddingHorizontal: spacing.xl,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.smd,
-    paddingLeft: spacing.smd,
-    paddingRight: spacing.xl,
+    justifyContent: 'space-between',
   },
   backBtn: {
     width: spacing.jumbo - spacing.sm,
@@ -212,10 +213,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  textCol: {
-    flex: 1,
-  },
   title: {
+    marginTop: spacing.sm,
     ...typography.headingLg,
     color: colors.white,
   },
