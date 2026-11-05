@@ -53,6 +53,8 @@ function Drop({ size, style }: BubbleProps): React.JSX.Element {
 
 export interface CurvedHeaderDecorProps {
   topInset: number;
+  /** Scales bubble/magnifier sizes and offsets for a more compact header. Defaults to full size. */
+  scale?: number;
   decorStyle: AnimatedViewStyle;
   lensStyle: AnimatedViewStyle;
   /** Shrinks the bubbles/drops/magnifier, and their offsets, proportionally. Defaults to full size. */
@@ -63,12 +65,14 @@ export interface CurvedHeaderDecorProps {
  * @description Decorative bubbles, drops, and magnifier lens layered over the curved
  * header — the urinalysis motif. Purely decorative: hidden from accessibility.
  * @param topInset - Safe-area top inset the decorations are positioned relative to.
+ * @param scale - Size/offset scale for the decoration. Defaults to full size.
  * @param decorStyle - Animated fade-in style for the bubbles/drops.
  * @param lensStyle - Animated fade/rotate/scale style for the magnifier.
  * @param scale - Size/offset scale for a shorter header. Defaults to full size.
  */
 export function CurvedHeaderDecor({
   topInset,
+  scale = 1,
   decorStyle,
   lensStyle,
   scale = 1,

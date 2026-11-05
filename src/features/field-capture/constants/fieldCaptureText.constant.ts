@@ -49,7 +49,9 @@ export const FIELD_CAPTURE_TEXT = {
     SPECIMEN_REJECTED: 'This sample was rejected.',
     SPECIMEN_NOT_ASSIGNED: 'This sample is no longer assigned to you.',
     CONSENT_REFUSED: 'The patient refused processing — this sample can’t be analysed.',
-    FEATURE_DISABLED: 'This feature isn’t available yet. Please try again later.',
+    // 404 when the server runs with FIELD_WORKFLOW_ENABLED off: retrying won't help,
+    // the server has to switch it on.
+    FEATURE_DISABLED: 'Field capture isn’t switched on for this server yet.',
     // 422 from main.py's RequestValidationError handler (a malformed request, not
     // an image-content gate — those are IMAGE_NOT_MICROSCOPY/IMAGE_EXPOSURE above).
     // The server's own message here is "Request validation failed.", which isn't
@@ -70,6 +72,8 @@ export const FIELD_CAPTURE_TEXT = {
   submitOfflineBlockedMessage: 'Connect to submit.',
   sendingDecisionsBlockedMessage: 'Sending your decisions…',
   submitFailedTitle: 'Submit Failed',
+  submitCheckFailedMessage:
+    'Couldn’t check the latest fields with the server. Check your connection and try again.',
   submitSucceededTitle: 'Submitted for Verification',
   submitSucceededMessage: 'Continue on the website to verify and confirm this result.',
   emptyFieldListMessage: 'No fields captured yet.',

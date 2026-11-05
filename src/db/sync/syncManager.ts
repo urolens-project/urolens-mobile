@@ -77,6 +77,30 @@ export function synchronize(): Promise<void> {
   return cycle.completion;
 }
 
+/**
+ * @description Makes the next sync with nothing left to send pull everything again, for
+ * a caller that found the phone out of step with the server (a field the server still
+ * waits on is missing here, or shows a decision the server never got). A delta pull
+ * can't fix that: it only brings rows the server changed, and the server's didn't.
+ */
+export async function requestFullPull(): Promise<void> {
+  await AsyncStorage.setItem(FULL_PULL_NEEDED_KEY, '1');
+}
+
+/**
+ * @description Runs a sync whose pull starts after this call, for a caller about to act
+ * on what the server holds (Submit for Verification). `synchronize()` returns at once
+ * while another cycle runs, and that cycle may have pulled before the server changed —
+ * so wait for it, then join a cycle that started since, or start one. The earlier
+ * cycle's outcome is ignored; this rejects only if the fresh cycle fails.
+ */
+export async function synchronizeAfterCurrent(): Promise<void> {
+  const running = activeSync;
+  if (running) await running.completion.catch((): void => {});
+  if (activeSync) return activeSync.completion;
+  return synchronize();
+}
+
 async function runSync(cycle: ActiveSync): Promise<void> {
   const { signal } = cycle.controller;
   try {
