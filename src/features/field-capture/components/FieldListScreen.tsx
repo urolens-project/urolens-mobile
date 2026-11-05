@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import { synchronize } from '@db/sync/syncManager';
+import { synchronizeAfterCurrent } from '@db/sync/syncManager';
 
 import { Icon } from '@components/Icon';
 
@@ -21,6 +21,7 @@ import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
 import { fetchFieldCounts, useFieldList } from '../hooks/useFieldList';
 import { useSubmitFields } from '../hooks/useSubmitFields';
 import { useCurrentlyUploadingFieldId } from '../hooks/useCurrentlyUploadingFieldId';
+import { resyncAfterSubmitRefusal } from '../lib/resyncAfterSubmitRefusal';
 import { getSubmitBlockingReason } from '../lib/submitBlockingReason';
 import type { FieldListItem } from '../types';
 import { SubmitResultModal } from './SubmitResultModal';
@@ -37,11 +38,6 @@ interface SubmitResultState {
   title: string;
   message: string;
 }
-
-/** Error codes where the phone and server disagree on field state (the server
- * has a field the phone is missing) — sync first so the server's message lines
- * up with what the field list then shows (N8 field-post-analysis-report, Bug 2). */
-const SYNC_ON_SUBMIT_ERROR_CODES = new Set(['FIELDS_UNDECIDED', 'FIELDS_BELOW_MINIMUM']);
 
 /**
  * @description Lists a specimen's captured fields with their status, and gates Submit
@@ -102,11 +98,12 @@ export function FieldListScreen({
     // The guard above can be stale (see FieldListScreen's class doc) — the phone only
     // resyncs on app foreground/reconnect/tab mount, not while sitting in this screen.
     // Pull fresh server state and recheck straight from WatermelonDB before risking the
-    // submit call, instead of only cleaning up after the server 409s.
+    // submit call, instead of only cleaning up after the server 409s. A sync already
+    // running (uploads draining) may have pulled too early, so wait for a fresh one.
     setIsPreparingSubmit(true);
     let freshCounts;
     try {
-      await synchronize();
+      await synchronizeAfterCurrent();
       freshCounts = await fetchFieldCounts(specimenId);
     } catch (syncErr) {
       console.error('[FieldListScreen]', syncErr);
@@ -114,19 +111,22 @@ export function FieldListScreen({
     } finally {
       setIsPreparingSubmit(false);
     }
-    if (!freshCounts) return;
+    if (!freshCounts) {
+      // Never a silent no-op: without a fresh check the tap would otherwise do nothing.
+      setSubmitResult({
+        visible: true,
+        variant: 'error',
+        title: FIELD_CAPTURE_TEXT.submitFailedTitle,
+        message: FIELD_CAPTURE_TEXT.submitCheckFailedMessage,
+      });
+      return;
+    }
     if (getSubmitBlockingReason({ ...freshCounts, minFields, isOnline })) return;
 
     const ok = await submitFields(resultServerId);
     if (!ok) {
       const submitError = getError();
-      if (submitError?.code && SYNC_ON_SUBMIT_ERROR_CODES.has(submitError.code)) {
-        try {
-          await synchronize();
-        } catch (syncErr) {
-          console.error('[FieldListScreen]', syncErr);
-        }
-      }
+      await resyncAfterSubmitRefusal(submitError);
       setSubmitResult({
         visible: true,
         variant: 'error',

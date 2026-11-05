@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export type ActionError = Error & { code?: string };
+export type ActionError = Error & { code?: string; details?: Record<string, unknown> };
 
 export interface UseAsyncActionResult<TArgs extends unknown[], TResult> {
   run: (...args: TArgs) => Promise<TResult | undefined>;
@@ -17,9 +17,17 @@ export interface UseAsyncActionResult<TArgs extends unknown[], TResult> {
 function toActionError(err: unknown): ActionError {
   if (err instanceof Error) return err;
   if (typeof err === 'object' && err !== null && 'message' in err) {
-    const { message, code } = err as { message: unknown; code?: unknown };
+    const { message, code, details } = err as {
+      message: unknown;
+      code?: unknown;
+      details?: unknown;
+    };
     const error: ActionError = new Error(String(message));
     if (typeof code === 'string') error.code = code;
+    // e.g. FIELDS_UNDECIDED's undecidedFields, which the field list checks against its own rows.
+    if (typeof details === 'object' && details !== null) {
+      error.details = details as Record<string, unknown>;
+    }
     return error;
   }
   return new Error(String(err));
