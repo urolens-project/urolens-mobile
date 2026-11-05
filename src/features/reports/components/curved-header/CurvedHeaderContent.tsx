@@ -2,7 +2,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import type { ComponentProps } from 'react';
 
 import { getInitials } from '@lib/auth/getInitials';
-import { colors, spacing } from '@src/theme';
+import { colors, fontWeight, spacing, typography } from '@src/theme';
 
 import { TEAL } from '@components/HeaderWaves';
 
@@ -33,7 +33,7 @@ export function CurvedHeaderContent({
   contentStyle,
 }: CurvedHeaderContentProps): React.JSX.Element {
   return (
-    <Animated.View style={[styles.content, { paddingTop: topInset + 10 }, contentStyle]}>
+    <Animated.View style={[styles.content, { paddingTop: topInset + spacing.sm }, contentStyle]}>
       <View style={styles.row}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{getInitials(username)}</Text>
@@ -42,7 +42,9 @@ export function CurvedHeaderContent({
           <Text style={styles.name} numberOfLines={1}>
             {username ?? REPORTS_TEXT.defaultMedtechName}
           </Text>
-          <Text style={styles.role}>{REPORTS_TEXT.medtechRoleLabel}</Text>
+          <Text style={styles.role} numberOfLines={1}>
+            {REPORTS_TEXT.medtechRoleLabel}
+          </Text>
         </View>
         <View
           style={styles.totalCircle}
@@ -54,57 +56,58 @@ export function CurvedHeaderContent({
         </View>
       </View>
 
-      <Text style={styles.title} accessibilityRole="header">
+      <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
         {REPORTS_TEXT.headerTitle}
       </Text>
-      <Text style={styles.subtitle}>{REPORTS_TEXT.headerSubtitle}</Text>
+      <Text style={styles.subtitle} numberOfLines={1}>
+        {REPORTS_TEXT.headerSubtitle}
+      </Text>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: spacing.jumbo - spacing.xs,
+    height: spacing.jumbo - spacing.xs,
+    borderRadius: spacing.jumbo,
     backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     // TODO(theme): translucent white overlay (0.55 alpha) not in palette.
     borderColor: 'rgba(255,255,255,0.55)',
   },
   avatarText: {
-    fontSize: 16,
-    fontWeight: '800',
+    ...typography.caption,
+    fontWeight: fontWeight.bold,
     color: TEAL,
   },
   identity: {
     flex: 1,
   },
   name: {
-    fontSize: 17,
-    fontWeight: '700',
+    ...typography.subtitle,
+    fontWeight: fontWeight.bold,
     color: colors.white,
   },
   role: {
-    fontSize: 12,
+    ...typography.micro,
     // TODO(theme): translucent white overlay (0.8 alpha) not in palette.
     color: 'rgba(255,255,255,0.8)',
-    marginTop: 1,
   },
   totalCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: spacing.jumbo - spacing.xs,
+    height: spacing.jumbo - spacing.xs,
+    borderRadius: spacing.jumbo,
     // TODO(theme): translucent white overlays (0.18 / 0.35 alpha) not in palette.
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
@@ -113,27 +116,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   totalNumber: {
-    fontSize: 17,
-    lineHeight: 19,
-    fontWeight: '800',
+    ...typography.caption,
+    fontWeight: fontWeight.bold,
     color: colors.white,
   },
   totalLabel: {
-    fontSize: 9,
-    fontWeight: '600',
+    ...typography.tiny,
+    fontWeight: fontWeight.semibold,
     letterSpacing: 0.4,
     color: colors.overlayLight,
   },
   title: {
-    marginTop: 18,
-    fontSize: 30,
-    lineHeight: 34,
-    fontWeight: '800',
+    marginTop: spacing.sm,
+    ...typography.titleLg,
+    fontWeight: fontWeight.bold,
     color: colors.white,
   },
   subtitle: {
-    marginTop: 2,
-    fontSize: 13,
+    marginTop: spacing.xxs,
+    ...typography.micro,
     color: colors.overlayLight,
   },
 });
