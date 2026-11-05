@@ -1,16 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { HeaderWaves, LANDING_WAVES } from '@components/HeaderWaves';
+import { colors, spacing } from '@src/theme';
+
+import { HeaderWaves, QUEUE_WAVES } from '@components/HeaderWaves';
 
 import { CurvedHeaderContent } from './CurvedHeaderContent';
 import { CurvedHeaderDecor } from './CurvedHeaderDecor';
 
-// Height of the header below the status bar. The curve sits inside this, with
-// the left edge of the header ending ~30px above the bottom and the right edge
-// ~60px above it (see LANDING_WAVES), so content stays clear. The category
-// headers (CategoryHeader) are deliberately shorter than this.
-const BODY_HEIGHT = 172;
+// Height of the header below the status bar, matching Queue's compact formula so the
+// two tabs carry the same visual weight.
+const BODY_HEIGHT = spacing.jumbo * 2 + spacing.lg;
+
+// Shrinks the bubbles/drops/magnifier to match the now-flatter wave.
+const DECOR_SCALE = 0.55;
 
 export interface CurvedHeaderProps {
   username: string | null;
@@ -40,6 +43,8 @@ export function CurvedHeader({
 }: CurvedHeaderProps): React.JSX.Element {
   const { width } = useWindowDimensions();
   const height = topInset + BODY_HEIGHT;
+  // Keep the curved edge inside the compact body, including on wider screens.
+  const waveCurveScale = Math.min(1, (spacing.sm * 4) / width);
 
   const enter = useRef(new Animated.Value(0)).current;
   const enterBack = useRef(new Animated.Value(0)).current;
@@ -95,17 +100,25 @@ export function CurvedHeader({
 
   return (
     <View style={[styles.wrap, { width, height }]}>
+      {/* Solid fill behind the flattened wave, so no gap shows above its curve. */}
+      <View style={[styles.fill, { height: Math.max(0, height - spacing.xxxl) }]} />
       <HeaderWaves
         width={width}
         height={height}
-        preset={LANDING_WAVES}
+        preset={QUEUE_WAVES}
         topInset={topInset}
         enter={enter}
         enterBack={enterBack}
+        curveScale={waveCurveScale}
       />
 
       {/* Decoration: bubbles, drops and a magnifier — the urinalysis motif. */}
-      <CurvedHeaderDecor topInset={topInset} decorStyle={decorStyle} lensStyle={lensStyle} />
+      <CurvedHeaderDecor
+        topInset={topInset}
+        decorStyle={decorStyle}
+        lensStyle={lensStyle}
+        scale={DECOR_SCALE}
+      />
 
       <CurvedHeaderContent
         username={username}
@@ -120,5 +133,12 @@ export function CurvedHeader({
 const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
+  },
+  fill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.teal,
   },
 });
