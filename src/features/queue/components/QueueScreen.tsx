@@ -148,7 +148,11 @@ export function QueueScreen(): React.JSX.Element {
               onPrevious={previousPage}
             />
           }
-          contentContainerStyle={[styles.list, items.length === 0 && styles.listEmpty]}
+          contentContainerStyle={[
+            styles.list,
+            selectedItem && styles.listWithActionBar,
+            items.length === 0 && styles.listEmpty,
+          ]}
           showsVerticalScrollIndicator={false}
         />
 
@@ -196,6 +200,11 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: spacing.lg,
     paddingTop: LIST_PADDING_TOP,
+    paddingBottom: spacing.xxl,
+  },
+  // Reserves room for the floating QueueActionBar only while it's actually shown,
+  // so the list doesn't end with a large empty gap above the tab bar otherwise.
+  listWithActionBar: {
     paddingBottom: spacing.jumbo * 3,
   },
   listEmpty: {
