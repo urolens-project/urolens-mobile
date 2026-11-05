@@ -104,7 +104,7 @@ export function CurvedHeader({
       <View style={[styles.fill, { height: Math.max(0, height - spacing.xxxl) }]} />
       <HeaderWaves
         width={width}
-        height={height}
+        height={height - spacing.sm}
         preset={QUEUE_WAVES}
         topInset={topInset}
         enter={enter}
