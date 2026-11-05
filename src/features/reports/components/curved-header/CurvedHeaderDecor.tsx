@@ -55,6 +55,8 @@ export interface CurvedHeaderDecorProps {
   topInset: number;
   decorStyle: AnimatedViewStyle;
   lensStyle: AnimatedViewStyle;
+  /** Shrinks the bubbles/drops/magnifier, and their offsets, proportionally. Defaults to full size. */
+  scale?: number;
 }
 
 /**
@@ -63,24 +65,34 @@ export interface CurvedHeaderDecorProps {
  * @param topInset - Safe-area top inset the decorations are positioned relative to.
  * @param decorStyle - Animated fade-in style for the bubbles/drops.
  * @param lensStyle - Animated fade/rotate/scale style for the magnifier.
+ * @param scale - Size/offset scale for a shorter header. Defaults to full size.
  */
 export function CurvedHeaderDecor({
   topInset,
   decorStyle,
   lensStyle,
+  scale = 1,
 }: CurvedHeaderDecorProps): React.JSX.Element {
   return (
     <>
       <Animated.View style={[StyleSheet.absoluteFill, decorStyle]} pointerEvents="none">
-        <Bubble size={92} style={{ left: -34, top: topInset + 92 }} />
-        <Bubble size={44} style={{ right: 84, top: topInset + 70 }} />
-        <Bubble size={18} style={{ left: '46%', top: topInset + 6 }} />
-        <Drop size={12} style={{ right: 128, top: topInset + 128 }} />
-        <Drop size={8} style={{ right: 148, top: topInset + 146 }} />
+        <Bubble size={92 * scale} style={{ left: -34 * scale, top: topInset + 92 * scale }} />
+        <Bubble size={44 * scale} style={{ right: 84 * scale, top: topInset + 70 * scale }} />
+        <Bubble size={18 * scale} style={{ left: '46%', top: topInset + 6 * scale }} />
+        <Drop size={12 * scale} style={{ right: 128 * scale, top: topInset + 128 * scale }} />
+        <Drop size={8 * scale} style={{ right: 148 * scale, top: topInset + 146 * scale }} />
       </Animated.View>
-      <Animated.View style={[styles.lens, { top: topInset + 78 }, lensStyle]} pointerEvents="none">
+      <Animated.View
+        style={[styles.lens, { top: topInset + 78 * scale, right: 22 * scale }, lensStyle]}
+        pointerEvents="none"
+      >
         {/* TODO(theme): translucent white overlay (0.22 alpha) not in palette. */}
-        <Icon family="material-community" name="magnify" size={92} color="rgba(255,255,255,0.22)" />
+        <Icon
+          family="material-community"
+          name="magnify"
+          size={92 * scale}
+          color="rgba(255,255,255,0.22)"
+        />
       </Animated.View>
     </>
   );
@@ -89,6 +101,5 @@ export function CurvedHeaderDecor({
 const styles = StyleSheet.create({
   lens: {
     position: 'absolute',
-    right: 22,
   },
 });

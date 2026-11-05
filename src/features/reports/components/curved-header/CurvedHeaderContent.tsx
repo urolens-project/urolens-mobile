@@ -2,7 +2,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import type { ComponentProps } from 'react';
 
 import { getInitials } from '@lib/auth/getInitials';
-import { colors, spacing } from '@src/theme';
+import { colors, fontWeight, spacing, typography } from '@src/theme';
 
 import { TEAL } from '@components/HeaderWaves';
 
@@ -33,7 +33,7 @@ export function CurvedHeaderContent({
   contentStyle,
 }: CurvedHeaderContentProps): React.JSX.Element {
   return (
-    <Animated.View style={[styles.content, { paddingTop: topInset + 10 }, contentStyle]}>
+    <Animated.View style={[styles.content, { paddingTop: topInset + spacing.sm }, contentStyle]}>
       <View style={styles.row}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{getInitials(username)}</Text>
@@ -72,9 +72,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: spacing.jumbo - spacing.sm,
+    height: spacing.jumbo - spacing.sm,
+    borderRadius: (spacing.jumbo - spacing.sm) / 2,
     backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
@@ -83,28 +83,28 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.55)',
   },
   avatarText: {
-    fontSize: 16,
-    fontWeight: '800',
+    ...typography.body,
+    fontWeight: fontWeight.extrabold,
     color: TEAL,
   },
   identity: {
     flex: 1,
   },
   name: {
-    fontSize: 17,
-    fontWeight: '700',
+    ...typography.title,
+    fontWeight: fontWeight.bold,
     color: colors.white,
   },
   role: {
-    fontSize: 12,
+    ...typography.micro,
     // TODO(theme): translucent white overlay (0.8 alpha) not in palette.
     color: 'rgba(255,255,255,0.8)',
     marginTop: 1,
   },
   totalCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: spacing.jumbo - spacing.xs,
+    height: spacing.jumbo - spacing.xs,
+    borderRadius: (spacing.jumbo - spacing.xs) / 2,
     // TODO(theme): translucent white overlays (0.18 / 0.35 alpha) not in palette.
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
@@ -113,27 +113,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   totalNumber: {
-    fontSize: 17,
-    lineHeight: 19,
-    fontWeight: '800',
+    ...typography.title,
+    fontWeight: fontWeight.extrabold,
     color: colors.white,
   },
   totalLabel: {
-    fontSize: 9,
-    fontWeight: '600',
+    ...typography.tiny,
+    fontWeight: fontWeight.semibold,
     letterSpacing: 0.4,
     color: colors.overlayLight,
   },
   title: {
-    marginTop: 18,
-    fontSize: 30,
-    lineHeight: 34,
-    fontWeight: '800',
+    marginTop: spacing.sm,
+    ...typography.headingLg,
     color: colors.white,
   },
   subtitle: {
     marginTop: 2,
-    fontSize: 13,
+    ...typography.caption,
     color: colors.overlayLight,
   },
 });
