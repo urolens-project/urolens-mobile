@@ -36,7 +36,6 @@ jest.mock('@features/field-capture/hooks/useFieldActions', () => ({
   }),
 }));
 
-import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import { FieldDetailScreen } from '../../../src/features/field-capture/components/FieldDetailScreen';
 import type { CapturedField } from '../../../src/features/field-capture/types';
@@ -136,8 +135,7 @@ describe('FieldDetailScreen step-through', () => {
 
     render(<FieldDetailScreen localFieldId="field-1" specimenId="srv-1" minFields={10} />);
     fireEvent.press(screen.getByTestId('discard-field-button'));
-    const buttons = (Alert.alert as jest.Mock).mock.calls[0][2];
-    buttons.find((b: { style?: string }) => b.style === 'destructive').onPress();
+    fireEvent.press(screen.getByTestId('discard-field-modal-confirm-button'));
 
     await waitFor(() =>
       expect(mockRouterReplace).toHaveBeenCalledWith({
