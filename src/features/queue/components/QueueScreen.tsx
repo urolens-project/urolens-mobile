@@ -20,6 +20,11 @@ import { StickyFilters } from './StickyFilters';
 import type { QueueItem } from '../types';
 
 const LIST_PADDING_TOP = spacing.lg;
+// Matches the other tabs' bottom clearance when nothing is selected.
+const LIST_PADDING_BOTTOM = spacing.xxxl;
+// Reserves space for QueueActionBar's own height while a sample is selected, so the
+// last row/pagination isn't hidden behind it.
+const LIST_PADDING_BOTTOM_WITH_ACTION_BAR = spacing.jumbo * 3;
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as unknown as typeof FlatList;
 
 /**
@@ -150,7 +155,11 @@ export function QueueScreen(): React.JSX.Element {
           }
           contentContainerStyle={[
             styles.list,
-            selectedItem && styles.listWithActionBar,
+            {
+              paddingBottom: selectedItem
+                ? LIST_PADDING_BOTTOM_WITH_ACTION_BAR
+                : LIST_PADDING_BOTTOM,
+            },
             items.length === 0 && styles.listEmpty,
           ]}
           showsVerticalScrollIndicator={false}
@@ -200,12 +209,6 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: spacing.lg,
     paddingTop: LIST_PADDING_TOP,
-    paddingBottom: spacing.xxl,
-  },
-  // Reserves room for the floating QueueActionBar only while it's actually shown,
-  // so the list doesn't end with a large empty gap above the tab bar otherwise.
-  listWithActionBar: {
-    paddingBottom: spacing.jumbo * 3,
   },
   listEmpty: {
     flex: 1,

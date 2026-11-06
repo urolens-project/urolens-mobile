@@ -76,9 +76,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   avatar: {
-    width: spacing.jumbo - spacing.xs,
-    height: spacing.jumbo - spacing.xs,
-    borderRadius: spacing.jumbo,
+    width: spacing.jumbo - spacing.sm,
+    height: spacing.jumbo - spacing.sm,
+    borderRadius: (spacing.jumbo - spacing.sm) / 2,
     backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
@@ -87,15 +87,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.55)',
   },
   avatarText: {
-    ...typography.caption,
-    fontWeight: fontWeight.bold,
+    ...typography.body,
+    fontWeight: fontWeight.extrabold,
     color: TEAL,
   },
   identity: {
     flex: 1,
   },
   name: {
-    ...typography.subtitle,
+    ...typography.title,
     fontWeight: fontWeight.bold,
     color: colors.white,
   },
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   totalCircle: {
     width: spacing.jumbo - spacing.xs,
     height: spacing.jumbo - spacing.xs,
-    borderRadius: spacing.jumbo,
+    borderRadius: (spacing.jumbo - spacing.xs) / 2,
     // TODO(theme): translucent white overlays (0.18 / 0.35 alpha) not in palette.
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
@@ -116,8 +116,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   totalNumber: {
-    ...typography.caption,
-    fontWeight: fontWeight.bold,
+    ...typography.title,
+    fontWeight: fontWeight.extrabold,
     color: colors.white,
   },
   totalLabel: {
@@ -128,13 +128,12 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: spacing.sm,
-    ...typography.titleLg,
-    fontWeight: fontWeight.bold,
+    ...typography.headingLg,
     color: colors.white,
   },
   subtitle: {
-    marginTop: spacing.xxs,
-    ...typography.micro,
+    marginTop: 2,
+    ...typography.caption,
     color: colors.overlayLight,
   },
 });

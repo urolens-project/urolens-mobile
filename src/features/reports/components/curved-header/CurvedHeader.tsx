@@ -8,10 +8,11 @@ import { HeaderWaves, QUEUE_WAVES } from '@components/HeaderWaves';
 import { CurvedHeaderContent } from './CurvedHeaderContent';
 import { CurvedHeaderDecor } from './CurvedHeaderDecor';
 
-// Height of the header below the status bar — matches the Queue header's compact
-// body height so the two tabs carry the same visual weight.
+// Height of the header below the status bar, matching Queue's compact formula so the
+// two tabs carry the same visual weight.
 const BODY_HEIGHT = spacing.jumbo * 2 + spacing.lg;
-// Scales the decoration (bubbles, magnifier) down to fit the compact body.
+
+// Shrinks the bubbles/drops/magnifier to match the now-flatter wave.
 const DECOR_SCALE = 0.55;
 
 export interface CurvedHeaderProps {
@@ -42,7 +43,7 @@ export function CurvedHeader({
 }: CurvedHeaderProps): React.JSX.Element {
   const { width } = useWindowDimensions();
   const height = topInset + BODY_HEIGHT;
-  // Keeps the curved edge inside the compact body, including on wider screens.
+  // Keep the curved edge inside the compact body, including on wider screens.
   const waveCurveScale = Math.min(1, (spacing.sm * 4) / width);
 
   const enter = useRef(new Animated.Value(0)).current;
@@ -99,13 +100,11 @@ export function CurvedHeader({
 
   return (
     <View style={[styles.wrap, { width, height }]}>
-      {/* The flattened wave circles alone don't reach the full rectangle at this
-          compact height, so a solid fill backs them to avoid a gap below the status
-          bar strip. */}
-      <View style={[styles.headerFill, { height: Math.max(0, height - spacing.xxxl) }]} />
+      {/* Solid fill behind the flattened wave, so no gap shows above its curve. */}
+      <View style={[styles.fill, { height: Math.max(0, height - spacing.xxxl) }]} />
       <HeaderWaves
         width={width}
-        height={height}
+        height={height - spacing.sm}
         preset={QUEUE_WAVES}
         topInset={topInset}
         enter={enter}
@@ -116,9 +115,9 @@ export function CurvedHeader({
       {/* Decoration: bubbles, drops and a magnifier — the urinalysis motif. */}
       <CurvedHeaderDecor
         topInset={topInset}
-        scale={DECOR_SCALE}
         decorStyle={decorStyle}
         lensStyle={lensStyle}
+        scale={DECOR_SCALE}
       />
 
       <CurvedHeaderContent
@@ -135,7 +134,7 @@ const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
   },
-  headerFill: {
+  fill: {
     position: 'absolute',
     top: 0,
     left: 0,
