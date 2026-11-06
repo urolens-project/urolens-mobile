@@ -67,9 +67,9 @@ describe('CategoryHeader', () => {
     expect(screen.getByText('Pending Supervisor Approval')).toBeTruthy();
   });
 
-  // The landing header is 172 tall; the working list screens give that
-  // space back to the samples.
-  it('is shorter than the Reports landing header', () => {
-    expect(CATEGORY_HEADER_BODY_HEIGHT).toBeLessThan(172);
+  // Matches the Queue/Reports-landing compact formula (spacing.jumbo*2 + spacing.lg),
+  // so every header in the app carries the same visual weight.
+  it('matches the compact header height used by Queue and the Reports landing header', () => {
+    expect(CATEGORY_HEADER_BODY_HEIGHT).toBe(112);
   });
 });

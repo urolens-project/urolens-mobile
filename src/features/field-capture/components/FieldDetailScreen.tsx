@@ -1,13 +1,13 @@
-import { useCallback } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { colors } from '@src/theme';
 
-import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
 import { useFieldActions } from '../hooks/useFieldActions';
 import { useFieldDetail } from '../hooks/useFieldDetail';
 import { useFieldList } from '../hooks/useFieldList';
+import { DiscardFieldModal } from './DiscardFieldModal';
 import { FieldResultScreen } from './FieldResultScreen';
 
 export interface FieldDetailScreenProps {
@@ -44,6 +44,7 @@ export function FieldDetailScreen({
     isLoading: isActing,
     error,
   } = useFieldActions();
+  const [isDiscardModalVisible, setIsDiscardModalVisible] = useState(false);
 
   // `fields` is already sorted by fieldNo ascending (useFieldList's query), so the
   // first match here is the lowest-numbered field still waiting.
@@ -73,20 +74,18 @@ export function FieldDetailScreen({
   }, [acceptField, goToNextOrBack, localFieldId]);
 
   const handleDiscardConfirmed = useCallback(async (): Promise<void> => {
+    setIsDiscardModalVisible(false);
     const outcome = await discardField(localFieldId);
     if (outcome) goToNextOrBack();
   }, [discardField, goToNextOrBack, localFieldId]);
 
   const handleDiscard = useCallback((): void => {
-    Alert.alert(FIELD_CAPTURE_TEXT.discardModalTitle, FIELD_CAPTURE_TEXT.discardModalBody, [
-      { text: FIELD_CAPTURE_TEXT.keepFieldLabel, style: 'cancel' },
-      {
-        text: FIELD_CAPTURE_TEXT.confirmDiscardLabel,
-        style: 'destructive',
-        onPress: handleDiscardConfirmed,
-      },
-    ]);
-  }, [handleDiscardConfirmed]);
+    setIsDiscardModalVisible(true);
+  }, []);
+
+  const handleDiscardCancel = useCallback((): void => {
+    setIsDiscardModalVisible(false);
+  }, []);
 
   const handleMarkReviewed = useCallback((): void => {
     void markFieldReviewed(localFieldId);
@@ -101,16 +100,23 @@ export function FieldDetailScreen({
   }
 
   return (
-    <FieldResultScreen
-      field={field}
-      isSubmitting={isActing}
-      errorMessage={error?.message ?? null}
-      onProceed={handleProceed}
-      onDiscard={handleDiscard}
-      onMarkReviewed={handleMarkReviewed}
-      remainingCount={otherUndecided.length}
-      onGoBack={handleGoBack}
-    />
+    <>
+      <FieldResultScreen
+        field={field}
+        isSubmitting={isActing}
+        errorMessage={error?.message ?? null}
+        onProceed={handleProceed}
+        onDiscard={handleDiscard}
+        onMarkReviewed={handleMarkReviewed}
+        remainingCount={otherUndecided.length}
+        onGoBack={handleGoBack}
+      />
+      <DiscardFieldModal
+        visible={isDiscardModalVisible}
+        onConfirm={handleDiscardConfirmed}
+        onCancel={handleDiscardCancel}
+      />
+    </>
   );
 }
 

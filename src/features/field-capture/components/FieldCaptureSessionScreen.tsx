@@ -37,6 +37,7 @@ import { ImagePreviewPanel } from '@features/image-retake/components/image-previ
 import { UploadProgressView } from '@features/image-retake/components/UploadProgressView';
 import { IMAGE_RETAKE_TEXT } from '@features/image-retake/constants/imageRetakeText.constant';
 
+import { DiscardFieldModal } from './DiscardFieldModal';
 import { FieldResultScreen } from './FieldResultScreen';
 import { UploadRetryModal } from './UploadRetryModal';
 import { FIELD_CAPTURE_TEXT } from '../constants/fieldCaptureText.constant';
@@ -97,6 +98,7 @@ export function FieldCaptureSessionScreen({
     visible: false,
     message: '',
   });
+  const [isDiscardModalVisible, setIsDiscardModalVisible] = useState(false);
   // Guards against a second gallery tap launching an overlapping batch while one
   // is still being queued — createQueuedFieldUpload's fieldNo depends on each call
   // fully completing before the next one starts (see handleBulkGalleryPick).
@@ -339,6 +341,7 @@ export function FieldCaptureSessionScreen({
   }, [acceptField, capturedField]);
 
   const handleDiscardConfirmed = useCallback(async (): Promise<void> => {
+    setIsDiscardModalVisible(false);
     if (!capturedField) return;
     const outcome = await discardField(capturedField.localId);
     if (!outcome) return;
@@ -348,15 +351,12 @@ export function FieldCaptureSessionScreen({
   }, [capturedField, discardField]);
 
   const handleDiscardRequest = useCallback((): void => {
-    Alert.alert(FIELD_CAPTURE_TEXT.discardModalTitle, FIELD_CAPTURE_TEXT.discardModalBody, [
-      { text: FIELD_CAPTURE_TEXT.keepFieldLabel, style: 'cancel' },
-      {
-        text: FIELD_CAPTURE_TEXT.confirmDiscardLabel,
-        style: 'destructive',
-        onPress: handleDiscardConfirmed,
-      },
-    ]);
-  }, [handleDiscardConfirmed]);
+    setIsDiscardModalVisible(true);
+  }, []);
+
+  const handleDiscardCancel = useCallback((): void => {
+    setIsDiscardModalVisible(false);
+  }, []);
 
   // ── Upload retry modal (network failure) ─────────────────────────────────
   const handleUploadRetryTryAgain = useCallback((): void => {
@@ -418,13 +418,20 @@ export function FieldCaptureSessionScreen({
   // ── Field result phase ────────────────────────────────────────────────────
   if (phase === 'fieldResult' && capturedField) {
     return (
-      <FieldResultScreen
-        field={capturedField}
-        isSubmitting={isActing}
-        errorMessage={fieldActionError?.message ?? null}
-        onProceed={handleProceed}
-        onDiscard={handleDiscardRequest}
-      />
+      <>
+        <FieldResultScreen
+          field={capturedField}
+          isSubmitting={isActing}
+          errorMessage={fieldActionError?.message ?? null}
+          onProceed={handleProceed}
+          onDiscard={handleDiscardRequest}
+        />
+        <DiscardFieldModal
+          visible={isDiscardModalVisible}
+          onConfirm={handleDiscardConfirmed}
+          onCancel={handleDiscardCancel}
+        />
+      </>
     );
   }
 

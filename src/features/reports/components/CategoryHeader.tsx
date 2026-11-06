@@ -12,18 +12,18 @@ import {
 import type { ComponentProps } from 'react';
 import type { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { colors, spacing } from '@src/theme';
+import { colors, spacing, typography } from '@src/theme';
 
-import { COMPACT_WAVES, HeaderWaves } from '@components/HeaderWaves';
+import { HeaderWaves, QUEUE_WAVES } from '@components/HeaderWaves';
 import { Icon } from '@components/Icon';
 
 import { REPORT_CATEGORY_STYLES } from '../constants';
 import { REPORTS_TEXT } from '../constants/reportsText.constant';
 import type { ReportCategory } from '../types';
 
-// Deliberately much shorter than the Reports landing header (172): this is a
-// working list screen, so it gives the space to the samples instead.
-export const CATEGORY_HEADER_BODY_HEIGHT = 116;
+// Matches the Queue/Reports-landing compact formula, so every header in the app
+// carries the same visual weight.
+export const CATEGORY_HEADER_BODY_HEIGHT = spacing.jumbo * 2 + spacing.lg;
 
 type MaterialCommunityIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -92,6 +92,8 @@ export function CategoryHeader({
 }: CategoryHeaderProps): React.JSX.Element {
   const { width } = useWindowDimensions();
   const height = topInset + CATEGORY_HEADER_BODY_HEIGHT;
+  // Keep the curved edge inside the compact body, including on wider screens.
+  const waveCurveScale = Math.min(1, (spacing.sm * 4) / width);
   const { color } = REPORT_CATEGORY_STYLES[category];
 
   const enter = useRef(new Animated.Value(0)).current;
@@ -147,11 +149,12 @@ export function CategoryHeader({
     <View style={[styles.wrap, { width, height }]}>
       <HeaderWaves
         width={width}
-        height={height}
-        preset={COMPACT_WAVES}
+        height={height - spacing.sm}
+        preset={QUEUE_WAVES}
         topInset={topInset}
         enter={enter}
         enterBack={enterBack}
+        curveScale={waveCurveScale}
       />
 
       <Animated.View style={[StyleSheet.absoluteFill, decorStyle]} pointerEvents="none">
@@ -159,31 +162,31 @@ export function CategoryHeader({
         <Bubble size={30} style={{ right: 96, top: topInset + 58 }} />
       </Animated.View>
 
-      <Animated.View style={[styles.row, { paddingTop: topInset + 8 }, contentStyle]}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel={REPORTS_TEXT.categoryHeaderBackLabel}
-        >
-          <Icon name="chevron-back" size={24} color={colors.white} />
-        </TouchableOpacity>
+      <Animated.View style={[styles.content, { paddingTop: topInset + spacing.sm }, contentStyle]}>
+        <View style={styles.row}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={onBack}
+            accessibilityRole="button"
+            accessibilityLabel={REPORTS_TEXT.categoryHeaderBackLabel}
+          >
+            <Icon name="chevron-back" size={24} color={colors.white} />
+          </TouchableOpacity>
 
-        <View style={styles.textCol}>
-          <Text style={styles.title} numberOfLines={2} accessibilityRole="header">
-            {title}
-          </Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          <Animated.View style={[styles.chip, chipStyle]} accessibilityElementsHidden>
+            <Icon
+              family="material-community"
+              name={CATEGORY_ICONS[category]}
+              size={24}
+              color={color}
+            />
+          </Animated.View>
         </View>
 
-        <Animated.View style={[styles.chip, chipStyle]} accessibilityElementsHidden>
-          <Icon
-            family="material-community"
-            name={CATEGORY_ICONS[category]}
-            size={24}
-            color={color}
-          />
-        </Animated.View>
+        <Text style={styles.title} numberOfLines={2} accessibilityRole="header">
+          {title}
+        </Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
       </Animated.View>
     </View>
   );
@@ -193,40 +196,37 @@ const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
   },
+  content: {
+    paddingHorizontal: spacing.xl,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.smd,
-    paddingLeft: spacing.smd,
-    paddingRight: spacing.xl,
+    justifyContent: 'space-between',
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: spacing.jumbo - spacing.sm,
+    height: spacing.jumbo - spacing.sm,
+    borderRadius: (spacing.jumbo - spacing.sm) / 2,
     // TODO(theme): translucent white overlay (0.18 alpha) not in palette.
     backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  textCol: {
-    flex: 1,
-  },
   title: {
-    fontSize: 20,
-    lineHeight: 24,
-    fontWeight: '800',
+    marginTop: spacing.sm,
+    ...typography.headingLg,
     color: colors.white,
   },
   subtitle: {
     marginTop: 2,
-    fontSize: 12.5,
+    ...typography.caption,
     color: colors.overlayLight,
   },
   chip: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: spacing.jumbo - spacing.xs,
+    height: spacing.jumbo - spacing.xs,
+    borderRadius: (spacing.jumbo - spacing.xs) / 2,
     backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',

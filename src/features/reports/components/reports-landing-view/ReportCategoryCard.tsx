@@ -9,7 +9,7 @@ import { REPORT_CATEGORY_STYLES } from '../../constants';
 import { REPORTS_TEXT } from '../../constants/reportsText.constant';
 import { REPORT_CATEGORY_DESCRIPTIONS } from '../../types';
 import type { ReportCategory } from '../../types';
-import { ReportIllustration } from '../report-illustration';
+import { ILLUSTRATION_SIZE, ReportIllustration } from '../report-illustration';
 
 export interface ReportCategoryCardProps {
   category: ReportCategory;
@@ -20,7 +20,12 @@ export interface ReportCategoryCardProps {
   animate?: boolean;
 }
 
-export const CARD_RADIUS = 24;
+export const CARD_RADIUS = 20;
+
+// Shrinks the illustration to match the card's smaller footprint, without touching its
+// internal fixed-pixel scene geometry (illustrationParts.tsx / illustrationScenes.tsx).
+const ART_SCALE = 0.8;
+const ART_SIZE = ILLUSTRATION_SIZE * ART_SCALE;
 
 /**
  * @description Landing-page card for one report category: title, description, sample
@@ -68,7 +73,9 @@ function ReportCategoryCardComponent({
       </View>
 
       <View style={styles.art}>
-        <ReportIllustration category={category} animate={animate} />
+        <View style={styles.artScale}>
+          <ReportIllustration category={category} animate={animate} />
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -77,11 +84,11 @@ function ReportCategoryCardComponent({
 const styles = StyleSheet.create({
   card: {
     width: '100%',
-    minHeight: 156,
+    minHeight: 132,
     borderRadius: CARD_RADIUS,
-    paddingVertical: 18,
-    paddingLeft: 20,
-    paddingRight: 12,
+    paddingVertical: spacing.mlg,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.smd,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: colors.gray800,
@@ -96,14 +103,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   title: {
-    fontSize: 19,
-    lineHeight: 24,
+    ...typography.titleLg,
     fontWeight: '700',
     color: colors.gray900,
   },
   description: {
     ...typography.caption,
-    lineHeight: 17,
+    lineHeight: 16,
     color: colors.gray500,
   },
   pill: {
@@ -111,10 +117,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingLeft: spacing.mlg,
-    paddingRight: spacing.smd,
+    marginTop: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm,
     borderRadius: radius.xxl,
     backgroundColor: colors.white,
     shadowColor: colors.black,
@@ -124,7 +130,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   pillCount: {
-    fontSize: 15,
+    ...typography.subtitle,
     fontWeight: '800',
   },
   pillLabel: {
@@ -133,9 +139,12 @@ const styles = StyleSheet.create({
     color: colors.gray700,
   },
   art: {
-    width: 124,
+    width: ART_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  artScale: {
+    transform: [{ scale: ART_SCALE }],
   },
 });
 
