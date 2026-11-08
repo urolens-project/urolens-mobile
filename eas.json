@@ -16,13 +16,15 @@
       "distribution": "internal",
       "pnpm": "9.15.4",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "staging"
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_API_BASE_URL": "https://urolens-api.azurewebsites.net/api/v1"
       }
     },
     "production": {
       "pnpm": "9.15.4",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_API_BASE_URL": "https://urolens-api.azurewebsites.net/api/v1"
       }
     }
   },
