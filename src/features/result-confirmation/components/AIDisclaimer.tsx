@@ -1,23 +1,27 @@
-// Path: urolens-mobile/src/features/result-confirmation/components/AIDisclaimer.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-// Mandatory compliance component per SRS.
-// Must appear at the top of ResultReviewScreen.
-// Never conditionally hide or remove.
+import { colors, radius, spacing } from '@src/theme';
+
+import { RESULT_CONFIRMATION_TEXT } from '../constants/resultConfirmationText.constant';
+
+/**
+ * @description Mandatory compliance notice per SRS. Must appear at the top of
+ * ResultReviewScreen; never conditionally hide or remove it.
+ */
 export function AIDisclaimer(): React.JSX.Element {
   return (
     <View
       style={styles.container}
       accessible={true}
       accessibilityRole="text"
-      accessibilityLabel="AI disclaimer"
+      accessibilityLabel={RESULT_CONFIRMATION_TEXT.aiDisclaimer.accessibilityLabel}
     >
-      <Text style={styles.label} accessible={false}>Clinical Decision Support</Text>
+      <Text style={styles.label} accessible={false}>
+        {RESULT_CONFIRMATION_TEXT.aiDisclaimer.label}
+      </Text>
       <Text style={styles.body} accessible={false}>
-        UroLens is a clinical decision-support tool. AI-generated findings and Smart Diagnosis
-        indicators are not substitutes for professional medical judgment. All results must be
-        reviewed and confirmed by a licensed Medical Technologist and Laboratory Supervisor.
+        {RESULT_CONFIRMATION_TEXT.aiDisclaimer.body}
       </Text>
     </View>
   );
@@ -25,27 +29,27 @@ export function AIDisclaimer(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#EEF9F8',
+    backgroundColor: colors.tealTint5,
     borderLeftWidth: 3,
-    borderLeftColor: '#2E7D7A',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 4,
+    borderLeftColor: colors.teal,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.mlg,
+    paddingVertical: spacing.smd,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2E7D7A',
+    color: colors.teal,
     letterSpacing: 0.3,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
     textTransform: 'uppercase',
   },
   body: {
     fontSize: 12,
     lineHeight: 17,
-    color: '#3D7874',
+    color: colors.tealDark,
   },
 });

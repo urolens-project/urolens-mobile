@@ -1,6 +1,7 @@
 import {
   schemaMigrations,
   addColumns,
+  createTable,
   unsafeExecuteSql,
 } from '@nozbe/watermelondb/Schema/migrations';
 
@@ -13,8 +14,8 @@ export default schemaMigrations({
           table: 'specimens',
           columns: [
             { name: 'rejection_reason', type: 'string', isOptional: true },
-            { name: 'rejection_note',   type: 'string', isOptional: true },
-            { name: 'rejected_at',      type: 'string', isOptional: true },
+            { name: 'rejection_note', type: 'string', isOptional: true },
+            { name: 'rejected_at', type: 'string', isOptional: true },
           ],
         }),
       ],
@@ -27,10 +28,10 @@ export default schemaMigrations({
           table: 'analysis_results',
           columns: [
             { name: 'smart_diagnosis_unavailable', type: 'boolean' },
-            { name: 'confirmed_at',                type: 'string', isOptional: true },
-            { name: 'confirmed_by',                type: 'string', isOptional: true },
-            { name: 'is_synced',                   type: 'boolean' },
-            { name: 'created_at',                  type: 'number' },
+            { name: 'confirmed_at', type: 'string', isOptional: true },
+            { name: 'confirmed_by', type: 'string', isOptional: true },
+            { name: 'is_synced', type: 'boolean' },
+            { name: 'created_at', type: 'number' },
           ],
         }),
 
@@ -39,9 +40,9 @@ export default schemaMigrations({
         addColumns({
           table: 'manual_overrides',
           columns: [
-            { name: 'parameter',     type: 'string' },
+            { name: 'parameter', type: 'string' },
             { name: 'overridden_by', type: 'string' },
-            { name: 'created_at',    type: 'number' },
+            { name: 'created_at', type: 'number' },
           ],
         }),
 
@@ -54,6 +55,166 @@ export default schemaMigrations({
                corrected_value   = CAST(corrected_value   AS REAL)
            WHERE parameter IS NULL OR parameter = '';`,
         ),
+      ],
+    },
+    {
+      toVersion: 4,
+      steps: [
+        addColumns({
+          table: 'analysis_results',
+          columns: [{ name: 'return_reason', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
+    {
+      toVersion: 5,
+      steps: [
+        // ── specimens/analysis_results: fields needed to map and sort Reports
+        //    by their actual approve/release dates instead of confirmedAt ────
+        addColumns({
+          table: 'specimens',
+          columns: [{ name: 'completed_at', type: 'string', isOptional: true }],
+        }),
+        addColumns({
+          table: 'analysis_results',
+          columns: [
+            { name: 'approved_at', type: 'string', isOptional: true },
+            { name: 'released_at', type: 'string', isOptional: true },
+            { name: 'particle_classes_json', type: 'string', isOptional: true },
+          ],
+        }),
+
+        // One-time purge (UROLENS-235): before this version, pullChanges never
+        // processed the server's deleted list, so a finished sample that aged
+        // out of the 30-day history window could linger on the phone
+        // indefinitely. Drop anything already past that window, plus the
+        // rows that reference it — new installs never accumulate this, and
+        // going forward pullChanges removes aged-out rows as they happen.
+        unsafeExecuteSql(`
+          DELETE FROM specimens
+          WHERE status IN ('COMPLETED', 'REJECTED')
+            AND COALESCE(completed_at, rejected_at, received_at) < datetime('now', '-30 days');
+        `),
+        unsafeExecuteSql(`
+          DELETE FROM queue_assignments
+          WHERE specimen_id NOT IN (SELECT server_id FROM specimens WHERE server_id IS NOT NULL);
+        `),
+        unsafeExecuteSql(`
+          DELETE FROM analysis_results
+          WHERE specimen_id NOT IN (SELECT server_id FROM specimens WHERE server_id IS NOT NULL);
+        `),
+        unsafeExecuteSql(`
+          DELETE FROM manual_overrides
+          WHERE result_id NOT IN (SELECT server_id FROM analysis_results WHERE server_id IS NOT NULL);
+        `),
+      ],
+    },
+    {
+      toVersion: 6,
+      steps: [
+        // The server always sends patient_name as "" now (RA 10173 data minimization —
+        // the app shows only the patient code) — see sync_service.py's pull(). Nothing
+        // reads this column locally; drop it rather than keep storing an always-empty field.
+        //
+        // Can't use `ALTER TABLE ... DROP COLUMN` here — that syntax needs SQLite
+        // 3.35+, and Android's bundled SQLite on many devices is older, so it fails
+        // with "near DROP: syntax error" and WatermelonDB refuses to open the DB.
+        // Rebuild the table instead (rename → recreate → copy → drop), the
+        // long-standing SQLite-safe way to drop a column.
+        unsafeExecuteSql('ALTER TABLE specimens RENAME TO _specimens_old;'),
+        unsafeExecuteSql(
+          `CREATE TABLE specimens ("id" primary key, "_changed", "_status",
+            "server_id", "sample_uid", "patient_uid", "test_type", "status",
+            "priority_level", "received_at", "assigned_at", "completed_at",
+            "medtech_id", "rejection_reason", "rejection_note", "rejected_at",
+            "synced_at");`,
+        ),
+        unsafeExecuteSql(
+          `INSERT INTO specimens ("id", "_changed", "_status", "server_id",
+            "sample_uid", "patient_uid", "test_type", "status", "priority_level",
+            "received_at", "assigned_at", "completed_at", "medtech_id",
+            "rejection_reason", "rejection_note", "rejected_at", "synced_at")
+          SELECT "id", "_changed", "_status", "server_id", "sample_uid",
+            "patient_uid", "test_type", "status", "priority_level", "received_at",
+            "assigned_at", "completed_at", "medtech_id", "rejection_reason",
+            "rejection_note", "rejected_at", "synced_at"
+          FROM _specimens_old;`,
+        ),
+        unsafeExecuteSql('DROP TABLE _specimens_old;'),
+        unsafeExecuteSql(
+          'create index if not exists "specimens__status" on "specimens" ("_status");',
+        ),
+      ],
+    },
+    {
+      toVersion: 7,
+      steps: [
+        // ── Multi-field workflow foundation (SDD Module 2 proposal) ──────────
+        // Purely additive: new tables and nullable columns only, nothing here
+        // changes existing behavior. See src/db/schema.ts for column notes.
+        addColumns({
+          table: 'analysis_results',
+          columns: [
+            { name: 'field_count', type: 'number', isOptional: true },
+            { name: 'field_summary_json', type: 'string', isOptional: true },
+          ],
+        }),
+        createTable({
+          name: 'result_fields',
+          columns: [
+            { name: 'server_id', type: 'string', isOptional: true },
+            { name: 'result_id', type: 'string' },
+            { name: 'specimen_id', type: 'string' },
+            { name: 'image_id', type: 'string', isOptional: true },
+            { name: 'field_no', type: 'number' },
+            { name: 'magnification', type: 'string' },
+            { name: 'status', type: 'string' },
+            { name: 'ai_findings_json', type: 'string' },
+            { name: 'effective_counts_json', type: 'string' },
+            { name: 'confidence_scores_json', type: 'string' },
+            { name: 'image_width', type: 'number' },
+            { name: 'image_height', type: 'number' },
+            { name: 'smart_diagnosis_json', type: 'string', isOptional: true },
+            { name: 'smart_diagnosis_unavailable', type: 'boolean' },
+            { name: 'local_image_uri', type: 'string', isOptional: true },
+            { name: 'version', type: 'number', isOptional: true },
+            { name: 'is_synced', type: 'boolean' },
+            { name: 'created_at', type: 'number' },
+            { name: 'synced_at', type: 'string', isOptional: true },
+          ],
+        }),
+        createTable({
+          name: 'field_detections',
+          columns: [
+            { name: 'field_id', type: 'string', isIndexed: true },
+            { name: 'detections_json', type: 'string' },
+            { name: 'image_width', type: 'number' },
+            { name: 'image_height', type: 'number' },
+          ],
+        }),
+      ],
+    },
+    {
+      toVersion: 8,
+      steps: [
+        // Distinguishes a field the system discarded automatically (a queued
+        // offline capture refused as IMAGE_NOT_MICROSCOPY / IMAGE_EXPOSURE)
+        // from one the MedTech discarded themselves. Null for the latter.
+        addColumns({
+          table: 'result_fields',
+          columns: [{ name: 'discard_reason', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
+    {
+      toVersion: 9,
+      steps: [
+        // Client-only "I've looked at this field" acknowledgement, separate from
+        // the Proceed/Discard decision — see schema.ts for the column note.
+        addColumns({
+          table: 'result_fields',
+          columns: [{ name: 'is_reviewed', type: 'boolean' }],
+        }),
       ],
     },
   ],

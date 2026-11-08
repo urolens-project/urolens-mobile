@@ -1,33 +1,26 @@
-// app/(medtech)/capture.tsx
-/**
- * T2.7 — Image Capture Route
- *
- * Reads route params here (in the actual route file, where useLocalSearchParams
- * is reliable) and forwards them as props to ImageCaptureScreen.
- *
- * Expected query params:
- *   specimenId       — server UUID of the specimen (required)
- *   localSpecimenId  — WatermelonDB local ID, used for return navigation
- *   existingImageId  — server UUID of an existing image (present on retake only)
- *
- * useFocusEffect increments mountKey on every screen focus so ImageCaptureScreen
- * always remounts fresh — this prevents stale uploading/previewing state from
- * a previous session being shown when the user navigates back for a retake.
- */
-
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ImageCaptureScreen } from '@features/image-retake/components/ImageCaptureScreen';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
-export default function CaptureRoute() {
-  const { specimenId, localSpecimenId, existingImageId } = useLocalSearchParams<{
+import { FieldCaptureSessionScreen } from '@features/field-capture/components/FieldCaptureSessionScreen';
+
+/**
+ * @description Route entry for /capture. Reads specimen params here, where
+ * useLocalSearchParams is reliable, and forwards them on. Expects `specimenId`
+ * (required) and `localSpecimenId` (WatermelonDB local id, used for return
+ * navigation). The legacy single-image retake path (ImageCaptureScreen,
+ * existingImageId) is gone — retaking a legacy result now happens on the
+ * website (mobile PR #55 review, #3).
+ */
+export default function CaptureRoute(): React.JSX.Element {
+  const { specimenId, localSpecimenId } = useLocalSearchParams<{
     specimenId: string;
     localSpecimenId: string;
-    existingImageId?: string;
   }>();
 
   const [mountKey, setMountKey] = useState(0);
 
+  // Remount on every focus so a previous session's uploading/previewing state
+  // never leaks into a fresh capture session.
   useFocusEffect(
     useCallback(() => {
       setMountKey((k) => k + 1);
@@ -35,11 +28,10 @@ export default function CaptureRoute() {
   );
 
   return (
-    <ImageCaptureScreen
+    <FieldCaptureSessionScreen
       key={mountKey}
       specimenId={specimenId}
       localSpecimenId={localSpecimenId}
-      existingImageId={existingImageId}
     />
   );
 }

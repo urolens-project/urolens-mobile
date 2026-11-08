@@ -1,0 +1,102 @@
+import { useEffect, useState } from 'react';
+
+import { Q } from '@nozbe/watermelondb';
+import { database } from '@db/database';
+import type ResultField from '@db/models/ResultField';
+import type FieldDetection from '@db/models/FieldDetection';
+
+import type { CapturedField } from '../types';
+
+export interface UseFieldDetailResult {
+  field: CapturedField | null;
+  isLoading: boolean;
+}
+
+/**
+ * @description Live-loads one field (plus its cached AI boxes) by local id, for
+ * re-opening a field from the field list — either a backlog field that just finished
+ * uploading (PENDING_UPLOAD → ANALYZED) or one the MedTech wants to look at again.
+ * @param localFieldId - Local WatermelonDB id of the result_fields row.
+ * @param acceptedFieldCount - Current accepted count, for the header counter.
+ * @param minFields - Minimum accepted fields required, for the header counter.
+ */
+export function useFieldDetail(
+  localFieldId: string,
+  acceptedFieldCount: number,
+  minFields: number,
+): UseFieldDetailResult {
+  const [record, setRecord] = useState<ResultField | null>(null);
+  const [detectionsJson, setDetectionsJson] = useState<string>('[]');
+  // Distinct from detectionsJson: a field with real but empty boxes also ends up
+  // with '[]', so only "no row at all" means boxes have never reached this device
+  // (mobile PR #55 review, 1.2/3.14).
+  const [hasDetectionsRow, setHasDetectionsRow] = useState(false);
+
+  useEffect((): (() => void) => {
+    setRecord(null);
+    const fieldSubscription = database
+      .get<ResultField>('result_fields')
+      .findAndObserve(localFieldId)
+      .subscribe({
+        next: setRecord,
+        error: (err: unknown) => console.error('[FieldDetail]', err),
+      });
+
+    const detectionsSubscription = database
+      .get<FieldDetection>('field_detections')
+      .query(Q.where('field_id', localFieldId))
+      .observe()
+      .subscribe({
+        next: (records) => {
+          setDetectionsJson(records[0]?.detectionsJson ?? '[]');
+          setHasDetectionsRow(records.length > 0);
+        },
+        error: (err: unknown) => console.error('[FieldDetail]', err),
+      });
+
+    return (): void => {
+      fieldSubscription.unsubscribe();
+      detectionsSubscription.unsubscribe();
+    };
+  }, [localFieldId]);
+
+  if (!record) return { field: null, isLoading: true };
+
+  let detections: CapturedField['detections'] = [];
+  try {
+    detections = JSON.parse(detectionsJson);
+  } catch {
+    detections = [];
+  }
+
+  // A field captured on another phone, or before a reinstall, has a server id but
+  // neither a local image nor cached boxes — it must never look like a field with
+  // no detections (mobile PR #55 review, 1.2/3.14). PENDING_UPLOAD fields always
+  // have their own local image, so this never fires for one.
+  const isAwaitingBoxes =
+    !!record.serverId &&
+    !hasDetectionsRow &&
+    !record.localImageUri &&
+    record.status !== 'PENDING_UPLOAD';
+
+  return {
+    field: {
+      localId: record.id,
+      fieldNo: record.fieldNo,
+      magnification: record.magnification,
+      status: record.status,
+      aiFindings: record.aiFindings,
+      detections,
+      imageWidth: record.imageWidth,
+      imageHeight: record.imageHeight,
+      smartDiagnosisPreview: record.smartDiagnosis,
+      smartDiagnosisUnavailable: record.smartDiagnosisUnavailable,
+      localImageUri: record.localImageUri ?? '',
+      acceptedFieldCount,
+      minFields,
+      isAwaitingBoxes,
+      isReviewed: record.isReviewed,
+    },
+    isLoading: false,
+  };
+}

@@ -1,58 +1,94 @@
-// Path: urolens-mobile/src/features/result-confirmation/hooks/useResultConfirmation.ts
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
-import AnalysisResult from '@db/models/AnalysisResult';
-import { useConfirmAction } from './useConfirmAction';
+import type AnalysisResult from '@db/models/AnalysisResult';
+
+import { RESULT_COLUMNS } from '@features/sample/constants';
+
 import type { AIFindingEntry } from '../types';
 
-interface UseResultConfirmationReturn {
+export interface UseResultConfirmationReturn {
   result: AnalysisResult | null;
   aiFindings: AIFindingEntry[];
   isLoading: boolean;
-  isConfirming: boolean;
-  error: string | null;
-  confirmResult: () => Promise<void>;
 }
 
-// Derives structured AIFindingEntry list from raw findings map.
-// Anomalous = any particle count above threshold (>5 per field).
-function deriveFindings(raw: Record<string, number>): AIFindingEntry[] {
-  return Object.entries(raw).map(([parameter, count]) => ({
-    parameter,
-    count,
-    isAnomalous: count > 5,
-  }));
+interface ResultSnapshot {
+  result: AnalysisResult | null;
 }
 
+interface FindingsSource {
+  aiFindings: Record<string, number>;
+  particleClasses?: Record<string, number>;
+  fieldSummary?: AnalysisResult['fieldSummary'];
+}
+
+/**
+ * @description Derives a structured `AIFindingEntry` list for display (mobile-n8-todo-rem.md
+ * B4). Prefers the confirmed `field_summary` per-class averages (backend #105) — each mean
+ * shown as "<displayValue> per field" rather than a bare decimal — then the confirmed
+ * `particle_classes`, falling back to the raw AI findings only when neither is present
+ * (older local data, or a result predating the multi-field workflow). A particle is
+ * anomalous when its raw count/mean exceeds the 5-per-field threshold, or when
+ * `field_summary` itself flags the class as above normal in any field.
+ * @param result - The analysis result's findings sources.
+ */
+function deriveFindings(result: FindingsSource): AIFindingEntry[] {
+  const summary = result.fieldSummary;
+  if (summary && Object.keys(summary.perClass).length > 0) {
+    return Object.entries(summary.perClass).map(
+      ([parameter, agg]): AIFindingEntry => ({
+        parameter,
+        count: Math.round(agg.mean),
+        isAnomalous: (agg.fieldsAboveNormal?.length ?? 0) > 0,
+        displayLabel: `${agg.displayValue} per field`,
+      }),
+    );
+  }
+
+  const source =
+    result.particleClasses && Object.keys(result.particleClasses).length > 0
+      ? result.particleClasses
+      : result.aiFindings;
+  return Object.entries(source).map(
+    ([parameter, count]): AIFindingEntry => ({
+      parameter,
+      count: Math.round(count),
+      isAnomalous: count > 5,
+    }),
+  );
+}
+
+/**
+ * @description Loads one analysis result from the local WatermelonDB by server id and
+ * exposes its AI findings for read-only review. Confirming, retaking and overriding
+ * all moved to the website (mobile PR #55 review, #3), so this only observes.
+ * @param resultId - Server id of the analysis result to load.
+ */
 export function useResultConfirmation(resultId: string): UseResultConfirmationReturn {
-  const [result, setResult] = useState<AnalysisResult | null>(null);
+  // WatermelonDB mutates model instances in place; a new snapshot makes every column emission render.
+  const [snapshot, setSnapshot] = useState<ResultSnapshot>({ result: null });
   const [isLoading, setIsLoading] = useState(true);
-  const { confirmResult: confirmAction, isConfirming, error } = useConfirmAction();
 
   // Observe local WatermelonDB record — components never call API directly (SRP)
-  useEffect(() => {
+  useEffect((): (() => void) => {
     const subscription = database
       .get<AnalysisResult>('analysis_results')
       .query(Q.where('server_id', resultId))
-      .observe()
-      .subscribe((records) => {
-        setResult(records[0] ?? null);
+      .observeWithColumns(RESULT_COLUMNS)
+      .subscribe((records: AnalysisResult[]): void => {
+        setSnapshot({ result: records[0] ?? null });
         setIsLoading(false);
       });
 
-    return () => subscription.unsubscribe();
+    return (): void => subscription.unsubscribe();
   }, [resultId]);
 
-  const confirmResult = async (): Promise<void> => {
-    if (!result) return;
-    await confirmAction(result);
-  };
-
   const aiFindings = useMemo<AIFindingEntry[]>(
-    () => (result ? deriveFindings(result.aiFindings) : []),
-    [result],
+    (): AIFindingEntry[] => (snapshot.result ? deriveFindings(snapshot.result) : []),
+    [snapshot],
   );
 
-  return { result, aiFindings, isLoading, isConfirming, error, confirmResult };
+  return { result: snapshot.result, aiFindings, isLoading };
 }

@@ -7,6 +7,8 @@ import QueueAssignment from './models/QueueAssignment';
 import AnalysisResult from './models/AnalysisResult';
 import ManualOverride from './models/ManualOverride';
 import PendingSync from './models/PendingSync';
+import ResultField from './models/ResultField';
+import FieldDetection from './models/FieldDetection';
 
 let adapter;
 
@@ -14,6 +16,8 @@ if (Platform.OS === 'web') {
   // Safe fallback to prevent Metro from crawling native SQLite files during Web/SSR passes
   const LokiJSAdapter = require('@nozbe/watermelondb/adapters/lokijs').default;
   adapter = new LokiJSAdapter({
+    schema,
+    migrations,
     useWebWorker: false,
     useIncrementalIndexedDB: true,
   });
@@ -21,18 +25,19 @@ if (Platform.OS === 'web') {
   // Safely extract the commonJS default export structure of WatermelonDB
   const SQLiteAdapterRaw = require('@nozbe/watermelondb/adapters/sqlite');
   const SQLiteAdapter = SQLiteAdapterRaw.default || SQLiteAdapterRaw;
-  
+
   // jsi: true requires a custom native build — not available in Expo Go.
   // Use default (jsi: false) for Expo Go dev; enable only in EAS production builds.
   adapter = new SQLiteAdapter({
     schema,
     migrations,
-    onSetUpError: (error: any) => {
+    onSetUpError: (error: unknown) => {
       console.error('[WatermelonDB] Setup error:', error);
     },
   });
 }
 
+/** @description The app's single WatermelonDB instance — SQLite on native, LokiJS on web. */
 export const database = new Database({
   adapter,
   modelClasses: [
@@ -41,5 +46,7 @@ export const database = new Database({
     AnalysisResult,
     ManualOverride,
     PendingSync,
+    ResultField,
+    FieldDetection,
   ],
 });

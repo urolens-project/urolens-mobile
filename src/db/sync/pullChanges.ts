@@ -1,51 +1,199 @@
-import { database } from '../database';
-import apiClient from '@lib/apiClient';
-import { resolveConflict, applyResolution } from './conflictResolver';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Q } from '@nozbe/watermelondb';
+import type { ServerRecord } from '@db/types';
+import { mapServerToLocal } from '@db/mappers/sync.mapper';
+import { database } from '@db/database';
+import { apiClient } from '@lib/apiClient';
+import { useMinFieldsStore } from '@lib/stores/minFieldsStore';
+import type FieldDetection from '@db/models/FieldDetection';
 
-interface ServerRecord {
-  id: string;
-  [key: string]: unknown;
+import { resolveConflict, applyResolution } from './conflictResolver';
+import { dedupeByServerId } from './dedupeByServerId';
+import { cleanUpFinishedFields } from './fieldCleanup';
+import { deleteFieldImageFile } from './fieldFiles';
+import { FIELD_WORKFLOW_SEEN_KEY } from './legacyQueue';
+import { throwIfSyncCancelled } from './syncCancellation';
+
+interface TableChanges {
+  created: ServerRecord[];
+  updated: ServerRecord[];
+  /** Server ids the phone should remove; only filled on a delta sync. */
+  deleted?: string[];
 }
 
 interface SyncChanges {
   changes: {
-    specimens?:        { created: ServerRecord[]; updated: ServerRecord[] };
-    queue_assignments?: { created: ServerRecord[]; updated: ServerRecord[] };
-    analysis_results?:  { created: ServerRecord[]; updated: ServerRecord[] };
+    specimens?: TableChanges;
+    queueAssignments?: TableChanges;
+    analysisResults?: TableChanges;
+    manualOverrides?: TableChanges;
+    /** Multi-field workflow (SDD Module 2 proposal) — absent entirely while
+     * FIELD_WORKFLOW_ENABLED is off server-side. */
+    resultFields?: TableChanges;
   };
   timestamp: string;
+  /** Accepted fields a specimen needs before it can be submitted (backend #105) —
+   * only present while FIELD_WORKFLOW_ENABLED is on server-side. */
+  minFields?: number;
 }
 
-export async function pullChanges(lastSyncedAt: string | null): Promise<string> {
-  const params = lastSyncedAt ? `?last_synced_at=${encodeURIComponent(lastSyncedAt)}` : '';
-  const response = await apiClient.get<SyncChanges>(`/sync/pull${params}`);
-  const { changes, timestamp } = response.data;
+// resultFields rows have no top-level "id" — fieldId is their identity instead
+// (see sync_service.py's SyncResultField). Every other table's rows already
+// carry "id", so this alias is only needed here, right before the generic
+// create/update machinery (which reads record.id) runs on them.
+function withFieldIdAsId(records: ServerRecord[]): ServerRecord[] {
+  return records.map((record) => ({ ...record, id: record['fieldId'] as string }));
+}
 
-  await database.write(async () => {
+/**
+ * @description Pulls server changes since the last sync and writes them into the
+ * local WatermelonDB, resolving field-level conflicts and deduping afterward.
+ * @param lastSyncedAt - ISO timestamp of the last successful sync, or null for a full sync.
+ * @param signal - Cancels transport and rejects obsolete responses before applying local writes.
+ */
+export async function pullChanges(
+  lastSyncedAt: string | null,
+  signal?: AbortSignal,
+): Promise<string> {
+  throwIfSyncCancelled(signal);
+  const params = lastSyncedAt ? `?lastSyncedAt=${encodeURIComponent(lastSyncedAt)}` : '';
+  const response = await apiClient.get<SyncChanges>(`/sync/pull${params}`, { signal });
+  throwIfSyncCancelled(signal);
+  const { changes, timestamp, minFields } = response.data;
+  if (typeof minFields === 'number') {
+    useMinFieldsStore.getState().setMinFields(minFields);
+  }
+
+  await database.write(async (): Promise<void> => {
+    // The writer can be queued behind other work after the response has arrived.
+    throwIfSyncCancelled(signal);
     if (changes.specimens) {
       await processCreates('specimens', changes.specimens.created);
       await processUpdates('specimens', changes.specimens.updated);
+      await processDeletes('specimens', changes.specimens.deleted);
     }
-    if (changes.queue_assignments) {
-      await processCreates('queue_assignments', changes.queue_assignments.created);
-      await processUpdates('queue_assignments', changes.queue_assignments.updated);
+    if (changes.queueAssignments) {
+      await processCreates('queue_assignments', changes.queueAssignments.created);
+      await processUpdates('queue_assignments', changes.queueAssignments.updated);
+      await processDeletes('queue_assignments', changes.queueAssignments.deleted);
     }
-    if (changes.analysis_results) {
-      await processCreates('analysis_results', changes.analysis_results.created);
-      await processUpdates('analysis_results', changes.analysis_results.updated);
+    if (changes.analysisResults) {
+      await processCreates('analysis_results', changes.analysisResults.created);
+      await processUpdates('analysis_results', changes.analysisResults.updated);
+      await processDeletes('analysis_results', changes.analysisResults.deleted);
     }
+    if (changes.manualOverrides) {
+      await processCreates('manual_overrides', changes.manualOverrides.created);
+      await processUpdates('manual_overrides', changes.manualOverrides.updated);
+      await processDeletes('manual_overrides', changes.manualOverrides.deleted);
+    }
+    if (changes.resultFields) {
+      await processCreates('result_fields', withFieldIdAsId(changes.resultFields.created));
+      await processUpdates('result_fields', withFieldIdAsId(changes.resultFields.updated));
+      await processDeletes('result_fields', changes.resultFields.deleted);
+    }
+
+    // Defensive cleanup, every sync: collapses any duplicate local rows a
+    // past (or future, unforeseen) sync bug may have left behind. No-op
+    // once a table is clean.
+    await dedupeByServerId('specimens');
+    await dedupeByServerId('queue_assignments');
+    await dedupeByServerId('analysis_results');
+    await dedupeByServerId('manual_overrides');
+    await dedupeByServerId('result_fields');
+
+    // Multi-field workflow (SDD Module 2 proposal): frees a finished result's
+    // field images and AI boxes from local storage. No-op once already clean.
+    await cleanUpFinishedFields();
   });
 
+  // The resultFields key is only ever present while the backend's
+  // FIELD_WORKFLOW_ENABLED flag is on (empty created/updated arrays still count —
+  // it's the key's presence that matters, not its contents). Recorded so the
+  // legacy-queue drain (mobile PR #55 review, 1.3) knows it's safe to run.
+  if (changes.resultFields) {
+    await AsyncStorage.setItem(FIELD_WORKFLOW_SEEN_KEY, '1');
+  }
+
+  throwIfSyncCancelled(signal);
   return timestamp;
 }
 
 async function processCreates(tableName: string, records: ServerRecord[]): Promise<void> {
   if (!records.length) return;
   const collection = database.get(tableName);
+
+  // The server sent these as newly "created", but a replayed/resent sync
+  // batch could resend a record the client already has locally. Blindly
+  // inserting in that case is what produced duplicate local rows (e.g. two
+  // specimen rows for the same server_id) — surfacing as repeated cards in
+  // the Queue and, once only one copy kept receiving updates, an occasional
+  // "Sample not found" on the stale one. Check first; update in place if a
+  // local copy with the same server_id already exists.
+  const existing = (await collection.query().fetch()) as unknown as Record<string, unknown>[];
+  const existingByServerId = new Map(
+    existing.filter((r) => r['serverId']).map((r) => [r['serverId'] as string, r]),
+  );
+
   for (const record of records) {
-    await collection.create((model) => {
-      Object.assign(model as unknown as Record<string, unknown>, mapServerToLocal(tableName, record));
+    const already = existingByServerId.get(record.id);
+    if (already) {
+      await (
+        already as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> }
+      ).update((r) => {
+        Object.assign(r, mapServerToLocal(tableName, record));
+      });
+      continue;
+    }
+
+    const created = await collection.create((model) => {
+      Object.assign(
+        model as unknown as Record<string, unknown>,
+        mapServerToLocal(tableName, record),
+      );
     });
+    existingByServerId.set(record.id, created as unknown as Record<string, unknown>);
+  }
+}
+
+/**
+ * @description Removes local rows the server reports as gone — samples that aged out of
+ * the sync window or are no longer assigned to this MedTech. Without this, every table
+ * only ever grows, and a reassigned or aged-out sample stays on the phone forever.
+ *
+ * For result_fields specifically, also deletes the field's local image file and its
+ * field_detections row first (mobile PR #55 review, decision #4) — otherwise a field
+ * that leaves the sync window or gets reassigned away leaves its photo behind with
+ * nothing left pointing at it to clean it up later.
+ * @param tableName - Local database table.
+ * @param deletedIds - Server ids to remove; only present on a delta sync.
+ */
+async function processDeletes(tableName: string, deletedIds: string[] | undefined): Promise<void> {
+  if (!deletedIds?.length) return;
+  const collection = database.get(tableName);
+  const deletedSet = new Set(deletedIds);
+  const existing = (await collection.query().fetch()) as unknown as Record<string, unknown>[];
+  const toDestroy = existing.filter(
+    (record) => record['serverId'] && deletedSet.has(record['serverId'] as string),
+  );
+  if (toDestroy.length === 0) return;
+
+  if (tableName === 'result_fields') {
+    for (const record of toDestroy) {
+      deleteFieldImageFile(record['localImageUri'] as string | null);
+    }
+    const localFieldIds = toDestroy.map((record) => record['id'] as string);
+    const detections = await database
+      .get<FieldDetection>('field_detections')
+      .query(Q.where('field_id', Q.oneOf(localFieldIds)))
+      .fetch();
+    if (detections.length > 0) {
+      await database.batch(...detections.map((d) => d.prepareDestroyPermanently()));
+    }
+  }
+
+  for (const record of toDestroy) {
+    await (record as unknown as { destroyPermanently: () => Promise<void> }).destroyPermanently();
   }
 }
 
@@ -54,7 +202,10 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
   const collection = database.get(tableName);
   for (const serverRecord of records) {
     try {
-      const allLocalRecords = await collection.query().fetch() as unknown as Record<string, unknown>[];
+      const allLocalRecords = (await collection.query().fetch()) as unknown as Record<
+        string,
+        unknown
+      >[];
       const localRecord = allLocalRecords.find((r) => r['serverId'] === serverRecord.id);
 
       // Record not in local DB yet — delta sync sent it as an update but it's new here
@@ -68,81 +219,51 @@ async function processUpdates(tableName: string, records: ServerRecord[]): Promi
         continue;
       }
 
-      await (localRecord as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> })
-        .update((r) => {
-          const mapped = mapServerToLocal(tableName, serverRecord);
-          for (const [key, serverVal] of Object.entries(mapped)) {
-            const clientVal = r[key];
-            if (serverVal !== clientVal) {
-              const strategy = resolveConflict({
-                table: tableName,
-                column: key,
-                serverValue: serverVal,
-                clientValue: clientVal,
-                localRecord: localRecord as Record<string, unknown>,
-              });
-              r[key] = applyResolution(strategy, serverVal, clientVal);
-            } else {
-              r[key] = serverVal;
-            }
+      // result_fields is versioned (incremented on every accept/discard/override);
+      // every other table has no `version` column, so this is always a no-op for
+      // them. A pull racing a direct action API call (accept/discard write straight
+      // to the DB, outside the push queue — see useFieldActions.ts) can resolve with
+      // a snapshot taken before that call committed server-side. Applying it would
+      // silently revert the newer local write — status has no other staleness guard,
+      // conflictResolver's default (and its explicit status rule) is SERVER_WINS
+      // regardless of which side is actually more recent.
+      const mapped = mapServerToLocal(tableName, serverRecord);
+      const localVersion = localRecord['version'];
+      const serverVersion = mapped['version'];
+      if (
+        typeof localVersion === 'number' &&
+        typeof serverVersion === 'number' &&
+        serverVersion < localVersion
+      ) {
+        continue;
+      }
+
+      await (
+        localRecord as { update: (fn: (r: Record<string, unknown>) => void) => Promise<void> }
+      ).update((r) => {
+        for (const [key, serverVal] of Object.entries(mapped)) {
+          // Local bookkeeping, not server data — always overwrite, never a real conflict.
+          if (key === 'syncedAt' || key === 'serverId') {
+            r[key] = serverVal;
+            continue;
           }
-        });
+          const clientVal = r[key];
+          if (serverVal !== clientVal) {
+            const strategy = resolveConflict({
+              table: tableName,
+              column: key,
+              serverValue: serverVal,
+              clientValue: clientVal,
+              localRecord: localRecord as Record<string, unknown>,
+            });
+            r[key] = applyResolution(strategy, serverVal, clientVal);
+          } else {
+            r[key] = serverVal;
+          }
+        }
+      });
     } catch (err) {
       console.error(`[pullChanges] Failed to update ${tableName} record ${serverRecord.id}:`, err);
     }
-  }
-}
-
-function mapServerToLocal(table: string, record: ServerRecord): Record<string, unknown> {
-  const base: Record<string, unknown> = {
-    serverId: record.id,
-    syncedAt: new Date().toISOString(),
-  };
-
-  switch (table) {
-    case 'specimens':
-      return {
-        ...base,
-        sampleUid:       record['sample_uid'],
-        patientName:     record['patient_name'],
-        patientUid:      record['patient_uid'],
-        testType:        record['test_type'],
-        status:          record['status'],
-        priorityLevel:   record['priority_level'] ?? null,
-        receivedAt:      record['received_at'],
-        assignedAt:      record['assigned_at'] ?? null,
-        medtechId:       record['medtech_id'] ?? null,
-        rejectionReason: record['rejection_reason'] ?? null,
-        rejectionNote:   record['rejection_note'] ?? null,
-        rejectedAt:      record['rejected_at'] ?? null,
-      };
-
-    case 'queue_assignments':
-      return {
-        ...base,
-        specimenId: record['specimen_id'],
-        medtechId:  record['medtech_id'],
-        assignedAt: record['assigned_at'],
-        status:     record['status'],
-      };
-
-    case 'analysis_results':
-      return {
-        ...base,
-        specimenId:                 record['specimen_id'],
-        aiFindingsJson:             JSON.stringify(record['ai_findings'] ?? {}),
-        flaggedAnomaliesJson:       JSON.stringify(record['flagged_anomalies'] ?? {}),
-        smartDiagnosisJson:         record['smart_diagnosis']
-          ? JSON.stringify(record['smart_diagnosis'])
-          : null,
-        smartDiagnosisUnavailable:  record['smart_diagnosis_unavailable'] ?? false,
-        status:                     record['status'],
-        imageId:                    record['image_id'] ?? null,
-        confirmedAt:                record['confirmed_at'] ?? null,
-        confirmedBy:                record['confirmed_by'] ?? null,
-      };
-
-    default:
-      return base;
   }
 }

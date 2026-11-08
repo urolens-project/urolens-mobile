@@ -1,0 +1,109 @@
+/** User-facing copy for the multi-field capture workflow (SDD Module 2 proposal). */
+export const FIELD_CAPTURE_TEXT = {
+  // Capture session (CameraLiveView additions)
+  magnificationLabel: 'Magnification',
+  // minFields is a minimum, not a cap — capturing beyond it is expected and fine,
+  // so once it's met this reads as a count with the minimum satisfied rather than
+  // "X of 10" (which looks like a limit, or outright broken, once X > 10).
+  fieldCounterLabel: (acceptedCount: number, minFields: number): string =>
+    acceptedCount >= minFields
+      ? `${acceptedCount} fields (min. ${minFields} met)`
+      : `${acceptedCount} of ${minFields} fields`,
+
+  // FieldResultScreen
+  fieldResultTitle: (fieldNo: number): string => `Field ${fieldNo}`,
+  // Shown only when this field was opened from the list (the offline backlog's
+  // step-through, mobile-n8-todo-rem.md C6) and others still need a decision.
+  moreFieldsWaitingLabel: (count: number): string => `${count} more waiting`,
+  thisFieldOnlyCaption: 'This field only — not the reported diagnosis',
+  smartDiagnosisUnavailableMessage: 'Smart Diagnosis preview unavailable for this field.',
+  noSignificantDiagnosticIndicators: 'No significant diagnostic indicators found.',
+  proceedLabel: 'Proceed',
+  discardLabel: 'Discard',
+  markAsReviewedLabel: 'Mark as Reviewed',
+  reviewedLabel: 'Reviewed',
+  backToFieldListA11yLabel: 'Back to field list',
+  // A field synced from another phone (or from before a reinstall) with no local
+  // image or AI boxes yet (mobile PR #55 review, 1.2/3.14) — never shown as if it
+  // had no detections. The background fetch (C5) now fills this in on the next
+  // sync, so it only ever shows briefly, not as a permanent dead end.
+  boxesAwaitingSyncMessage: 'Boxes will load when you are online.',
+  discardModalTitle: 'Discard this field?',
+  discardModalBody:
+    'This field and its AI analysis will be dropped. It will not count toward the minimum. This action cannot be undone.',
+  keepFieldLabel: 'Keep Field',
+  confirmDiscardLabel: 'Discard Field',
+
+  // Errors
+  acceptFailedMessage: 'Could not accept this field. Please try again.',
+  discardFailedMessage: 'Could not discard this field. Please try again.',
+  uploadFailedFallbackMessage: 'Upload failed. Please check your connection and try again.',
+
+  // Capture error codes the backend answers with a bare machine-readable code
+  // and no MedTech-facing message (core/exceptions.py) — everything else
+  // (INVALID_IMAGE_FORMAT, INVALID_IMAGE_RESOLUTION, IMAGE_TOO_LARGE,
+  // AI_ANALYSIS_FAILED, STORAGE_ERROR) already carries its own message from
+  // the server (mobile PR #55 review, 3.10).
+  captureErrorMessages: {
+    RESULT_NOT_EDITABLE: 'This sample is no longer capturing — open it from the queue.',
+    SPECIMEN_REJECTED: 'This sample was rejected.',
+    SPECIMEN_NOT_ASSIGNED: 'This sample is no longer assigned to you.',
+    CONSENT_REFUSED: 'The patient refused processing — this sample can’t be analysed.',
+    // 404 when the server runs with FIELD_WORKFLOW_ENABLED off: retrying won't help,
+    // the server has to switch it on.
+    FEATURE_DISABLED: 'Field capture isn’t switched on for this server yet.',
+    // 422 from main.py's RequestValidationError handler (a malformed request, not
+    // an image-content gate — those are IMAGE_NOT_MICROSCOPY/IMAGE_EXPOSURE above).
+    // The server's own message here is "Request validation failed.", which isn't
+    // something a MedTech can act on.
+    VALIDATION_ERROR: 'This capture couldn’t be processed. Please retake the photo and try again.',
+  } as Record<string, string>,
+
+  // FieldListScreen
+  fieldListTitle: 'Fields',
+  captureMoreLabel: 'Capture More Fields',
+  submitForVerificationLabel: 'Submit for Verification',
+  submittingLabel: 'Submitting…',
+  checkingLatestFieldsLabel: 'Checking latest fields…',
+  undecidedFieldsBlockedMessage: (count: number): string =>
+    `${count} field${count === 1 ? '' : 's'} not reviewed.`,
+  belowMinimumBlockedMessage: (acceptedCount: number, minFields: number): string =>
+    `${acceptedCount} of ${minFields} fields accepted.`,
+  submitOfflineBlockedMessage: 'Connect to submit.',
+  sendingDecisionsBlockedMessage: 'Sending your decisions…',
+  submitFailedTitle: 'Submit Failed',
+  submitCheckFailedMessage:
+    'Couldn’t check the latest fields with the server. Check your connection and try again.',
+  submitSucceededTitle: 'Submitted for Verification',
+  submitSucceededMessage: 'Continue on the website to verify and confirm this result.',
+  emptyFieldListMessage: 'No fields captured yet.',
+  fieldDiscardedLabel: 'Discarded',
+  fieldWaitingToUploadLabel: 'Waiting to upload…',
+  fieldUploadingNowLabel: 'Uploading…',
+  fieldNeedsDecisionLabel: 'Needs your decision — tap to review',
+  fieldReviewedPendingDecisionLabel: 'Reviewed — tap to decide',
+
+  // Offline capture backlog
+  offlineCaptureQueuedTitle: 'Saved',
+  offlineCaptureQueuedMessage:
+    'It will upload once you are back online — check the field list to decide on it then.',
+
+  // Gallery multi-select bulk upload — queued fields upload and analyse one at a
+  // time in the background; see FieldCaptureSessionScreen's handleBulkGalleryPick.
+  bulkUploadQueuedTitle: 'Fields Queued',
+  bulkUploadQueuedMessage: (queuedCount: number, failedCount: number): string => {
+    if (queuedCount === 0) {
+      return `${failedCount} image${failedCount === 1 ? '' : 's'} could not be processed. Please try again.`;
+    }
+    const base = `${queuedCount} field${queuedCount === 1 ? '' : 's'} queued — uploading one at a time in the background.`;
+    return failedCount > 0
+      ? `${base} ${failedCount} image${failedCount === 1 ? '' : 's'} could not be processed and were skipped.`
+      : base;
+  },
+
+  // UploadRetryModal — shown when a field upload fails to reach the server at all
+  // (offline, unreachable, timed out), distinct from a real analysis failure.
+  uploadRetryModalTitle: 'Upload Failed',
+  uploadRetryModalTryAgainLabel: 'Try Again',
+  uploadRetryModalCancelLabel: 'Cancel',
+} as const;

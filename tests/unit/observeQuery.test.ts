@@ -1,0 +1,194 @@
+/**
+ * Unit tests for observeQuery — the retry wrapper around WatermelonDB's
+ * query.observe().subscribe(), added after a real crash:
+ *
+ *   [Error: Cannot call database.adapter.underlyingAdapter while the
+ *   database is being reset]
+ *
+ * That error fires if a query (re-)subscribes at the exact moment
+ * syncManager's one-time database.unsafeResetDatabase() (first sync ever)
+ * is mid-flight. observeQuery retries once that specific error is seen;
+ * any other error is just logged, not retried.
+ */
+
+import { observeQuery } from '../../src/db/observeQuery';
+
+interface FakeQuery {
+  observe: jest.Mock;
+}
+
+function makeFakeQuery() {
+  let capturedNext: ((rows: unknown[]) => void) | null = null;
+  let capturedError: ((err: unknown) => void) | null = null;
+  const unsubscribe = jest.fn();
+  const subscribe = jest.fn((next: (rows: unknown[]) => void, error: (err: unknown) => void) => {
+    capturedNext = next;
+    capturedError = error;
+    return { unsubscribe };
+  });
+  const observe = jest.fn(() => ({ subscribe }));
+
+  return {
+    query: { observe } as unknown as FakeQuery,
+    emit: (rows: unknown[]) => capturedNext?.(rows),
+    triggerError: (err: unknown) => capturedError?.(err),
+    unsubscribe,
+    observe,
+    subscribe,
+  };
+}
+
+describe('observeQuery', () => {
+  it('watches requested columns and forwards terminal errors to the caller', (): void => {
+    const fake = makeFakeQuery();
+    const observeWithColumns = jest.fn(fake.observe);
+    const onError = jest.fn();
+    const query = { ...fake.query, observeWithColumns };
+    const logSpy = jest.spyOn(console, 'error').mockImplementation((): void => {});
+    try {
+      observeQuery(query as any, jest.fn(), { columns: ['status'], onError });
+      expect(observeWithColumns).toHaveBeenCalledWith(['status']);
+      const error = new Error('Storage unavailable');
+      fake.triggerError(error);
+      expect(onError).toHaveBeenCalledWith(error);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('retries watched-column queries during reset without surfacing a terminal error', (): void => {
+    const fake = makeFakeQuery();
+    const observeWithColumns = jest.fn(fake.observe);
+    const onError = jest.fn();
+    observeQuery({ ...fake.query, observeWithColumns } as any, jest.fn(), {
+      columns: ['status'],
+      onError,
+    });
+    fake.triggerError(new Error('database is being reset'));
+    jest.runAllTimers();
+    expect(observeWithColumns).toHaveBeenCalledTimes(2);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  let consoleErrorSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('watches field edits when columns are supplied', (): void => {
+    const fake = makeFakeQuery();
+    const observeWithColumns = jest.fn(() => ({ subscribe: fake.subscribe }));
+    const query = { observe: fake.observe, observeWithColumns };
+    const onData = jest.fn();
+    observeQuery(query as never, onData, { columns: ['status', 'return_reason'] });
+    expect(observeWithColumns).toHaveBeenCalledWith(['status', 'return_reason']);
+    fake.emit([{ id: '1', status: 'RETURNED_FOR_CORRECTION' }]);
+    expect(onData).toHaveBeenCalledWith([{ id: '1', status: 'RETURNED_FOR_CORRECTION' }]);
+  });
+
+  it('surfaces both subscription and synchronous construction errors to the screen', (): void => {
+    const fake = makeFakeQuery();
+    const failure = new Error('Read failed');
+    const onError = jest.fn();
+    observeQuery(fake.query as never, jest.fn(), { onError });
+    fake.triggerError(failure);
+    expect(onError).toHaveBeenCalledWith(failure);
+    onError.mockClear();
+    observeQuery(
+      (): never => {
+        throw failure;
+      },
+      jest.fn(),
+      { onError },
+    );
+    expect(onError).toHaveBeenCalledWith(failure);
+  });
+
+  it('subscribes immediately and forwards emissions to onData', () => {
+    const fake = makeFakeQuery();
+    const onData = jest.fn();
+
+    observeQuery(fake.query as any, onData);
+    fake.emit([{ id: '1' }]);
+
+    expect(fake.observe).toHaveBeenCalledTimes(1);
+    expect(onData).toHaveBeenCalledWith([{ id: '1' }]);
+  });
+
+  it('retries once after the specific "database is being reset" error', () => {
+    const fake = makeFakeQuery();
+    const onData = jest.fn();
+
+    observeQuery(fake.query as any, onData);
+    expect(fake.observe).toHaveBeenCalledTimes(1);
+
+    fake.triggerError(
+      new Error('Cannot call database.adapter.underlyingAdapter while the database is being reset'),
+    );
+
+    // Not retried yet — still waiting out the backoff
+    expect(fake.observe).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+    jest.runAllTimers();
+
+    expect(fake.observe).toHaveBeenCalledTimes(2);
+  });
+
+  it('delivers data normally once the retried subscription is established', () => {
+    const fake = makeFakeQuery();
+    const onData = jest.fn();
+
+    observeQuery(fake.query as any, onData);
+    fake.triggerError(new Error('... being reset'));
+    jest.runAllTimers();
+
+    fake.emit([{ id: 'after-retry' }]);
+    expect(onData).toHaveBeenCalledWith([{ id: 'after-retry' }]);
+  });
+
+  it('logs (does not retry) a genuinely different error', () => {
+    const fake = makeFakeQuery();
+    const onData = jest.fn();
+
+    observeQuery(fake.query as any, onData);
+    fake.triggerError(new Error('Some unrelated failure'));
+
+    jest.runAllTimers();
+
+    expect(fake.observe).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[observeQuery] subscription error:',
+      expect.any(Error),
+    );
+  });
+
+  it('unsubscribing cancels a pending retry — no further observe() calls', () => {
+    const fake = makeFakeQuery();
+    const onData = jest.fn();
+
+    const subscription = observeQuery(fake.query as any, onData);
+    fake.triggerError(new Error('... being reset'));
+    subscription.unsubscribe();
+
+    jest.runAllTimers();
+
+    expect(fake.observe).toHaveBeenCalledTimes(1);
+  });
+
+  it('unsubscribe() tears down the current inner subscription', () => {
+    const fake = makeFakeQuery();
+    const subscription = observeQuery(fake.query as any, jest.fn());
+
+    subscription.unsubscribe();
+
+    expect(fake.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+});

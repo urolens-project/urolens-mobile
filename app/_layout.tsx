@@ -2,18 +2,22 @@
 import '@abraham/reflection';
 
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
-import { ActivityIndicator } from 'react-native';
+import { router, Stack } from 'expo-router';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '@db/database';
 import { useAuthStore } from '@lib/auth/authStore';
 import { tokenStorage } from '@lib/auth/tokenStorage';
 import { UserRole } from '@app-types/enums';
-import { ErrorBoundary } from '@components/ErrorBoundary';
+import { colors } from '@src/theme';
+
+import { getSessionTiming } from '@features/auth/lib/sessionTiming';
 
 // DEV ONLY — shake the device and tap "Reset Auth → Login" to clear
-if (__DEV__) {
+if (__DEV__ && Platform.OS !== 'web') {
   const { DevSettings } = require('react-native');
   DevSettings.addMenuItem('Reset Auth → Login', async () => {
     const { tokenStorage: ts } = require('@lib/auth/tokenStorage');
@@ -25,15 +29,11 @@ if (__DEV__) {
   });
 }
 
-export default function RootLayout() {
-  return (
-    <ErrorBoundary>
-      <RootLayoutInner />
-    </ErrorBoundary>
-  );
-}
-
-function RootLayoutInner() {
+/**
+ * @description App root: wires up the DB provider, gesture root, and route stack, and
+ * bootstraps the auth store from persisted tokens before the initial route resolves.
+ */
+export default function RootLayout(): React.JSX.Element {
   const { isLoading, setAuthenticated, clearAuth } = useAuthStore();
   const [hasMounted, setHasMounted] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -49,21 +49,33 @@ function RootLayoutInner() {
 
     let isCurrent = true;
 
-    const bootstrapAuth = async () => {
+    const bootstrapAuth = async (): Promise<void> => {
       try {
-        const [token, userId, role, username] = await Promise.all([
+        const [token, userId, role, username, lastActiveAt, { timeoutMs }] = await Promise.all([
           tokenStorage.getToken(),
           tokenStorage.getUserId(),
           tokenStorage.getUserRole(),
           tokenStorage.getUsername(),
+          tokenStorage.getLastActiveAt(),
+          getSessionTiming(),
         ]);
-        
+
         if (!isCurrent) return;
 
-        if (token && userId && role) {
+        // The medtech closed (or was backgrounded past the timeout on) the app and is
+        // only now reopening it — sign them out instead of silently restoring the session.
+        const wasAwayTooLong = lastActiveAt !== null && Date.now() - lastActiveAt >= timeoutMs;
+
+        if (token && userId && role && !wasAwayTooLong) {
+          await tokenStorage.removeLastActiveAt();
+          if (!isCurrent) return;
           setAuthenticated(userId, role as UserRole, username ?? '');
         } else {
+          await tokenStorage.clearAll();
           clearAuth();
+          if (wasAwayTooLong) {
+            router.replace({ pathname: '/(auth)/login', params: { reason: 'inactivity' } });
+          }
         }
       } catch {
         if (isCurrent) clearAuth();
@@ -72,31 +84,45 @@ function RootLayoutInner() {
       }
     };
 
-    bootstrapAuth();
+    void bootstrapAuth();
 
     return () => {
       isCurrent = false;
     };
   }, [hasMounted, setAuthenticated, clearAuth]);
 
-  // Render a clean fallback background while React finishes mounting and checking auth stores
-  if (!hasMounted || isLoading || !isReady) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#1E3A5F', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#FFFFFF" />
-      </GestureHandlerRootView>
-    );
-  }
+  const isBootstrapping = !hasMounted || isLoading || !isReady;
 
+  // Keep the navigator mounted at all times — expo-router resolves the initial
+  // deep link as soon as it mounts, and swapping it out for a fallback tree
+  // races that resolution against an unmount, producing "state update on a
+  // component that hasn't mounted yet". Overlay the loading state instead.
   return (
     <DatabaseProvider database={database}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(medtech)" />
-          <Stack.Screen name="index" />
-        </Stack>
-      </GestureHandlerRootView>
+      <SafeAreaProvider>
+        <GestureHandlerRootView style={styles.root}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(medtech)" />
+            <Stack.Screen name="index" />
+          </Stack>
+          {isBootstrapping && (
+            <View style={styles.bootstrapOverlay}>
+              <ActivityIndicator size="large" color={colors.white} />
+            </View>
+          )}
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
     </DatabaseProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  bootstrapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.navy,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

@@ -4,8 +4,11 @@ import { router } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@db/database';
 import Specimen from '@db/models/Specimen';
+import AnalysisResult from '@db/models/AnalysisResult';
 import apiClient from '@lib/apiClient';
 import { synchronize } from '@db/sync/syncManager';
+import { alertsApi } from '@features/alerts/api/alertsApi';
+import { refreshNotifications } from '@features/alerts/store/notificationsStore';
 
 // Show alerts in foreground as a banner
 Notifications.setNotificationHandler({
@@ -19,8 +22,8 @@ Notifications.setNotificationHandler({
 });
 
 /**
- * Requests notification permission and registers the Expo push token with the
- * backend. Silently skips on iOS free-account / simulator (APNs not available).
+ * @description Requests notification permission and registers the Expo push token
+ * with the backend. Silently skips on iOS free-account / simulator (APNs unavailable).
  */
 export async function registerForPushNotifications(): Promise<void> {
   if (Platform.OS === 'android') {
@@ -62,11 +65,18 @@ export async function registerForPushNotifications(): Promise<void> {
 }
 
 /**
- * `sample/[id]`'s route param is the local WatermelonDB row id, but a push
- * notification's `entity_id` is a server id (the backend has no concept of
- * a device's local ids) — resolve the local record first, then navigate.
+ * @description `sample/[id]`'s route param is the local WatermelonDB row id, but a
+ * notification's `entity_id` is a server id (the backend has no concept of a device's
+ * local ids) — resolves the local record first, then navigates. Used for both
+ * push-notification taps and taps in the Alerts list, for every notification type whose
+ * `entity_id` is an analysis result (`RESULT_RETURNED`, `RESULT_READY_FOR_REVIEW`,
+ * `SMART_DIAGNOSIS_UNAVAILABLE`) — tries `entity_id` as a specimen server id first, then
+ * falls back to resolving it as a result id and following that to its specimen. Falls
+ * back to the Queue when nothing matches. Also used for `CAPTURE_REOPENED`, whose
+ * `entity_id` is a result id, same as the others.
+ * @param serverId - Server id from the notification payload's `entity_id`.
  */
-async function navigateToSpecimenByServerId(serverId: string | undefined): Promise<void> {
+export async function navigateToSpecimenByServerId(serverId: string | undefined): Promise<void> {
   if (!serverId) {
     router.push('/(medtech)/queue');
     return;
@@ -74,10 +84,18 @@ async function navigateToSpecimenByServerId(serverId: string | undefined): Promi
 
   await synchronize().catch(() => {});
 
-  const matches = await database
-    .get<Specimen>('specimens')
-    .query(Q.where('server_id', serverId))
-    .fetch();
+  const specimens = database.get<Specimen>('specimens');
+  let matches = await specimens.query(Q.where('server_id', serverId)).fetch();
+
+  if (!matches[0]) {
+    const results = await database
+      .get<AnalysisResult>('analysis_results')
+      .query(Q.where('server_id', serverId))
+      .fetch();
+    if (results[0]) {
+      matches = await specimens.query(Q.where('server_id', results[0].specimenId)).fetch();
+    }
+  }
 
   if (matches[0]) {
     router.push(`/(medtech)/sample/${matches[0].id}`);
@@ -87,22 +105,31 @@ async function navigateToSpecimenByServerId(serverId: string | undefined): Promi
 }
 
 /**
- * Attaches notification listeners to the app.
- * Returns a cleanup function — call it in the layout useEffect cleanup.
- *
- * Received listener  → triggers a sync so local DB stays current.
- * Response listener  → navigates to the correct screen on tap.
+ * @description Attaches notification listeners to the app: the received listener
+ * triggers a sync so the local DB stays current and refreshes the notifications store so
+ * the Alerts tab badge updates immediately, even while the app is already foregrounded;
+ * the response listener navigates to the correct screen on tap. Returns a cleanup
+ * function — call it in the layout useEffect cleanup.
  */
 export function registerNotificationListeners(): () => void {
   const receivedSub = Notifications.addNotificationReceivedListener(() => {
     synchronize().catch(() => {});
+    refreshNotifications();
   });
 
   const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data as {
       notification_type?: string;
       entity_id?: string;
+      notification_id?: string;
     };
+
+    if (data?.notification_id) {
+      alertsApi
+        .markRead(data.notification_id)
+        .then(() => refreshNotifications())
+        .catch((err: unknown) => console.error('[Notifications] failed to mark read on tap', err));
+    }
 
     switch (data?.notification_type) {
       case 'SAMPLE_ASSIGNED':
@@ -111,6 +138,9 @@ export function registerNotificationListeners(): () => void {
         break;
 
       case 'RESULT_RETURNED':
+      case 'RESULT_READY_FOR_REVIEW':
+      case 'SMART_DIAGNOSIS_UNAVAILABLE':
+      case 'CAPTURE_REOPENED':
         navigateToSpecimenByServerId(data.entity_id);
         break;
 

@@ -1,63 +1,129 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { Q } from '@nozbe/watermelondb';
+
 import { database } from '@db/database';
-import Specimen from '@db/models/Specimen';
-import PendingSync from '@db/models/PendingSync';
-import apiClient from '@lib/apiClient';
-import { RejectionReason, PendingSyncAction, PendingSyncStatus } from '@app-types/enums';
+import type AnalysisResult from '@db/models/AnalysisResult';
+import type Specimen from '@db/models/Specimen';
+import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
+import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { authStoreApi } from '@lib/auth/authStore';
+import { getErrorMessage } from '@lib/errorMessage';
+import { RejectionReason } from '@app-types/enums';
 
-export function useRejectSpecimen(specimenId: string) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+import { specimenRejectionApi } from '../api/specimenRejectionApi';
+import { MAX_REJECTION_NOTE_LENGTH } from '../constants/specimenRejection.constant';
+import { SPECIMEN_REJECTION_TEXT } from '../constants/specimenRejectionText.constant';
+import { getRejectionEligibilityMessage } from '../lib/rejectionEligibility';
+import { persistRejection } from '../lib/persistRejection';
+import { mapRejectionToReceipt } from '../mappers/specimenRejection.mapper';
+import type { RejectResult, RejectionReceipt, SpecimenRejectRequest } from '../types';
+
+export type { RejectResult } from '../types';
+
+export interface UseRejectSpecimenResult {
+  reject: (reason: RejectionReason, note?: string) => Promise<RejectResult>;
+  isLoading: boolean;
+  hasAcceptedRejection: boolean;
+}
+
+interface AcceptedRejection {
+  localSpecimenId: string;
+  userId: string | null;
+  payload: SpecimenRejectRequest;
+  receipt: RejectionReceipt;
+}
+
+/**
+ * @description Rejects an assigned specimen, atomically saving offline work and preventing duplicate submissions.
+ * @param specimenId - Local specimen identifier.
+ */
+export function useRejectSpecimen(specimenId: string): UseRejectSpecimenResult {
   const { isOnline } = useNetworkStatus();
+  const [hasAcceptedRejection, setHasAcceptedRejection] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const acceptedRef = useRef<AcceptedRejection | null>(null);
 
-  const reject = useCallback(
-    async (reason: RejectionReason, note?: string): Promise<boolean> => {
-      setIsLoading(true);
-      setError(null);
+  const action = useCallback(
+    async (signal: AbortSignal, reason: RejectionReason, note = ''): Promise<RejectResult> => {
       try {
         const specimen = await database.get<Specimen>('specimens').find(specimenId);
-
-        if (!specimen.serverId) {
-          throw new Error('Specimen has not been synced to the server yet.');
-        }
-
-        const payload: Record<string, string> = { reason_code: reason };
-        if (note?.trim()) payload.free_text_note = note.trim();
-
-        if (isOnline) {
-          await apiClient.post(`/specimens/${specimen.serverId}/reject`, payload);
-        }
-
-        await database.write(async () => {
-          if (!isOnline) {
-            await database.get<PendingSync>('pending_sync').create((r) => {
-              r.entity = 'specimens';
-              r.entityId = specimen.serverId!;
-              r.action = PendingSyncAction.REJECT_SPECIMEN;
-              r.payloadJson = JSON.stringify(payload);
-              r.status = PendingSyncStatus.PENDING;
-              r.createdAt = Date.now();
-            });
+        const userId = authStoreApi.getUserId();
+        const accepted = acceptedRef.current;
+        if (accepted) {
+          if (accepted.localSpecimenId !== specimenId || accepted.userId !== userId) {
+            throw new Error(SPECIMEN_REJECTION_TEXT.staleSpecimenMessage);
           }
-          await specimen.update((s) => {
-            s.status = 'REJECTED';
-            s.rejectionReason = reason;
-            s.rejectionNote = note?.trim() || null;
-            s.rejectedAt = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).replace(' ', 'T') + '+08:00';
-          });
-        });
-        return true;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to reject specimen';
-        setError(message);
-        return false;
-      } finally {
-        setIsLoading(false);
+          await persistRejection(specimen, accepted.payload, accepted.receipt, false);
+          acceptedRef.current = null;
+          setHasAcceptedRejection(false);
+          return { status: 'rejected', isQueued: false };
+        }
+
+        const results = specimen.serverId
+          ? await database
+              .get<AnalysisResult>('analysis_results')
+              .query(Q.where('specimen_id', specimen.serverId))
+              .fetch()
+          : [];
+        const resultStatus = specimen.serverId
+          ? (latestAnalysisResultsBySpecimen(results).get(specimen.serverId)?.status ?? null)
+          : null;
+        const blockedReason = getRejectionEligibilityMessage(
+          specimen,
+          authStoreApi.getUserId(),
+          resultStatus,
+        );
+        if (blockedReason) throw new Error(blockedReason);
+        if (!Object.values(RejectionReason).includes(reason))
+          throw new Error(SPECIMEN_REJECTION_TEXT.reasonRequiredMessage);
+        if (note.length > MAX_REJECTION_NOTE_LENGTH) {
+          throw new Error(SPECIMEN_REJECTION_TEXT.noteTooLongMessage(MAX_REJECTION_NOTE_LENGTH));
+        }
+        const payload: SpecimenRejectRequest = { reasonCode: reason };
+        if (note.trim()) payload.freeTextNote = note.trim();
+        const serverId = specimen.serverId!;
+        if (signal.aborted) return { status: 'busy' };
+
+        let receipt: RejectionReceipt = {
+          specimenId: serverId,
+          rejectedAt: new Date().toISOString(),
+        };
+        if (isOnline) {
+          receipt = mapRejectionToReceipt(
+            await specimenRejectionApi.reject(serverId, payload, signal),
+          );
+          acceptedRef.current = { localSpecimenId: specimenId, userId, payload, receipt };
+          setHasAcceptedRejection(true);
+        }
+        await persistRejection(specimen, payload, receipt, !isOnline);
+        acceptedRef.current = null;
+        setHasAcceptedRejection(false);
+        return { status: 'rejected', isQueued: !isOnline };
+      } catch (error: unknown) {
+        if (signal.aborted) return { status: 'busy' };
+        console.error('[SpecimenRejection] Failed to reject specimen', error);
+        const message = acceptedRef.current
+          ? SPECIMEN_REJECTION_TEXT.localSaveFailedMessage
+          : getErrorMessage(error, SPECIMEN_REJECTION_TEXT.genericFailedMessage);
+        return { status: 'failed', message };
       }
     },
     [specimenId, isOnline],
   );
+  const { run, isLoading } = useAsyncAction('SpecimenRejection', action);
+  const reject = useCallback(
+    async (reason: RejectionReason, note?: string): Promise<RejectResult> => {
+      if (isSubmittingRef.current) return { status: 'busy' };
+      isSubmittingRef.current = true;
+      try {
+        return (await run(reason, note)) ?? { status: 'busy' };
+      } finally {
+        isSubmittingRef.current = false;
+      }
+    },
+    [run],
+  );
 
-  return { reject, isLoading, error };
+  return { reject, isLoading, hasAcceptedRejection };
 }

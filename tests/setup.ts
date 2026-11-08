@@ -51,12 +51,12 @@ jest.mock('react-native', () => {
     SafeAreaView: 'SafeAreaView',
     FlatList: 'FlatList',
     SectionList: 'SectionList',
-    StatusBar: { setBarStyle: jest.fn(), setHidden: jest.fn() },
+    // The real StatusBar is both a component (<StatusBar />) and an object with statics.
+    StatusBar: Object.assign(() => null, { setBarStyle: jest.fn(), setHidden: jest.fn() }),
     Platform: {
       OS: 'ios',
       Version: 14,
-      select: (obj: Record<string, unknown>) =>
-        obj.ios !== undefined ? obj.ios : obj.default,
+      select: (obj: Record<string, unknown>) => (obj.ios !== undefined ? obj.ios : obj.default),
     },
     StyleSheet: {
       create: (s: Record<string, unknown>) => s,
@@ -71,10 +71,23 @@ jest.mock('react-native', () => {
       View: 'View',
       Text: 'Text',
       Image: 'Image',
-      timing: jest.fn(() => ({ start: jest.fn() })),
-      spring: jest.fn(() => ({ start: jest.fn() })),
-      sequence: jest.fn(() => ({ start: jest.fn() })),
-      parallel: jest.fn(() => ({ start: jest.fn() })),
+      timing: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
+      spring: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
+      sequence: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
+      parallel: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
+      delay: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
+      loop: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() })),
+      event: jest.fn(() => jest.fn()),
+      // Returns the component itself, so tests still find the host (e.g. 'FlatList').
+      createAnimatedComponent: (component: unknown) => component,
+    },
+    Easing: {
+      in: (fn: unknown) => fn,
+      out: (fn: unknown) => fn,
+      inOut: (fn: unknown) => fn,
+      quad: (t: number) => t,
+      cubic: (t: number) => t,
+      sin: (t: number) => t,
     },
     Alert: { alert: jest.fn() },
     Keyboard: { dismiss: jest.fn(), addListener: jest.fn(() => ({ remove: jest.fn() })) },
@@ -116,6 +129,10 @@ jest.mock('@nozbe/watermelondb', () => {
   const noop = () => ({});
   const Q = {
     where: jest.fn(noop),
+    sortBy: jest.fn(noop),
+    take: jest.fn(noop),
+    asc: 'asc',
+    desc: 'desc',
     and: jest.fn(noop),
     or: jest.fn(noop),
     eq: jest.fn(noop),
@@ -126,6 +143,8 @@ jest.mock('@nozbe/watermelondb', () => {
     lte: jest.fn(noop),
     like: jest.fn(noop),
     notLike: jest.fn(noop),
+    oneOf: jest.fn(noop),
+    notIn: jest.fn(noop),
     sanitizeLikeString: jest.fn((s: string) => s),
     on: jest.fn(noop),
     relation: jest.fn(noop),

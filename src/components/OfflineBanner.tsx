@@ -1,8 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
-export function OfflineBanner() {
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { colors, spacing, typography } from '@src/theme';
+
+/**
+ * @description Persistent banner telling the medtech they're offline and changes
+ * will sync once connectivity returns. Renders nothing while online.
+ */
+export function OfflineBanner(): React.JSX.Element | null {
   const { isOnline } = useNetworkStatus();
 
   if (isOnline) return null;
@@ -16,14 +22,14 @@ export function OfflineBanner() {
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: '#7C4A0A',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    backgroundColor: colors.amberBrown,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     alignItems: 'center',
   },
   text: {
-    color: '#FFFFFF',
-    fontSize: 12,
+    ...typography.caption,
+    color: colors.white,
     fontWeight: '500',
   },
 });

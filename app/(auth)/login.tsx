@@ -1,6 +1,12 @@
-import React from 'react';
-import { LoginForm } from '@features/auth/components/LoginForm';
+import { useLocalSearchParams } from 'expo-router';
 
-export default function LoginScreen() {
-  return <LoginForm />;
+import { LoginForm } from '@features/auth/components/login-form';
+
+/**
+ * @description Route entry for /login. Renders the auth feature's login form, forwarding
+ * `?reason=` (e.g. "inactivity") so it can explain why the medtech landed back here.
+ */
+export default function LoginScreen(): React.JSX.Element {
+  const { reason } = useLocalSearchParams<{ reason?: string }>();
+  return <LoginForm reason={reason} />;
 }

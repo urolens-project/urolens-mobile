@@ -1,15 +1,22 @@
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
-interface Props {
+import { colors } from '@src/theme';
+
+export interface LoadingOverlayProps {
   visible: boolean;
 }
 
-export function LoadingOverlay({ visible }: Props) {
+/**
+ * @description Full-screen dimmed overlay with a spinner, shown while a blocking
+ * action is in flight.
+ * @param visible - Renders nothing when false.
+ */
+export function LoadingOverlay({ visible }: LoadingOverlayProps): React.JSX.Element | null {
   if (!visible) return null;
   return (
     <View style={styles.overlay}>
-      <ActivityIndicator size="large" color="#FFFFFF" />
+      <ActivityIndicator size="large" color={colors.white} />
     </View>
   );
 }
@@ -17,7 +24,7 @@ export function LoadingOverlay({ visible }: Props) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: colors.overlayDark,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,

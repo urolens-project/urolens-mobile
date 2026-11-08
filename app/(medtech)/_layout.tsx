@@ -1,19 +1,34 @@
-import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, View, Text } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AppState, AppStateStatus, View, Text, StyleSheet } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import NetInfo from '@react-native-community/netinfo';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@lib/auth/authStore';
 import { UserRole } from '@app-types/enums';
-import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
 import { synchronize } from '@db/sync/syncManager';
 import {
   registerForPushNotifications,
   registerNotificationListeners,
 } from '@lib/notifications/notificationHandler';
+import { colors, radius } from '@src/theme';
 
-const TEAL = '#2E7D7A';
+import { Icon } from '@components/Icon';
 
+import { SessionTimeoutHandler } from '@features/auth/components/SessionTimeoutHandler';
+import { SessionActivityGate } from '@features/auth/components/session-activity-gate';
+import { NotificationsPreview } from '@features/alerts/components/NotificationsPreview';
+import {
+  closeNotificationsPreview,
+  refreshNotifications,
+  useNotificationsPreviewOpen,
+} from '@features/alerts/store/notificationsStore';
+import { TokenRefreshHandler } from '@features/auth/components/TokenRefreshHandler';
+
+/**
+ * @description Initials shown on the profile tab avatar, e.g. "Jane Doe" -> "JD".
+ * @param username - Signed-in user's display name, if known.
+ */
 function getInitials(username: string | null): string {
   if (!username) return '?';
   const parts = username.split(/[\s._-]+/).filter(Boolean);
@@ -21,46 +36,53 @@ function getInitials(username: string | null): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function TabProfileAvatar({ focused }: { focused: boolean }) {
+interface TabProfileAvatarProps {
+  focused: boolean;
+}
+
+function TabProfileAvatar({ focused }: TabProfileAvatarProps): React.JSX.Element {
   const { username } = useAuthStore();
   return (
-    <View style={{
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      backgroundColor: focused ? TEAL : '#E5E7EB',
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}>
-      <Text style={{
-        fontSize: 10,
-        fontWeight: '700',
-        color: focused ? '#FFFFFF' : '#6B7280',
-      }}>
+    <View style={[avatarStyles.container, focused && avatarStyles.containerActive]}>
+      <Text style={[avatarStyles.initials, focused && avatarStyles.initialsActive]}>
         {getInitials(username)}
       </Text>
     </View>
   );
 }
 
-export default function MedTechLayout() {
+/**
+ * @description Layout for the (medtech) tab group. Redirects unauthenticated or
+ * non-medtech sessions to login, keeps the local DB synced while active, and renders
+ * the bottom tab bar (detail routes are hidden tabs reachable via push navigation).
+ */
+export default function MedTechLayout(): React.JSX.Element {
   const { isAuthenticated, role } = useAuthStore();
   const wasConnected = useRef<boolean | null>(null);
+  const insets = useSafeAreaInsets();
+  const isPreviewOpen = useNotificationsPreviewOpen();
 
   useEffect(() => {
     if (!isAuthenticated || role !== UserRole.MEDTECH) return;
 
     synchronize();
+    refreshNotifications();
     registerForPushNotifications();
     const cleanupListeners = registerNotificationListeners();
 
     const appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next === 'active') synchronize();
+      if (next === 'active') {
+        synchronize();
+        refreshNotifications();
+      }
     });
 
     const netInfoUnsub = NetInfo.addEventListener((state) => {
       const isConnected = state.isConnected ?? false;
-      if (isConnected && wasConnected.current === false) synchronize();
+      if (isConnected && wasConnected.current === false) {
+        synchronize();
+        refreshNotifications();
+      }
       wasConnected.current = isConnected;
     });
 
@@ -76,19 +98,26 @@ export default function MedTechLayout() {
   }
 
   return (
-    <>
+    <SessionActivityGate>
       <SessionTimeoutHandler />
+      <TokenRefreshHandler />
       <Tabs
+        // Detail screens (sample/[id], capture, reject, override) are hidden
+        // tab routes reachable from more than one tab (Queue, Reports).
+        // The default backBehavior resolves "back" to the initial tab (Queue)
+        // regardless of where the screen was actually opened from — "history"
+        // makes back return to whichever tab you really came from.
+        backBehavior="history"
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: TEAL,
-          tabBarInactiveTintColor: '#9CA3AF',
+          tabBarActiveTintColor: colors.teal,
+          tabBarInactiveTintColor: colors.gray400,
           tabBarStyle: {
-            backgroundColor: '#FFFFFF',
-            borderTopColor: '#E5E7EB',
+            backgroundColor: colors.white,
+            borderTopColor: colors.gray200,
             borderTopWidth: 1,
-            height: 80,
-            paddingBottom: 20,
+            height: 56 + insets.bottom,
+            paddingBottom: insets.bottom + 8,
             paddingTop: 8,
           },
           tabBarLabelStyle: {
@@ -101,39 +130,42 @@ export default function MedTechLayout() {
           name="queue"
           options={{
             title: 'Queue',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="list" size={size} color={color} />
-            ),
+            tabBarIcon: ({ color, size }) => <Icon name="list" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
-          name="capture"
+          name="reports"
           options={{
-            title: 'Capture',
+            title: 'Reports',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="camera-outline" size={size} color={color} />
+              <Icon name="document-text-outline" size={size} color={color} />
             ),
           }}
         />
         <Tabs.Screen
+          // No longer a visible tab — the bell button on the Queue header opens the
+          // same preview overlay (NotificationsPreview, below) via the notifications
+          // store. Still a registered route so "See all" in that preview can push
+          // straight to the full Alerts page.
           name="alerts"
-          options={{
-            title: 'Alerts',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="notifications-outline" size={size} color={color} />
-            ),
-          }}
+          options={{ href: null, tabBarStyle: { display: 'none' } }}
         />
         <Tabs.Screen
           name="profile"
           options={{
             title: 'Profile',
-            tabBarIcon: ({ focused }) => (
-              <TabProfileAvatar focused={focused} />
-            ),
+            tabBarIcon: ({ focused }) => <TabProfileAvatar focused={focused} />,
           }}
         />
         {/* Hide detail screens from the tab bar */}
+        {/* capture is still pushed to directly from Begin Analysis / Retake
+            Image (sample/[id].tsx) — it just no longer has its own tab. */}
+        <Tabs.Screen name="capture" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+        <Tabs.Screen name="field-list" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+        <Tabs.Screen
+          name="field-result"
+          options={{ href: null, tabBarStyle: { display: 'none' } }}
+        />
         <Tabs.Screen
           name="sample/[id]"
           options={{ href: null, tabBarStyle: { display: 'none' } }}
@@ -147,6 +179,21 @@ export default function MedTechLayout() {
           options={{ href: null, tabBarStyle: { display: 'none' } }}
         />
       </Tabs>
-    </>
+      <NotificationsPreview visible={isPreviewOpen} onClose={closeNotificationsPreview} />
+    </SessionActivityGate>
   );
 }
+
+const avatarStyles = StyleSheet.create({
+  container: {
+    width: 26,
+    height: 26,
+    borderRadius: radius.pill,
+    backgroundColor: colors.gray200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  containerActive: { backgroundColor: colors.teal },
+  initials: { fontSize: 10, fontWeight: '700', color: colors.gray500 },
+  initialsActive: { color: colors.white },
+});

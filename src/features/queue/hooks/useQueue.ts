@@ -1,161 +1,324 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
+import type { Query } from '@nozbe/watermelondb';
 import { database } from '@db/database';
-import Specimen from '@db/models/Specimen';
-import { synchronize } from '@db/sync/syncManager';
+import { observeQuery } from '@db/observeQuery';
+import { latestAnalysisResultsBySpecimen } from '@db/latestAnalysisResultsBySpecimen';
+import type Specimen from '@db/models/Specimen';
+import type AnalysisResult from '@db/models/AnalysisResult';
+import type ResultField from '@db/models/ResultField';
+import { synchronize, LAST_SYNC_KEY } from '@db/sync/syncManager';
+import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
-import type { QueueItem, FilterOption, PriorityLevel, SpecimenStatus } from '../types';
 
-const QUEUE_STATUSES: SpecimenStatus[] = ['ASSIGNED', 'IN_QUEUE'];
+import {
+  QUEUE_FIELD_COLUMNS,
+  QUEUE_PAGE_SIZE,
+  QUEUE_RESULT_COLUMNS,
+  QUEUE_SPECIMEN_COLUMNS,
+} from '../constants/queue.constant';
+import { getQueueStatus, orderByStatus } from '../status';
+import {
+  baseClause,
+  buildQuery,
+  FINISHED_RESULT_STATUSES,
+  RETURNED_RESULT_STATUS,
+} from '../lib/queueQuery';
+import { dedupeQueueItems, sameIds, sameMap, specimenToQueueItem } from '../lib/queueItemMapping';
+import type { FilterOption, QueueItem } from '../types';
 
-function specimenToQueueItem(s: Specimen): QueueItem {
-  return {
-    id: s.id,
-    serverId: s.serverId,
-    sampleUid: s.sampleUid,
-    patientName: s.patientName,
-    patientUid: s.patientUid,
-    testType: s.testType,
-    status: s.status as SpecimenStatus,
-    priorityLevel: s.priorityLevel as PriorityLevel | null,
-    receivedAt: s.receivedAt,
-    medtechId: s.medtechId,
-    rejectionReason: s.rejectionReason,
-    rejectionNote: s.rejectionNote,
-    rejectedAt: s.rejectedAt,
-    syncedAt: s.syncedAt,
-  };
-}
+type QueueSource = 'items' | 'totals' | 'results';
 
-function todayRange(): { start: string; end: string } {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  return { start: start.toISOString(), end: end.toISOString() };
-}
-
-function buildQuery(filter: FilterOption): Q.Clause[] {
-  switch (filter) {
-    case 'DATE': {
-      const { start, end } = todayRange();
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('received_at', Q.gte(start)),
-        Q.where('received_at', Q.lte(end)),
-        Q.sortBy('received_at', Q.desc),
-      ];
-    }
-    case 'LATEST':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.sortBy('received_at', Q.desc),
-      ];
-    case 'EARLIEST':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.sortBy('received_at', Q.asc),
-      ];
-    case 'PRIORITY':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', Q.oneOf(['HIGH', 'NORMAL', 'LOW', 'ROUTINE'])),
-      ];
-    case 'HIGH':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', 'HIGH'),
-      ];
-    case 'NORMAL':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', 'NORMAL'),
-      ];
-    case 'LOW':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', 'LOW'),
-      ];
-    case 'ROUTINE':
-      return [
-        Q.where('status', Q.oneOf(QUEUE_STATUSES)),
-        Q.where('priority_level', 'ROUTINE'),
-      ];
-    case 'STATUS':
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];
-    case 'ASSIGNED':
-      return [Q.where('status', 'ASSIGNED')];
-    case 'IN_QUEUE':
-      return [Q.where('status', 'IN_QUEUE')];
-    case 'PROCESSING':
-      return [Q.where('status', 'PROCESSING')];
-    case 'ALL':
-    default:
-      return [Q.where('status', Q.oneOf(QUEUE_STATUSES))];
-  }
-}
+// A status chip's filter value is also a QueueStatus, so the DB only needs to load
+// the Queue's usual scope (buildQuery collapses these to baseClause) and the chip,
+// counts, badge and sort all agree on which rows match (mobile-queue-status-n8, Q3).
+const STATUS_CHIP_FILTERS: FilterOption[] = [
+  'ASSIGNED',
+  'PROCESSING',
+  'CAPTURING',
+  'VERIFYING',
+  'RETURNED',
+];
 
 export interface UseQueueResult {
   items: QueueItem[];
   allItems: QueueItem[];
   isLoading: boolean;
+  error: Error | null;
   filter: FilterOption;
-  setFilter: (f: FilterOption) => void;
+  setFilter: (filter: FilterOption) => void;
   refresh: () => Promise<void>;
   isRefreshing: boolean;
+  lastSyncAt: number | null;
+  page: number;
+  pageCount: number;
+  totalItems: number;
+  nextPage: () => void;
+  previousPage: () => void;
 }
 
+/**
+ * @description Keeps the actionable queue and totals live offline, and pages the filtered list.
+ */
 export function useQueue(): UseQueueResult {
-  const [items, setItems] = useState<QueueItem[]>([]);
-  const [allItems, setAllItems] = useState<QueueItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterOption>('ALL');
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const { isOnline } = useNetworkStatus();
+  const [filteredItems, setFilteredItems] = useState<QueueItem[]>([]);
+  const [allItems, setAllItems] = useState<QueueItem[]>([]);
+  const [filter, setActiveFilter] = useState<FilterOption>('ALL');
+  const [requestedPage, setRequestedPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [loadedSources, setLoadedSources] = useState<Partial<Record<QueueSource, boolean>>>({});
+  const [sourceErrors, setSourceErrors] = useState<Partial<Record<QueueSource, Error | null>>>({});
+  const [returnedServerIds, setReturnedServerIds] = useState<string[]>([]);
+  const [finishedServerIds, setFinishedServerIds] = useState<string[]>([]);
+  const [returnReasons, setReturnReasons] = useState<Map<string, string | null>>(new Map());
+  const [resultStatusByServerId, setResultStatusByServerId] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const [fieldCountByServerId, setFieldCountByServerId] = useState<Map<string, number | null>>(
+    new Map(),
+  );
+  const pageCount = Math.max(1, Math.ceil(filteredItems.length / QUEUE_PAGE_SIZE));
+  const page = Math.min(requestedPage, pageCount);
+  const items = useMemo((): QueueItem[] => {
+    const offset = (page - 1) * QUEUE_PAGE_SIZE;
+    return filteredItems.slice(offset, offset + QUEUE_PAGE_SIZE).map(
+      (item): QueueItem => ({
+        ...item,
+        returnReason:
+          item.isReturnedForCorrection && item.serverId
+            ? (returnReasons.get(item.serverId) ?? null)
+            : null,
+      }),
+    );
+  }, [filteredItems, page, returnReasons]);
 
-  // Filtered list — changes with the active filter
-  useEffect(() => {
-    const clauses = buildQuery(filter);
-    const subscription = database
-      .get<Specimen>('specimens')
-      .query(...clauses)
-      .observe()
-      .subscribe((specimens) => {
-        setItems(specimens.map(specimenToQueueItem));
-        setIsLoading(false);
-      });
-
-    return () => subscription.unsubscribe();
-  }, [filter]);
-
-  // Unfiltered totals — always the full active queue for stats card
-  useEffect(() => {
-    const subscription = database
-      .get<Specimen>('specimens')
-      .query(Q.where('status', Q.oneOf(QUEUE_STATUSES)))
-      .observe()
-      .subscribe((specimens) => {
-        setAllItems(specimens.map(specimenToQueueItem));
-      });
-
-    return () => subscription.unsubscribe();
+  const handleSourceLoaded = useCallback((source: QueueSource): void => {
+    setLoadedSources(
+      (previous): Partial<Record<QueueSource, boolean>> => ({ ...previous, [source]: true }),
+    );
+    setSourceErrors(
+      (previous): Partial<Record<QueueSource, Error | null>> => ({ ...previous, [source]: null }),
+    );
   }, []);
+  const handleSourceError = useCallback((source: QueueSource, error: Error): void => {
+    setSourceErrors(
+      (previous): Partial<Record<QueueSource, Error | null>> => ({ ...previous, [source]: error }),
+    );
+  }, []);
+  const syncQueue = useCallback(
+    async (signal: AbortSignal): Promise<void> => {
+      try {
+        if (isOnline) await synchronize();
+      } finally {
+        const raw = await AsyncStorage.getItem(LAST_SYNC_KEY);
+        const timestamp = raw ? new Date(raw).getTime() : NaN;
+        if (!signal.aborted) setLastSyncAt(Number.isFinite(timestamp) ? timestamp : null);
+      }
+    },
+    [isOnline],
+  );
+  const { run, isLoading: isRefreshing, error: syncError } = useAsyncAction('Queue', syncQueue);
 
-  useEffect(() => {
-    if (isOnline) {
-      synchronize().catch(() => {});
-    }
-  }, [isOnline]);
+  useEffect((): (() => void) => {
+    const returnedSet = new Set(returnedServerIds);
+    const subscription = observeQuery(
+      (): Query<Specimen> =>
+        database
+          .get<Specimen>('specimens')
+          .query(...buildQuery(filter, returnedServerIds, finishedServerIds)),
+      (specimens): void => {
+        const next = dedupeQueueItems(
+          specimens.map(
+            (specimen): QueueItem =>
+              specimenToQueueItem(
+                specimen,
+                returnedSet,
+                resultStatusByServerId,
+                fieldCountByServerId,
+              ),
+          ),
+        );
+        const statusFiltered = STATUS_CHIP_FILTERS.includes(filter)
+          ? next.filter((item): boolean => getQueueStatus(item) === filter)
+          : next;
+        setFilteredItems(
+          filter === 'ALL' || filter === 'STATUS' ? orderByStatus(statusFiltered) : statusFiltered,
+        );
+        handleSourceLoaded('items');
+      },
+      {
+        columns: QUEUE_SPECIMEN_COLUMNS,
+        onError: (error): void => handleSourceError('items', error),
+      },
+    );
+    return (): void => subscription.unsubscribe();
+  }, [
+    filter,
+    returnedServerIds,
+    finishedServerIds,
+    resultStatusByServerId,
+    fieldCountByServerId,
+    reloadKey,
+    handleSourceLoaded,
+    handleSourceError,
+  ]);
 
-  const refresh = useCallback(async () => {
-    if (!isOnline) return;
-    setIsRefreshing(true);
-    try {
-      await synchronize();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [isOnline]);
+  useEffect((): (() => void) => {
+    const returnedSet = new Set(returnedServerIds);
+    const subscription = observeQuery(
+      (): Query<Specimen> =>
+        database.get<Specimen>('specimens').query(baseClause(returnedServerIds, finishedServerIds)),
+      (specimens): void => {
+        setAllItems(
+          dedupeQueueItems(
+            specimens.map(
+              (specimen): QueueItem =>
+                specimenToQueueItem(
+                  specimen,
+                  returnedSet,
+                  resultStatusByServerId,
+                  fieldCountByServerId,
+                ),
+            ),
+          ),
+        );
+        handleSourceLoaded('totals');
+      },
+      {
+        columns: QUEUE_SPECIMEN_COLUMNS,
+        onError: (error): void => handleSourceError('totals', error),
+      },
+    );
+    return (): void => subscription.unsubscribe();
+  }, [
+    returnedServerIds,
+    finishedServerIds,
+    resultStatusByServerId,
+    fieldCountByServerId,
+    reloadKey,
+    handleSourceLoaded,
+    handleSourceError,
+  ]);
 
-  return { items, allItems, isLoading, filter, setFilter, refresh, isRefreshing };
+  useEffect((): (() => void) => {
+    const subscription = observeQuery(
+      (): Query<AnalysisResult> => database.get<AnalysisResult>('analysis_results').query(),
+      (results): void => {
+        const latest = Array.from(latestAnalysisResultsBySpecimen(results).values());
+        // A CAPTURING result with a return_reason is a reopened return (the
+        // website's Capture More Fields, after a Supervisor return): sync only
+        // sends return_reason while the return is still open, so this still
+        // counts as returned until it's resubmitted (mobile-queue-status-n8, Q1).
+        const returned = latest.filter(
+          (result): boolean =>
+            result.status === RETURNED_RESULT_STATUS ||
+            (result.status === 'CAPTURING' && !!result.returnReason),
+        );
+        const nextReturned = returned.map((result): string => result.specimenId);
+        const nextFinished = latest
+          .filter((result): boolean => FINISHED_RESULT_STATUSES.includes(result.status))
+          .map((result): string => result.specimenId);
+        setReturnedServerIds((previous): string[] =>
+          sameIds(previous, nextReturned) ? previous : nextReturned,
+        );
+        setFinishedServerIds((previous): string[] =>
+          sameIds(previous, nextFinished) ? previous : nextFinished,
+        );
+        setReturnReasons(
+          new Map(
+            returned.map((result): [string, string | null] => [
+              result.specimenId,
+              result.returnReason ?? null,
+            ]),
+          ),
+        );
+        const nextResultStatus = new Map(
+          latest.map((result): [string, string] => [result.specimenId, result.status]),
+        );
+        setResultStatusByServerId(
+          (previous): Map<string, string> =>
+            sameMap(previous, nextResultStatus) ? previous : nextResultStatus,
+        );
+        handleSourceLoaded('results');
+      },
+      {
+        columns: QUEUE_RESULT_COLUMNS,
+        onError: (error): void => handleSourceError('results', error),
+      },
+    );
+    return (): void => subscription.unsubscribe();
+  }, [reloadKey, handleSourceLoaded, handleSourceError]);
+
+  // Accepted field count per specimen, counted off result_fields directly rather
+  // than read from analysis_results.field_count: the backend never syncs that
+  // column, so every pull reset it to null (mobile PR #55 review, 3.1). This
+  // table syncs fully regardless of which device captured a field.
+  useEffect((): (() => void) => {
+    const subscription = observeQuery(
+      (): Query<ResultField> =>
+        database.get<ResultField>('result_fields').query(Q.where('status', 'ACCEPTED')),
+      (fields): void => {
+        const nextFieldCount = new Map<string, number>();
+        for (const f of fields) {
+          nextFieldCount.set(f.specimenId, (nextFieldCount.get(f.specimenId) ?? 0) + 1);
+        }
+        setFieldCountByServerId(
+          (previous): Map<string, number | null> =>
+            sameMap(previous, nextFieldCount) ? previous : nextFieldCount,
+        );
+      },
+      {
+        columns: QUEUE_FIELD_COLUMNS,
+        onError: (error): void => handleSourceError('results', error),
+      },
+    );
+    return (): void => subscription.unsubscribe();
+  }, [reloadKey, handleSourceLoaded, handleSourceError]);
+
+  useEffect((): void => {
+    void run();
+  }, [run]);
+  useEffect((): void => {
+    setRequestedPage(page);
+  }, [page]);
+
+  const setFilter = useCallback((nextFilter: FilterOption): void => {
+    setActiveFilter(nextFilter);
+    setRequestedPage(1);
+  }, []);
+  const refresh = useCallback(async (): Promise<void> => {
+    setSourceErrors({});
+    setLoadedSources({});
+    setReloadKey((previous): number => previous + 1);
+    await run();
+  }, [run]);
+  const nextPage = useCallback(
+    (): void => setRequestedPage(Math.min(page + 1, pageCount)),
+    [page, pageCount],
+  );
+  const previousPage = useCallback((): void => setRequestedPage(Math.max(1, page - 1)), [page]);
+  const error = sourceErrors.items ?? sourceErrors.totals ?? sourceErrors.results ?? syncError;
+  const hasLoadedQueue = loadedSources.items && loadedSources.totals && loadedSources.results;
+  const isLoading = !error && (!hasLoadedQueue || (isRefreshing && allItems.length === 0));
+
+  return {
+    items,
+    allItems,
+    isLoading,
+    error,
+    filter,
+    setFilter,
+    refresh,
+    isRefreshing,
+    lastSyncAt,
+    page,
+    pageCount,
+    totalItems: filteredItems.length,
+    nextPage,
+    previousPage,
+  };
 }

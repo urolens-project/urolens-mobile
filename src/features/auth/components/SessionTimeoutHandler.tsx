@@ -1,26 +1,41 @@
 import { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
+
+import { tokenStorage } from '@lib/auth/tokenStorage';
+
+import { getSessionTiming } from '../lib/sessionTiming';
 import { useAuth } from '../hooks/useAuth';
 
-const TIMEOUT_MS =
-  parseInt(process.env.EXPO_PUBLIC_SESSION_TIMEOUT_MINUTES ?? '30') * 60 * 1000;
-
-export function SessionTimeoutHandler() {
-  const backgroundTime = useRef<number | null>(null);
+/**
+ * @description Logs the medtech out if the app was backgrounded (or killed and
+ * relaunched) longer than the configured session timeout. Renders nothing; mount it
+ * once near the app root, inside the authenticated route group.
+ */
+export function SessionTimeoutHandler(): null {
   const { logout } = useAuth();
+
+  const backgroundTime = useRef<number | null>(null);
 
   useEffect(() => {
     const subscription = AppState.addEventListener(
       'change',
-      async (nextState: AppStateStatus) => {
-        if (nextState === 'background' || nextState === 'inactive') {
+      async (nextState: AppStateStatus): Promise<void> => {
+        // iOS also becomes inactive during system interruptions such as Face ID,
+        // Notification Center, or incoming calls. Only time actual backgrounding.
+        if (nextState === 'background') {
           backgroundTime.current = Date.now();
+          // Persisted (not just in-memory) so a cold start after the app was fully
+          // killed can still tell how long the medtech was away.
+          await tokenStorage.saveLastActiveAt(backgroundTime.current);
         } else if (nextState === 'active' && backgroundTime.current !== null) {
           const elapsed = Date.now() - backgroundTime.current;
-          if (elapsed >= TIMEOUT_MS) {
-            await logout();
-          }
           backgroundTime.current = null;
+          const { timeoutMs } = await getSessionTiming();
+          if (elapsed >= timeoutMs) {
+            await logout('inactivity');
+          } else {
+            await tokenStorage.removeLastActiveAt();
+          }
         }
       },
     );

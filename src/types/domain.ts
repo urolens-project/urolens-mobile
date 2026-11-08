@@ -1,44 +1,34 @@
-import { RejectionReason, ProbabilityLevel, SpecimenStatus, ResultStatus } from './enums';
+import { ProbabilityLevel, ResultStatus } from './enums';
 
-export interface AuthUser {
-  user_id: string;
-  username: string;
-  role: string;
-  exp: number;
-}
+// Backend wire contract intentionally mixes casing: JSON envelope/wrapper
+// keys are camelCase, but per-row/nested payload fields mirror raw snake_case
+// DB columns (see urolens-backend's sync_service.py and smart_diagnosis_service.py).
+// The snake_case fields below are not a leftover to "fix" — they document
+// the real wire shape of AnalysisResultDTO/SmartDiagnosisDTO's nested data.
 
 export interface TokenResponse {
-  access_token: string;
-  token_type: string;
+  accessToken: string;
+  tokenType: string;
   role: string;
-  user_id: string;
+  userId: string;
+  /** When this access token expires (ISO 8601); refresh before then to keep working. */
+  expiresAt: string;
+  /** When the session ends for good (end of the shift); no refresh goes past it. */
+  sessionExpiresAt: string;
+  /** Inactivity limit for this role: a session with no request for this long is signed out server-side. */
+  idleTimeoutMinutes: number;
+  /** How long before the idle timeout the app should warn the user, in seconds. */
+  idleWarningSeconds: number;
 }
 
-export interface QueueItem {
-  specimen_id: string;
-  sample_uid: string;
-  patient_name: string;
-  time_received: string;
-  priority_level: string;
-  status: SpecimenStatus;
-}
-
-export interface SpecimenDetail extends QueueItem {
-  patient_uid: string;
-  test_type: string;
-  lab_request_id: string;
-  medtech_id: string;
-}
-
-export interface RejectionPayload {
-  specimen_id: string;
-  reason_code: RejectionReason;
-  free_text_note?: string;
-}
-
-export interface ImageUploadResponse {
-  image_id: string;
-  status: string;
+/** Response body for `POST /auth/refresh` — a new token for the same session. */
+export interface TokenRefreshResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresAt: string;
+  sessionExpiresAt: string;
+  idleTimeoutMinutes: number;
+  idleWarningSeconds: number;
 }
 
 export interface AnalysisResultDTO {
@@ -72,15 +62,11 @@ export interface EvidenceItem {
   contribution_role: 'primary' | 'supporting';
 }
 
-export interface OverridePayload {
-  result_id: string;
-  parameter_name: string;
-  corrected_value: string;
-  rationale: string;
-}
-
 export interface ApiError {
   code: string;
   message: string;
   details?: Record<string, unknown>;
+  // HTTP status of the response. Absent when there was no response at all
+  // (no network, timeout) — which is itself worth knowing when deciding to retry.
+  status?: number;
 }

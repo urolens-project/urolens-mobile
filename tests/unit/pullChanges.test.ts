@@ -1,0 +1,653 @@
+/**
+ * Contract regression test for pullChanges (GET /sync/pull).
+ *
+ * This is the exact code path that broke in production twice: once when the
+ * backend's wrapper keys (`queueAssignments`/`analysisResults`) were
+ * snake_case, and once when a client-side casing "cleanup" nearly flipped
+ * the per-row fields to camelCase too. The wire contract intentionally mixes
+ * casing — camelCase envelope/wrapper keys, snake_case per-row fields — and
+ * that split is easy to get wrong in either direction.
+ *
+ * These fixtures mirror the backend's actual response shape (see
+ * src/services/sync_service.py / src/schemas/sync.py in urolens-backend) so
+ * a future edit that "fixes" the casing on either side of the split fails
+ * loudly here instead of silently dropping fields at runtime.
+ */
+
+jest.mock('@lib/apiClient', () => ({
+  __esModule: true,
+  default: { get: jest.fn() },
+  apiClient: { get: jest.fn() },
+}));
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
+}));
+
+jest.mock('@db/sync/conflictResolver', () => ({
+  resolveConflict: jest.fn(() => 'SERVER_WINS'),
+  applyResolution: jest.fn((_strategy, serverValue: unknown) => serverValue),
+}));
+
+jest.mock('@db/sync/fieldFiles', () => ({ deleteFieldImageFile: jest.fn() }));
+
+const mockCollections = new Map<
+  string,
+  { created: Record<string, unknown>[]; existing: Record<string, unknown>[] }
+>();
+
+function mockMakeCollection(tableName: string) {
+  if (!mockCollections.has(tableName)) {
+    mockCollections.set(tableName, { created: [], existing: [] });
+  }
+  const state = mockCollections.get(tableName)!;
+  return {
+    create: jest.fn(async (builder: (model: Record<string, unknown>) => void) => {
+      const model: Record<string, unknown> = {};
+      builder(model);
+      state.created.push(model);
+      return model;
+    }),
+    query: jest.fn(() => ({
+      fetch: jest.fn(async () => state.existing),
+    })),
+  };
+}
+
+jest.mock('@db/database', () => ({
+  database: {
+    write: jest.fn((fn: () => Promise<void>) => fn()),
+    get: jest.fn((tableName: string) => mockMakeCollection(tableName)),
+    batch: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+import { pullChanges } from '../../src/db/sync/pullChanges';
+import { apiClient } from '@lib/apiClient';
+import { database } from '@db/database';
+import { deleteFieldImageFile } from '@db/sync/fieldFiles';
+import { FIELD_WORKFLOW_SEEN_KEY } from '@db/sync/legacyQueue';
+import { useMinFieldsStore } from '@lib/stores/minFieldsStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import syncPullGolden from '../fixtures/sync_pull_golden.json';
+
+function fixtureResponse() {
+  return {
+    data: {
+      timestamp: '2026-09-12T00:00:00.000Z',
+      changes: {
+        specimens: {
+          created: [
+            {
+              id: 'spec-1',
+              sample_uid: 'S-001',
+              patient_name: 'Jane Doe',
+              patient_uid: 'P-001',
+              test_type: 'URINALYSIS',
+              status: 'PENDING',
+              priority_level: 'ROUTINE',
+              received_at: '2026-09-11T10:00:00Z',
+              assigned_at: null,
+              medtech_id: null,
+              rejection_reason: null,
+              rejection_note: null,
+              rejected_at: null,
+            },
+          ],
+          updated: [],
+        },
+        queueAssignments: {
+          created: [
+            {
+              id: 'qa-1',
+              specimen_id: 'spec-1',
+              medtech_id: 'mt-1',
+              assigned_at: '2026-09-11T10:05:00Z',
+              status: 'ASSIGNED',
+            },
+          ],
+          updated: [],
+        },
+        analysisResults: {
+          created: [
+            {
+              id: 'ar-1',
+              specimen_id: 'spec-1',
+              ai_findings: { RBC: 3 },
+              flagged_anomalies: {},
+              smart_diagnosis: null,
+              smart_diagnosis_unavailable: false,
+              status: 'PENDING_CONFIRM',
+              image_id: 'img-1',
+              confirmed_at: null,
+              confirmed_by: null,
+              return_reason: 'Review the WBC count.',
+            },
+          ],
+          updated: [],
+        },
+      },
+    },
+  };
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockCollections.clear();
+});
+
+describe('pullChanges', () => {
+  it('requests /sync/pull without a query param on a full sync', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+    await pullChanges(null);
+    expect(apiClient.get).toHaveBeenCalledWith('/sync/pull', { signal: undefined });
+  });
+
+  it('sends lastSyncedAt as a camelCase query param on a delta sync', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+    await pullChanges('2026-09-10T00:00:00Z');
+    expect(apiClient.get).toHaveBeenCalledWith('/sync/pull?lastSyncedAt=2026-09-10T00%3A00%3A00Z', {
+      signal: undefined,
+    });
+  });
+
+  it('returns the server timestamp for the caller to persist', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+    const result = await pullChanges(null);
+    expect(result).toBe('2026-09-12T00:00:00.000Z');
+  });
+
+  it('maps a snake_case specimens row under the camelCase "specimens" wrapper key', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+    await pullChanges(null);
+
+    const [created] = mockCollections.get('specimens')!.created;
+    // The server always sends patient_name as "" now (RA 10173 data minimization); the
+    // app dropped its local column for it, so the mapper must not produce this field.
+    expect(created).not.toHaveProperty('patientName');
+    expect(created).toEqual(
+      expect.objectContaining({
+        serverId: 'spec-1',
+        sampleUid: 'S-001',
+        patientUid: 'P-001',
+        testType: 'URINALYSIS',
+        status: 'PENDING',
+        priorityLevel: 'ROUTINE',
+        receivedAt: '2026-09-11T10:00:00Z',
+      }),
+    );
+  });
+
+  it('maps a snake_case row under the camelCase "queueAssignments" wrapper key', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+    await pullChanges(null);
+
+    const [created] = mockCollections.get('queue_assignments')!.created;
+    expect(created).toEqual(
+      expect.objectContaining({
+        serverId: 'qa-1',
+        specimenId: 'spec-1',
+        medtechId: 'mt-1',
+        assignedAt: '2026-09-11T10:05:00Z',
+        status: 'ASSIGNED',
+      }),
+    );
+  });
+
+  it('maps a snake_case row under the camelCase "analysisResults" wrapper key', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+    await pullChanges(null);
+
+    const [created] = mockCollections.get('analysis_results')!.created;
+    expect(created).toEqual(
+      expect.objectContaining({
+        serverId: 'ar-1',
+        specimenId: 'spec-1',
+        aiFindingsJson: JSON.stringify({ RBC: 3 }),
+        flaggedAnomaliesJson: JSON.stringify({}),
+        smartDiagnosisJson: null,
+        smartDiagnosisUnavailable: false,
+        status: 'PENDING_CONFIRM',
+        imageId: 'img-1',
+        returnReason: 'Review the WBC count.',
+      }),
+    );
+  });
+
+  it('creates/updates nothing for a table whose wrapper key is absent from the response', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({
+      data: { timestamp: '2026-09-12T00:00:00.000Z', changes: {} },
+    });
+    await pullChanges(null);
+
+    // The dedupe pass (below) reads every table unconditionally every sync,
+    // so mockCollections will have entries for all three — but none of
+    // them should have had a create/update applied.
+    for (const table of ['specimens', 'queue_assignments', 'analysis_results']) {
+      expect(mockCollections.get(table)?.created ?? []).toEqual([]);
+    }
+  });
+
+  it('creates a local record from an "updated" row when no local match exists yet (delta sync of a new record)', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({
+      data: {
+        timestamp: '2026-09-12T00:00:00.000Z',
+        changes: {
+          specimens: {
+            created: [],
+            updated: [
+              {
+                id: 'spec-2',
+                sample_uid: 'S-002',
+                patient_name: 'John Roe',
+                patient_uid: 'P-002',
+                test_type: 'URINALYSIS',
+                status: 'PENDING',
+                priority_level: 'STAT',
+                received_at: '2026-09-11T11:00:00Z',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    await pullChanges('2026-09-10T00:00:00Z');
+
+    const [created] = mockCollections.get('specimens')!.created;
+    expect(created).toEqual(expect.objectContaining({ serverId: 'spec-2', sampleUid: 'S-002' }));
+  });
+
+  // Regression: a replayed/resent "created" batch (same server_id the
+  // client already has) was inserting a second local row instead of
+  // updating the existing one — the actual cause of duplicated cards in
+  // the Queue, and of "Sample not found" once only one copy kept receiving
+  // updates.
+  it('updates the existing local record instead of inserting a duplicate for a "created" row whose server_id is already known locally', async () => {
+    const existingRecord: Record<string, unknown> = {
+      serverId: 'spec-1',
+      sampleUid: 'STALE-UID',
+    };
+    const updateMock = jest.fn(async (fn: (r: Record<string, unknown>) => void) => {
+      fn(existingRecord);
+    });
+    existingRecord['update'] = updateMock;
+
+    mockCollections.set('specimens', { created: [], existing: [existingRecord] });
+    (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+
+    await pullChanges(null);
+
+    expect(mockCollections.get('specimens')!.created).toEqual([]);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(existingRecord['sampleUid']).toBe('S-001');
+    expect(existingRecord['serverId']).toBe('spec-1');
+  });
+
+  it('maps completed_at, approved_at, released_at, and particle_classes', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({
+      data: {
+        timestamp: '2026-09-12T00:00:00.000Z',
+        changes: {
+          specimens: {
+            created: [
+              {
+                id: 'spec-3',
+                sample_uid: 'S-003',
+                patient_name: '',
+                patient_uid: 'P-003',
+                test_type: 'URINALYSIS',
+                status: 'COMPLETED',
+                received_at: '2026-09-11T10:00:00Z',
+                completed_at: '2026-09-12T08:00:00Z',
+              },
+            ],
+            updated: [],
+          },
+          analysisResults: {
+            created: [
+              {
+                id: 'ar-3',
+                specimen_id: 'spec-3',
+                ai_findings: {},
+                flagged_anomalies: {},
+                particle_classes: { RBC: 4 },
+                smart_diagnosis: null,
+                smart_diagnosis_unavailable: false,
+                status: 'RELEASED',
+                confirmed_at: '2026-09-11T11:00:00Z',
+                approved_at: '2026-09-11T12:00:00Z',
+                released_at: '2026-09-12T07:00:00Z',
+              },
+            ],
+            updated: [],
+          },
+        },
+      },
+    });
+
+    await pullChanges(null);
+
+    expect(mockCollections.get('specimens')!.created[0]).toEqual(
+      expect.objectContaining({ completedAt: '2026-09-12T08:00:00Z' }),
+    );
+    expect(mockCollections.get('analysis_results')!.created[0]).toEqual(
+      expect.objectContaining({
+        approvedAt: '2026-09-11T12:00:00Z',
+        releasedAt: '2026-09-12T07:00:00Z',
+        particleClassesJson: JSON.stringify({ RBC: 4 }),
+      }),
+    );
+  });
+
+  it('maps a snake_case row under the camelCase "manualOverrides" wrapper key', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({
+      data: {
+        timestamp: '2026-09-12T00:00:00.000Z',
+        changes: {
+          manualOverrides: {
+            created: [
+              {
+                id: 'mo-1',
+                result_id: 'ar-1',
+                parameter_name: 'RBC',
+                original_ai_value: 3,
+                corrected_value: 5,
+                rationale: 'Recounted manually.',
+                medtech_id: 'mt-1',
+                overridden_at: '2026-09-11T12:00:00Z',
+              },
+            ],
+            updated: [],
+          },
+        },
+      },
+    });
+
+    await pullChanges(null);
+
+    const [created] = mockCollections.get('manual_overrides')!.created;
+    expect(created).toEqual(
+      expect.objectContaining({
+        serverId: 'mo-1',
+        resultId: 'ar-1',
+        parameter: 'RBC',
+        originalAiValue: 3,
+        correctedValue: 5,
+        rationale: 'Recounted manually.',
+        overriddenBy: 'mt-1',
+        isSynced: true,
+        createdAt: Date.parse('2026-09-11T12:00:00Z'),
+      }),
+    );
+  });
+
+  describe('deleted list', () => {
+    function existingWithServerId(serverId: string): Record<string, unknown> {
+      const record: Record<string, unknown> = { serverId };
+      record['destroyPermanently'] = jest.fn().mockResolvedValue(undefined);
+      return record;
+    }
+
+    it('removes a local specimen whose server id is in the deleted list', async () => {
+      const staying = existingWithServerId('spec-keep');
+      const aged = existingWithServerId('spec-gone');
+      mockCollections.set('specimens', { created: [], existing: [staying, aged] });
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: {
+            specimens: { created: [], updated: [], deleted: ['spec-gone'] },
+          },
+        },
+      });
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(aged['destroyPermanently']).toHaveBeenCalledTimes(1);
+      expect(staying['destroyPermanently']).not.toHaveBeenCalled();
+    });
+
+    it('removes rows across every table that reports a deleted list in the same sync', async () => {
+      const specimen = existingWithServerId('spec-gone');
+      const assignment = existingWithServerId('qa-gone');
+      const result = existingWithServerId('ar-gone');
+      const override = existingWithServerId('mo-gone');
+      mockCollections.set('specimens', { created: [], existing: [specimen] });
+      mockCollections.set('queue_assignments', { created: [], existing: [assignment] });
+      mockCollections.set('analysis_results', { created: [], existing: [result] });
+      mockCollections.set('manual_overrides', { created: [], existing: [override] });
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: {
+            specimens: { created: [], updated: [], deleted: ['spec-gone'] },
+            queueAssignments: { created: [], updated: [], deleted: ['qa-gone'] },
+            analysisResults: { created: [], updated: [], deleted: ['ar-gone'] },
+            manualOverrides: { created: [], updated: [], deleted: ['mo-gone'] },
+          },
+        },
+      });
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(specimen['destroyPermanently']).toHaveBeenCalledTimes(1);
+      expect(assignment['destroyPermanently']).toHaveBeenCalledTimes(1);
+      expect(result['destroyPermanently']).toHaveBeenCalledTimes(1);
+      expect(override['destroyPermanently']).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when deleted is absent or empty (full sync, or existing app versions)', async () => {
+      // A server id not present in fixtureResponse()'s created rows, so processCreates
+      // doesn't also touch this record — isolates the assertion to processDeletes.
+      const existing = existingWithServerId('spec-unrelated');
+      mockCollections.set('specimens', { created: [], existing: [existing] });
+      (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+
+      await pullChanges(null);
+
+      expect(existing['destroyPermanently']).not.toHaveBeenCalled();
+    });
+
+    // A field that leaves the sync window (reassigned, aged out) must not leave its
+    // photo or AI boxes behind with nothing left pointing at them to clean them up
+    // later (mobile PR #55 review, decision #4).
+    it("deletes a removed field's image file and field_detections row, not just the row itself", async () => {
+      const field = existingWithServerId('field-gone');
+      field['id'] = 'local-field-1';
+      field['localImageUri'] = 'file:///fields/local-field-1.jpg';
+      const detection = existingWithServerId('det-1');
+      const preparedDestroy = { prepared: 'destroy-detection' };
+      detection['prepareDestroyPermanently'] = jest.fn().mockReturnValue(preparedDestroy);
+      mockCollections.set('result_fields', { created: [], existing: [field] });
+      mockCollections.set('field_detections', { created: [], existing: [detection] });
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: {
+            resultFields: { created: [], updated: [], deleted: ['field-gone'] },
+          },
+        },
+      });
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(deleteFieldImageFile).toHaveBeenCalledWith('file:///fields/local-field-1.jpg');
+      expect(database.batch).toHaveBeenCalledWith(preparedDestroy);
+      expect(field['destroyPermanently']).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // A direct accept/discard API call (useFieldActions.ts) writes straight to the
+  // local DB outside the push queue. A pull that races it can resolve with a
+  // snapshot taken before that write committed server-side — applying it would
+  // silently revert the newer local write, since status has no other staleness
+  // guard (conflictResolver's Rule 1 is unconditional SERVER_WINS). result_fields'
+  // version column, bumped on every accept/discard/override, is what protects
+  // against that here.
+  describe("an updated result_fields row older than the local copy's version", () => {
+    function existingResultField(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+      const record: Record<string, unknown> = {
+        serverId: 'field-1',
+        status: 'ACCEPTED',
+        version: 3,
+        ...overrides,
+      };
+      record['update'] = jest.fn(async (fn: (r: Record<string, unknown>) => void) => fn(record));
+      return record;
+    }
+
+    function pullOneFieldUpdate(fieldUpdate: Record<string, unknown>) {
+      return {
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: {
+            resultFields: {
+              created: [],
+              updated: [
+                {
+                  fieldId: 'field-1',
+                  resultId: 'result-1',
+                  specimenId: 'spec-1',
+                  fieldNo: 1,
+                  magnification: 'HPF',
+                  aiFindings: {},
+                  effectiveCounts: {},
+                  confidenceScores: {},
+                  imageWidth: 0,
+                  imageHeight: 0,
+                  smartDiagnosisPreview: null,
+                  smartDiagnosisUnavailable: false,
+                  ...fieldUpdate,
+                },
+              ],
+            },
+          },
+        },
+      };
+    }
+
+    it('is skipped entirely, leaving the newer local write in place', async () => {
+      const existing = existingResultField();
+      mockCollections.set('result_fields', { created: [], existing: [existing] });
+      (apiClient.get as jest.Mock).mockResolvedValue(
+        pullOneFieldUpdate({ status: 'ANALYZED', version: 2 }),
+      );
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(existing['update']).not.toHaveBeenCalled();
+      expect(existing['status']).toBe('ACCEPTED');
+      expect(existing['version']).toBe(3);
+    });
+
+    it('still applies once the server catches up to (or passes) the local version', async () => {
+      const existing = existingResultField();
+      mockCollections.set('result_fields', { created: [], existing: [existing] });
+      (apiClient.get as jest.Mock).mockResolvedValue(
+        pullOneFieldUpdate({ status: 'DISCARDED', version: 4 }),
+      );
+
+      await pullChanges('2026-09-10T00:00:00Z');
+
+      expect(existing['update']).toHaveBeenCalledTimes(1);
+      expect(existing['status']).toBe('DISCARDED');
+    });
+  });
+
+  // Gates the legacy-queue drain (mobile PR #55 review, 1.3): running it before the
+  // server's field workflow is confirmed on would mark actions FAILED that the server
+  // would still have accepted.
+  describe('field-workflow-seen flag', () => {
+    it('records the flag when the response has a resultFields key, even with empty arrays', async () => {
+      (apiClient.get as jest.Mock).mockResolvedValue({
+        data: {
+          timestamp: '2026-09-12T00:00:00.000Z',
+          changes: { resultFields: { created: [], updated: [] } },
+        },
+      });
+
+      await pullChanges(null);
+
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith(FIELD_WORKFLOW_SEEN_KEY, '1');
+    });
+
+    it('does not record the flag when resultFields is absent (flag off server-side)', async () => {
+      (apiClient.get as jest.Mock).mockResolvedValue(fixtureResponse());
+
+      await pullChanges(null);
+
+      expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(FIELD_WORKFLOW_SEEN_KEY, '1');
+    });
+  });
+});
+
+// M1/M2 (mobile-n8-todo-rem.md): the backend's own golden fixture — copied verbatim
+// from urolens-backend/tests/fixtures/sync_pull_golden.json — run through the real
+// pullChanges, so a future casing change on either side of the contract (or a dropped
+// minFields/field_summary key) fails here instead of silently at runtime.
+describe('sync_pull_golden.json contract', () => {
+  function allCreatedRows(): Record<string, unknown>[] {
+    return [...mockCollections.values()].flatMap((state) => state.created);
+  }
+
+  beforeEach(() => {
+    useMinFieldsStore.setState({ minFields: 5 });
+  });
+
+  it('lands every table with no undefined field', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    const rows = allCreatedRows();
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      for (const [key, value] of Object.entries(row)) {
+        expect(value).not.toBeUndefined();
+        void key;
+      }
+    }
+  });
+
+  it("maps a resultFields row's fieldId to serverId", async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    const [created] = mockCollections.get('result_fields')!.created;
+    expect(created).toEqual(
+      expect.objectContaining({ serverId: '00000000-0000-0000-0000-00000000c007' }),
+    );
+  });
+
+  it('stores the top-level minFields (B3)', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    expect(useMinFieldsStore.getState().minFields).toBe(10);
+  });
+
+  it('maps a null field_summary straight through (B4)', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    const [capturing] = mockCollections.get('analysis_results')!.created;
+    expect(capturing).toEqual(expect.objectContaining({ fieldSummaryJson: null }));
+  });
+
+  it('maps a confirmed field_summary to the local JSON column (B4)', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({ data: syncPullGolden });
+
+    await pullChanges(null);
+
+    const [, approved] = mockCollections.get('analysis_results')!.created;
+    const summary = JSON.parse(approved.fieldSummaryJson as string);
+    expect(summary.fieldCount).toBe(10);
+    expect(summary.perClass.erythrocytes.displayValue).toBe('2');
+  });
+});

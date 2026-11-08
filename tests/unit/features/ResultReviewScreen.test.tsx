@@ -5,41 +5,54 @@ import { ResultReviewScreen } from '@features/result-confirmation/components/Res
 import { AIDisclaimer } from '@features/result-confirmation/components/AIDisclaimer';
 import { useResultConfirmation } from '@features/result-confirmation/hooks/useResultConfirmation';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { router } from 'expo-router';
 
 jest.mock('@features/result-confirmation/hooks/useResultConfirmation', () => ({
   __esModule: true,
   useResultConfirmation: jest.fn(),
 }));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
+}));
 jest.mock('@hooks/useNetworkStatus');
+jest.mock('@features/result-confirmation/hooks/useResultReviewDetail', () => ({
+  useResultReviewDetail: jest.fn(() => ({
+    detail: null,
+    isLoading: false,
+    error: null,
+    refresh: jest.fn(),
+  })),
+}));
 jest.mock('expo-router', () => ({
-  router: { push: jest.fn(), back: jest.fn() },
+  router: { push: jest.fn(), back: jest.fn(), replace: jest.fn() },
   Stack: { Screen: () => null },
 }));
 jest.mock('@components/OfflineBanner', () => ({
   OfflineBanner: () => null,
 }));
 
+// Every status this screen renders is already past the MedTech's own sign-off
+// (mobile PR #55 review, #3) — PENDING_SUPERVISOR_APPROVAL is representative.
 const mockResult = {
   serverId: 'result-123',
   specimenId: 'specimen-1',
-  status: 'PENDING_REVIEW' as const,
-  isConfirmed: false,
+  status: 'PENDING_SUPERVISOR_APPROVAL' as const,
+  isSynced: true,
   smartDiagnosis: null,
   smartDiagnosisUnavailable: false,
   aiFindingsJson: JSON.stringify({ rbc: 3, wbc: 12 }),
-  get aiFindings() { return JSON.parse(this.aiFindingsJson); },
+  get aiFindings() {
+    return JSON.parse(this.aiFindingsJson);
+  },
 };
 
 const mockHookReturn = {
   result: mockResult,
   aiFindings: [
-    { parameter: 'rbc', count: 3,  isAnomalous: false },
-    { parameter: 'wbc', count: 12, isAnomalous: true  },
+    { parameter: 'rbc', count: 3, isAnomalous: false },
+    { parameter: 'wbc', count: 12, isAnomalous: true },
   ],
-  isLoading:    false,
-  isConfirming: false,
-  error:        null,
-  confirmResult: jest.fn(),
+  isLoading: false,
 };
 
 beforeEach(() => {
@@ -67,25 +80,25 @@ describe('ResultReviewScreen', () => {
     expect(screen.getByText(/clinical decision-support tool/i)).toBeTruthy();
   });
 
-  it('renders all AI findings', () => {
+  it('renders all AI findings, read-only', () => {
     render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
     expect(screen.getByText('rbc')).toBeTruthy();
     expect(screen.getByText('wbc')).toBeTruthy();
+    expect(screen.queryByText('Override')).toBeNull();
   });
 
-  it('shows Confirm Result button when not confirmed', () => {
+  it('offers only Continue — no Confirm, Retake or Override', () => {
     render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
-    expect(screen.getByText('Confirm Result')).toBeTruthy();
-  });
-
-  it('hides action bar when result is already confirmed', () => {
-    (useResultConfirmation as jest.Mock).mockReturnValue({
-      ...mockHookReturn,
-      result: { ...mockResult, isConfirmed: true, status: 'PENDING_SUPERVISOR_APPROVAL' },
-    });
-    render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
+    expect(screen.getByText('Continue')).toBeTruthy();
     expect(screen.queryByText('Confirm Result')).toBeNull();
-    expect(screen.getByText(/submitted for supervisor approval/i)).toBeTruthy();
+    expect(screen.queryByLabelText('Retake image')).toBeNull();
+    expect(screen.queryByText('Override')).toBeNull();
+  });
+
+  it('returns to the queue on Continue', () => {
+    render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
+    fireEvent.press(screen.getByText('Continue'));
+    expect(router.replace).toHaveBeenCalledWith('/(medtech)/queue');
   });
 
   it('shows loading indicator while loading', () => {
@@ -95,21 +108,18 @@ describe('ResultReviewScreen', () => {
       result: null,
     });
     render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
-    expect(screen.getByTestId?.('loading') ?? screen.UNSAFE_getByType(require('react-native').ActivityIndicator)).toBeTruthy();
+    expect(
+      screen.getByTestId?.('loading') ??
+        screen.UNSAFE_getByType(require('react-native').ActivityIndicator),
+    ).toBeTruthy();
   });
 
-  it('shows error message when confirm fails', () => {
+  it('shows a not-found state when the result has no local record', () => {
     (useResultConfirmation as jest.Mock).mockReturnValue({
       ...mockHookReturn,
-      error: 'Failed to confirm result',
+      result: null,
     });
     render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
-    expect(screen.getByText('Failed to confirm result')).toBeTruthy();
-  });
-
-  it('shows Queue Confirmation label when offline', () => {
-    (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
-    render(<ResultReviewScreen resultId="result-123" specimenId="specimen-1" />);
-    expect(screen.getByText('Queue Confirmation')).toBeTruthy();
+    expect(screen.getByText('Result not found')).toBeTruthy();
   });
 });
