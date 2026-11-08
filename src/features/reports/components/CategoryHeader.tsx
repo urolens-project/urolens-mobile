@@ -147,6 +147,9 @@ export function CategoryHeader({
 
   return (
     <View style={[styles.wrap, { width, height }]}>
+      {/* Solid fill behind the wave, so no gap shows above its curve, including
+          during the entrance animation while the wave circles are still sliding in. */}
+      <View style={[styles.fill, { height: Math.max(0, height - spacing.xxxl) }]} />
       <HeaderWaves
         width={width}
         height={height - spacing.sm}
@@ -195,6 +198,13 @@ export function CategoryHeader({
 const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
+  },
+  fill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.teal,
   },
   content: {
     paddingHorizontal: spacing.xl,
