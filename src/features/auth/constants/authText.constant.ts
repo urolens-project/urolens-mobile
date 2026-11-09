@@ -28,7 +28,7 @@ export const AUTH_TEXT = {
   loginButtonText: 'Login →',
 
   loginFooterAuthorizedNotice: 'Authorized laboratory personnel only.',
-  loginFooterCopyright: '© 2026 UroLens Medical Systems. All Rights Reserved.',
+  loginFooterCopyright: '© 2026 UroLens. All Rights Reserved.',
 
   loginHeaderTitle: 'UroLens',
   loginHeaderSubtitle: 'Clinical Laboratory Management System',
