@@ -10,7 +10,7 @@ jest.mock('@features/auth/hooks/useAuth', () => ({
 }));
 
 jest.mock('@lib/appInfo', () => ({
-  appInfo: { version: '1.0.0', environment: 'staging', environmentLabel: 'Staging' },
+  appInfo: { version: '1.0.0' },
 }));
 
 const mockLogin = jest.fn();
@@ -56,10 +56,9 @@ describe('LoginForm', () => {
       expect(screen.getByRole('button', { name: 'Login' })).toBeTruthy();
     });
 
-    it('shows the app version and environment label in the footer', () => {
+    it('shows the app version in the footer', () => {
       render(<LoginForm />);
       expect(screen.getByText('v1.0.0')).toBeTruthy();
-      expect(screen.getByText('Staging')).toBeTruthy();
     });
 
     it('does not render unverified compliance claims', () => {
