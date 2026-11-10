@@ -241,6 +241,38 @@ describe('useReports', () => {
     expect(synchronize).not.toHaveBeenCalled();
   });
 
+  describe('polling while focused', () => {
+    it('re-syncs every 30 seconds while the tab stays focused', () => {
+      jest.useFakeTimers();
+      try {
+        renderHook(() => useReports());
+        expect(synchronize).toHaveBeenCalledTimes(1);
+
+        act(() => jest.advanceTimersByTime(30_000));
+        expect(synchronize).toHaveBeenCalledTimes(2);
+
+        act(() => jest.advanceTimersByTime(30_000));
+        expect(synchronize).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('stops polling once unmounted', () => {
+      jest.useFakeTimers();
+      try {
+        const { unmount } = renderHook(() => useReports());
+        expect(synchronize).toHaveBeenCalledTimes(1);
+
+        unmount();
+        act(() => jest.advanceTimersByTime(60_000));
+        expect(synchronize).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
   it('starts with isLoading true and all 5 (empty) category sections', () => {
     const { result } = renderHook(() => useReports());
     expect(result.current.isLoading).toBe(true);

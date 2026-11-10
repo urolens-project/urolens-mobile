@@ -1,5 +1,11 @@
 export const QUEUE_PAGE_SIZE = 20;
 
+// How often to re-sync while this tab stays focused, so a supervisor's action (e.g.
+// returning a sample for correction) shows up without needing to leave and re-enter
+// the tab. A push notification already triggers an immediate sync separately
+// (see notificationHandler.ts); this just covers the gap between those.
+export const QUEUE_FOCUS_POLL_INTERVAL_MS = 30_000;
+
 // Raw local database columns are kept at this boundary for reactive subscriptions.
 export const QUEUE_SPECIMEN_COLUMNS = [
   'status',

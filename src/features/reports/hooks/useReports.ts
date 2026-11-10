@@ -10,6 +10,7 @@ import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 import {
+  REPORT_FOCUS_POLL_INTERVAL_MS,
   REPORT_RESULT_COLUMNS,
   REPORT_SPECIMEN_COLUMNS,
 } from '../constants/reportHistory.constant';
@@ -80,11 +81,17 @@ export function useReports(): UseReportsResult {
 
   // Local writes (accept/discard, submit) show up instantly via observeQuery above, but
   // anything decided server-side (a supervisor's approval/release) only arrives on the
-  // next sync pull — which otherwise only happens on app mount/foreground/reconnect, not
-  // when switching back to this tab. Sync again on every focus so that reaches here too.
+  // next sync pull — which otherwise only happens on app mount/foreground/reconnect, or
+  // on an incoming push notification (notificationHandler.ts). Sync on focus, then keep
+  // polling every REPORT_FOCUS_POLL_INTERVAL_MS while this tab stays open, so a change
+  // made while the medtech is sitting here still shows up without a manual reload.
   useFocusEffect(
-    useCallback((): void => {
+    useCallback((): (() => void) => {
       void refresh();
+      const intervalId = setInterval((): void => {
+        void refresh();
+      }, REPORT_FOCUS_POLL_INTERVAL_MS);
+      return (): void => clearInterval(intervalId);
     }, [refresh]),
   );
 

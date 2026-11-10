@@ -16,6 +16,7 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 import {
   QUEUE_FIELD_COLUMNS,
+  QUEUE_FOCUS_POLL_INTERVAL_MS,
   QUEUE_PAGE_SIZE,
   QUEUE_RESULT_COLUMNS,
   QUEUE_SPECIMEN_COLUMNS,
@@ -279,11 +280,17 @@ export function useQueue(): UseQueueResult {
 
   // Local writes show up instantly via observeQuery above, but server-decided state (a
   // supervisor's action) only arrives on the next sync pull — which otherwise only runs
-  // on app mount/foreground/reconnect, not when switching back to this tab. Sync again
-  // on every focus, not just mount, so reaches here too.
+  // on app mount/foreground/reconnect, or on an incoming push notification
+  // (notificationHandler.ts). Sync on focus, then keep polling every
+  // QUEUE_FOCUS_POLL_INTERVAL_MS while this tab stays open, so a change made while the
+  // medtech is sitting here still shows up without a manual reload.
   useFocusEffect(
-    useCallback((): void => {
+    useCallback((): (() => void) => {
       void run();
+      const intervalId = setInterval((): void => {
+        void run();
+      }, QUEUE_FOCUS_POLL_INTERVAL_MS);
+      return (): void => clearInterval(intervalId);
     }, [run]),
   );
   useEffect((): void => {

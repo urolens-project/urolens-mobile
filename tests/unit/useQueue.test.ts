@@ -849,6 +849,38 @@ describe('useQueue', () => {
     });
   });
 
+  describe('polling while focused', () => {
+    it('re-syncs every 30 seconds while the tab stays focused', () => {
+      jest.useFakeTimers();
+      try {
+        renderHook(() => useQueue());
+        expect(synchronize).toHaveBeenCalledTimes(1);
+
+        act(() => jest.advanceTimersByTime(30_000));
+        expect(synchronize).toHaveBeenCalledTimes(2);
+
+        act(() => jest.advanceTimersByTime(30_000));
+        expect(synchronize).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('stops polling once unmounted', () => {
+      jest.useFakeTimers();
+      try {
+        const { unmount } = renderHook(() => useQueue());
+        expect(synchronize).toHaveBeenCalledTimes(1);
+
+        unmount();
+        act(() => jest.advanceTimersByTime(60_000));
+        expect(synchronize).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
   describe('refresh()', () => {
     it('calls synchronize and resets isRefreshing when online', async () => {
       const { result } = renderHook(() => useQueue());
