@@ -28,8 +28,9 @@ export interface LoginCredentialsCardProps {
   onForgotPassword: () => void;
   error: string | null;
   isSubmitting: boolean;
-  /** True while a 429 lockout from too many attempts is in effect; disables the submit button. */
-  isLocked: boolean;
+  /** Seconds left in an active lockout; shown as a live countdown. Does not disable
+   * the submit button — the medtech can keep trying, it will just keep failing. */
+  lockoutSecondsRemaining: number;
   onSubmit: () => void;
 }
 
@@ -51,10 +52,10 @@ export function LoginCredentialsCard({
   onForgotPassword,
   error,
   isSubmitting,
-  isLocked,
+  lockoutSecondsRemaining,
   onSubmit,
 }: LoginCredentialsCardProps): React.JSX.Element {
-  const isDisabled = isSubmitting || isLocked;
+  const isDisabled = isSubmitting;
   return (
     <View style={styles.card}>
       {/* Username */}
@@ -139,6 +140,13 @@ export function LoginCredentialsCard({
           <Icon name="alert-circle" size={16} color={colors.red600} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
+      )}
+
+      {/* Live lockout countdown */}
+      {lockoutSecondsRemaining > 0 && (
+        <Text style={styles.lockoutText} accessibilityLiveRegion="polite">
+          {AUTH_TEXT.getLoginLockoutCountdownText(lockoutSecondsRemaining)}
+        </Text>
       )}
 
       {/* Keep logged in */}
@@ -238,6 +246,11 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.red600,
     lineHeight: 18,
+  },
+  lockoutText: {
+    ...typography.body,
+    color: colors.gray500,
+    marginTop: spacing.sm,
   },
   keepRow: {
     flexDirection: 'row',

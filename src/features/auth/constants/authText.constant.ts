@@ -46,6 +46,13 @@ export const AUTH_TEXT = {
 
   loginRequiredFieldsError: 'Username and password are required.',
 
+  /**
+   * @description Builds the live lockout countdown shown under the login error while
+   * a 423/429 retry-after window is still ticking down.
+   * @param seconds - Seconds remaining until the medtech can log in again.
+   */
+  getLoginLockoutCountdownText: (seconds: number): string => `You can try again in ${seconds}s.`,
+
   loginErrorMessages: {
     serverError: 'The server could not complete login. Please try again later.',
     accountInactive: 'Your account is inactive. Contact an administrator.',

@@ -19,7 +19,7 @@ const defaultHook = {
   login: mockLogin,
   logout: jest.fn(),
   isSubmitting: false,
-  isLocked: false,
+  lockoutSecondsRemaining: 0,
   error: null,
 };
 
@@ -192,11 +192,23 @@ describe('LoginForm', () => {
   });
 
   describe('login attempt lockout', () => {
-    it('disables the Login button while isLocked is true', () => {
-      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, isLocked: true });
+    it('does not disable the Login button during an active lockout', () => {
+      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, lockoutSecondsRemaining: 20 });
       render(<LoginForm />);
       const btn = screen.getByRole('button', { name: 'Login' });
-      expect(btn.props.accessibilityState?.disabled ?? btn.props.disabled).toBe(true);
+      expect(btn.props.accessibilityState?.disabled ?? btn.props.disabled).toBe(false);
+    });
+
+    it('shows a live countdown while locked out', () => {
+      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, lockoutSecondsRemaining: 20 });
+      render(<LoginForm />);
+      expect(screen.getByText('You can try again in 20s.')).toBeTruthy();
+    });
+
+    it('hides the countdown once lockoutSecondsRemaining reaches 0', () => {
+      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, lockoutSecondsRemaining: 0 });
+      render(<LoginForm />);
+      expect(screen.queryByText(/You can try again in/)).toBeNull();
     });
   });
 });
