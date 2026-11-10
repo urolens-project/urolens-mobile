@@ -10,7 +10,7 @@ jest.mock('@features/auth/hooks/useAuth', () => ({
 }));
 
 jest.mock('@lib/appInfo', () => ({
-  appInfo: { version: '1.0.0', environment: 'staging', environmentLabel: 'Staging' },
+  appInfo: { version: '1.0.0' },
 }));
 
 const mockLogin = jest.fn();
@@ -19,7 +19,7 @@ const defaultHook = {
   login: mockLogin,
   logout: jest.fn(),
   isSubmitting: false,
-  isLocked: false,
+  lockoutSecondsRemaining: 0,
   error: null,
 };
 
@@ -56,10 +56,9 @@ describe('LoginForm', () => {
       expect(screen.getByRole('button', { name: 'Login' })).toBeTruthy();
     });
 
-    it('shows the app version and environment label in the footer', () => {
+    it('shows the app version in the footer', () => {
       render(<LoginForm />);
       expect(screen.getByText('v1.0.0')).toBeTruthy();
-      expect(screen.getByText('Staging')).toBeTruthy();
     });
 
     it('does not render unverified compliance claims', () => {
@@ -192,11 +191,23 @@ describe('LoginForm', () => {
   });
 
   describe('login attempt lockout', () => {
-    it('disables the Login button while isLocked is true', () => {
-      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, isLocked: true });
+    it('does not disable the Login button during an active lockout', () => {
+      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, lockoutSecondsRemaining: 20 });
       render(<LoginForm />);
       const btn = screen.getByRole('button', { name: 'Login' });
-      expect(btn.props.accessibilityState?.disabled ?? btn.props.disabled).toBe(true);
+      expect(btn.props.accessibilityState?.disabled ?? btn.props.disabled).toBe(false);
+    });
+
+    it('shows a live countdown while locked out', () => {
+      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, lockoutSecondsRemaining: 20 });
+      render(<LoginForm />);
+      expect(screen.getByText('You can try again in 20s.')).toBeTruthy();
+    });
+
+    it('hides the countdown once lockoutSecondsRemaining reaches 0', () => {
+      (useAuth as jest.Mock).mockReturnValue({ ...defaultHook, lockoutSecondsRemaining: 0 });
+      render(<LoginForm />);
+      expect(screen.queryByText(/You can try again in/)).toBeNull();
     });
   });
 });

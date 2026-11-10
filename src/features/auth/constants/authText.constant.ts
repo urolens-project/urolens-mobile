@@ -28,7 +28,7 @@ export const AUTH_TEXT = {
   loginButtonText: 'Login →',
 
   loginFooterAuthorizedNotice: 'Authorized laboratory personnel only.',
-  loginFooterCopyright: '© 2026 UroLens Medical Systems. All Rights Reserved.',
+  loginFooterCopyright: '© 2026 UroLens. All Rights Reserved.',
 
   loginHeaderTitle: 'UroLens',
   loginHeaderSubtitle: 'Clinical Laboratory Management System',
@@ -45,6 +45,13 @@ export const AUTH_TEXT = {
     `Your session will expire in ${warningMinutes} minutes due to inactivity. Tap anywhere or press the button below to stay signed in.`,
 
   loginRequiredFieldsError: 'Username and password are required.',
+
+  /**
+   * @description Builds the live lockout countdown shown under the login error while
+   * a 423/429 retry-after window is still ticking down.
+   * @param seconds - Seconds remaining until the medtech can log in again.
+   */
+  getLoginLockoutCountdownText: (seconds: number): string => `You can try again in ${seconds}s.`,
 
   loginErrorMessages: {
     serverError: 'The server could not complete login. Please try again later.',
