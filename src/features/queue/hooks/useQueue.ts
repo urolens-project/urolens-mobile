@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Q } from '@nozbe/watermelondb';
@@ -15,6 +16,7 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 import {
   QUEUE_FIELD_COLUMNS,
+  QUEUE_FOCUS_POLL_INTERVAL_MS,
   QUEUE_PAGE_SIZE,
   QUEUE_RESULT_COLUMNS,
   QUEUE_SPECIMEN_COLUMNS,
@@ -85,29 +87,30 @@ export function useQueue(): UseQueueResult {
   const page = Math.min(requestedPage, pageCount);
   const items = useMemo((): QueueItem[] => {
     const offset = (page - 1) * QUEUE_PAGE_SIZE;
-    return filteredItems.slice(offset, offset + QUEUE_PAGE_SIZE).map(
-      (item): QueueItem => ({
-        ...item,
-        returnReason:
-          item.isReturnedForCorrection && item.serverId
-            ? (returnReasons.get(item.serverId) ?? null)
-            : null,
-      }),
-    );
+    return filteredItems.slice(offset, offset + QUEUE_PAGE_SIZE).map((item): QueueItem => ({
+      ...item,
+      returnReason:
+        item.isReturnedForCorrection && item.serverId
+          ? (returnReasons.get(item.serverId) ?? null)
+          : null,
+    }));
   }, [filteredItems, page, returnReasons]);
 
   const handleSourceLoaded = useCallback((source: QueueSource): void => {
-    setLoadedSources(
-      (previous): Partial<Record<QueueSource, boolean>> => ({ ...previous, [source]: true }),
-    );
-    setSourceErrors(
-      (previous): Partial<Record<QueueSource, Error | null>> => ({ ...previous, [source]: null }),
-    );
+    setLoadedSources((previous): Partial<Record<QueueSource, boolean>> => ({
+      ...previous,
+      [source]: true,
+    }));
+    setSourceErrors((previous): Partial<Record<QueueSource, Error | null>> => ({
+      ...previous,
+      [source]: null,
+    }));
   }, []);
   const handleSourceError = useCallback((source: QueueSource, error: Error): void => {
-    setSourceErrors(
-      (previous): Partial<Record<QueueSource, Error | null>> => ({ ...previous, [source]: error }),
-    );
+    setSourceErrors((previous): Partial<Record<QueueSource, Error | null>> => ({
+      ...previous,
+      [source]: error,
+    }));
   }, []);
   const syncQueue = useCallback(
     async (signal: AbortSignal): Promise<void> => {
@@ -132,14 +135,13 @@ export function useQueue(): UseQueueResult {
           .query(...buildQuery(filter, returnedServerIds, finishedServerIds)),
       (specimens): void => {
         const next = dedupeQueueItems(
-          specimens.map(
-            (specimen): QueueItem =>
-              specimenToQueueItem(
-                specimen,
-                returnedSet,
-                resultStatusByServerId,
-                fieldCountByServerId,
-              ),
+          specimens.map((specimen): QueueItem =>
+            specimenToQueueItem(
+              specimen,
+              returnedSet,
+              resultStatusByServerId,
+              fieldCountByServerId,
+            ),
           ),
         );
         const statusFiltered = STATUS_CHIP_FILTERS.includes(filter)
@@ -175,14 +177,13 @@ export function useQueue(): UseQueueResult {
       (specimens): void => {
         setAllItems(
           dedupeQueueItems(
-            specimens.map(
-              (specimen): QueueItem =>
-                specimenToQueueItem(
-                  specimen,
-                  returnedSet,
-                  resultStatusByServerId,
-                  fieldCountByServerId,
-                ),
+            specimens.map((specimen): QueueItem =>
+              specimenToQueueItem(
+                specimen,
+                returnedSet,
+                resultStatusByServerId,
+                fieldCountByServerId,
+              ),
             ),
           ),
         );
@@ -239,9 +240,8 @@ export function useQueue(): UseQueueResult {
         const nextResultStatus = new Map(
           latest.map((result): [string, string] => [result.specimenId, result.status]),
         );
-        setResultStatusByServerId(
-          (previous): Map<string, string> =>
-            sameMap(previous, nextResultStatus) ? previous : nextResultStatus,
+        setResultStatusByServerId((previous): Map<string, string> =>
+          sameMap(previous, nextResultStatus) ? previous : nextResultStatus,
         );
         handleSourceLoaded('results');
       },
@@ -266,9 +266,8 @@ export function useQueue(): UseQueueResult {
         for (const f of fields) {
           nextFieldCount.set(f.specimenId, (nextFieldCount.get(f.specimenId) ?? 0) + 1);
         }
-        setFieldCountByServerId(
-          (previous): Map<string, number | null> =>
-            sameMap(previous, nextFieldCount) ? previous : nextFieldCount,
+        setFieldCountByServerId((previous): Map<string, number | null> =>
+          sameMap(previous, nextFieldCount) ? previous : nextFieldCount,
         );
       },
       {
@@ -279,9 +278,21 @@ export function useQueue(): UseQueueResult {
     return (): void => subscription.unsubscribe();
   }, [reloadKey, handleSourceLoaded, handleSourceError]);
 
-  useEffect((): void => {
-    void run();
-  }, [run]);
+  // Local writes show up instantly via observeQuery above, but server-decided state (a
+  // supervisor's action) only arrives on the next sync pull — which otherwise only runs
+  // on app mount/foreground/reconnect, or on an incoming push notification
+  // (notificationHandler.ts). Sync on focus, then keep polling every
+  // QUEUE_FOCUS_POLL_INTERVAL_MS while this tab stays open, so a change made while the
+  // medtech is sitting here still shows up without a manual reload.
+  useFocusEffect(
+    useCallback((): (() => void) => {
+      void run();
+      const intervalId = setInterval((): void => {
+        void run();
+      }, QUEUE_FOCUS_POLL_INTERVAL_MS);
+      return (): void => clearInterval(intervalId);
+    }, [run]),
+  );
   useEffect((): void => {
     setRequestedPage(page);
   }, [page]);

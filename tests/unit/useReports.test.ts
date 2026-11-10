@@ -27,6 +27,15 @@ jest.mock('@nozbe/watermelondb', () => ({
 jest.mock('@db/database', () => ({ database: { get: jest.fn() } }));
 jest.mock('@db/sync/syncManager', () => ({ synchronize: jest.fn() }));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
+// Real useFocusEffect runs its callback on every navigation focus, keyed off a ref
+// rather than a dependency array; outside a navigator there's no focus event to key
+// off, so simulate "focused since mount" by running it once, like a plain effect.
+jest.mock('expo-router', () => ({
+  useFocusEffect: (effect: () => void | (() => void)): void => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- test double for a hook
+    require('react').useEffect(effect, []);
+  },
+}));
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
@@ -230,6 +239,38 @@ describe('useReports', () => {
       await result.current.refresh();
     });
     expect(synchronize).not.toHaveBeenCalled();
+  });
+
+  describe('polling while focused', () => {
+    it('re-syncs every 30 seconds while the tab stays focused', () => {
+      jest.useFakeTimers();
+      try {
+        renderHook(() => useReports());
+        expect(synchronize).toHaveBeenCalledTimes(1);
+
+        act(() => jest.advanceTimersByTime(30_000));
+        expect(synchronize).toHaveBeenCalledTimes(2);
+
+        act(() => jest.advanceTimersByTime(30_000));
+        expect(synchronize).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('stops polling once unmounted', () => {
+      jest.useFakeTimers();
+      try {
+        const { unmount } = renderHook(() => useReports());
+        expect(synchronize).toHaveBeenCalledTimes(1);
+
+        unmount();
+        act(() => jest.advanceTimersByTime(60_000));
+        expect(synchronize).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   it('starts with isLoading true and all 5 (empty) category sections', () => {

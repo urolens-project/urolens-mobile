@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 
 import { database } from '@db/database';
 import { observeQuery } from '@db/observeQuery';
@@ -9,6 +10,7 @@ import { useAsyncAction } from '@hooks/useAsyncAction';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 
 import {
+  REPORT_FOCUS_POLL_INTERVAL_MS,
   REPORT_RESULT_COLUMNS,
   REPORT_SPECIMEN_COLUMNS,
 } from '../constants/reportHistory.constant';
@@ -76,6 +78,22 @@ export function useReports(): UseReportsResult {
     if (!isOnline) return;
     await runSync();
   }, [isOnline, runSync, specimenError, resultError]);
+
+  // Local writes (accept/discard, submit) show up instantly via observeQuery above, but
+  // anything decided server-side (a supervisor's approval/release) only arrives on the
+  // next sync pull — which otherwise only happens on app mount/foreground/reconnect, or
+  // on an incoming push notification (notificationHandler.ts). Sync on focus, then keep
+  // polling every REPORT_FOCUS_POLL_INTERVAL_MS while this tab stays open, so a change
+  // made while the medtech is sitting here still shows up without a manual reload.
+  useFocusEffect(
+    useCallback((): (() => void) => {
+      void refresh();
+      const intervalId = setInterval((): void => {
+        void refresh();
+      }, REPORT_FOCUS_POLL_INTERVAL_MS);
+      return (): void => clearInterval(intervalId);
+    }, [refresh]),
+  );
 
   return {
     sections,

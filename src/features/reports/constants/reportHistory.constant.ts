@@ -28,6 +28,12 @@ export const REPORT_RESULT_COLUMNS = [
   'created_at',
 ];
 
+// How often to re-sync while this tab stays focused, so a supervisor's action (e.g.
+// approving/releasing a result) shows up without needing to leave and re-enter the
+// tab. A push notification already triggers an immediate sync separately (see
+// notificationHandler.ts); this just covers the gap between those.
+export const REPORT_FOCUS_POLL_INTERVAL_MS = 30_000;
+
 export const REPORT_ANIMATED_ITEMS = 8;
 export const REPORT_ITEM_STAGGER_MS = 90;
 
