@@ -35,6 +35,15 @@ jest.mock('@db/sync/syncManager', () => ({
   LAST_SYNC_KEY: 'urolens_last_sync_at',
 }));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
+// Real useFocusEffect runs its callback on every navigation focus, keyed off a ref
+// rather than a dependency array; outside a navigator there's no focus event to key
+// off, so simulate "focused since mount" by running it once, like a plain effect.
+jest.mock('expo-router', () => ({
+  useFocusEffect: (effect: () => void | (() => void)): void => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- test double for a hook
+    require('react').useEffect(effect, []);
+  },
+}));
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
@@ -159,9 +168,8 @@ afterEach(async (): Promise<void> => {
 describe('queue paging and failure recovery', () => {
   it('pages offline while keeping totals for the complete queue', async (): Promise<void> => {
     (useNetworkStatus as jest.Mock).mockReturnValue({ isOnline: false });
-    const specimens = Array.from(
-      { length: 45 },
-      (_, index): ReturnType<typeof makeSpecimen> => makeSpecimen({ id: `page-${index}` }),
+    const specimens = Array.from({ length: 45 }, (_, index): ReturnType<typeof makeSpecimen> =>
+      makeSpecimen({ id: `page-${index}` }),
     );
     const { result } = renderHook(() => useQueue());
     await act(async (): Promise<void> => {
@@ -185,9 +193,8 @@ describe('queue paging and failure recovery', () => {
   });
 
   it('keeps the current page valid when live work disappears and new work arrives', async (): Promise<void> => {
-    const specimens = Array.from(
-      { length: 45 },
-      (_, index): ReturnType<typeof makeSpecimen> => makeSpecimen({ id: `live-${index}` }),
+    const specimens = Array.from({ length: 45 }, (_, index): ReturnType<typeof makeSpecimen> =>
+      makeSpecimen({ id: `live-${index}` }),
     );
     const { result } = renderHook(() => useQueue());
     await act(async (): Promise<void> => {

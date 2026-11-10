@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 
 import { database } from '@db/database';
 import { observeQuery } from '@db/observeQuery';
@@ -76,6 +77,16 @@ export function useReports(): UseReportsResult {
     if (!isOnline) return;
     await runSync();
   }, [isOnline, runSync, specimenError, resultError]);
+
+  // Local writes (accept/discard, submit) show up instantly via observeQuery above, but
+  // anything decided server-side (a supervisor's approval/release) only arrives on the
+  // next sync pull — which otherwise only happens on app mount/foreground/reconnect, not
+  // when switching back to this tab. Sync again on every focus so that reaches here too.
+  useFocusEffect(
+    useCallback((): void => {
+      void refresh();
+    }, [refresh]),
+  );
 
   return {
     sections,

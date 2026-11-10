@@ -27,6 +27,15 @@ jest.mock('@nozbe/watermelondb', () => ({
 jest.mock('@db/database', () => ({ database: { get: jest.fn() } }));
 jest.mock('@db/sync/syncManager', () => ({ synchronize: jest.fn() }));
 jest.mock('@hooks/useNetworkStatus', () => ({ useNetworkStatus: jest.fn() }));
+// Real useFocusEffect runs its callback on every navigation focus, keyed off a ref
+// rather than a dependency array; outside a navigator there's no focus event to key
+// off, so simulate "focused since mount" by running it once, like a plain effect.
+jest.mock('expo-router', () => ({
+  useFocusEffect: (effect: () => void | (() => void)): void => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- test double for a hook
+    require('react').useEffect(effect, []);
+  },
+}));
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
