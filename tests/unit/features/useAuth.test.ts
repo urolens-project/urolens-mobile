@@ -99,7 +99,7 @@ describe('useAuth.login', () => {
     expect(loginMock).not.toHaveBeenCalled();
   });
 
-  it('locks out the form for retryAfterSeconds on a 429, then releases it', async () => {
+  it('counts down lockoutSecondsRemaining live for retryAfterSeconds on a 429, then releases it', async () => {
     jest.useFakeTimers();
     loginMock.mockRejectedValue({
       code: 'TOO_MANY_LOGIN_ATTEMPTS',
@@ -108,9 +108,24 @@ describe('useAuth.login', () => {
     });
     const { result } = renderHook(() => useAuth());
     await act(() => result.current.login('medtech01', 'pw'));
-    expect(result.current.isLocked).toBe(true);
-    act(() => jest.advanceTimersByTime(30_000));
-    expect(result.current.isLocked).toBe(false);
+    expect(result.current.lockoutSecondsRemaining).toBe(30);
+    act(() => jest.advanceTimersByTime(10_000));
+    expect(result.current.lockoutSecondsRemaining).toBe(20);
+    act(() => jest.advanceTimersByTime(20_000));
+    expect(result.current.lockoutSecondsRemaining).toBe(0);
+    jest.useRealTimers();
+  });
+
+  it('also starts the countdown on ACCOUNT_LOCKED when the server sends a retry-after', async () => {
+    jest.useFakeTimers();
+    loginMock.mockRejectedValue({
+      code: 'ACCOUNT_LOCKED',
+      message: 'Account locked. Try again in 15 minutes.',
+      details: { retryAfterSeconds: 900 },
+    });
+    const { result } = renderHook(() => useAuth());
+    await act(() => result.current.login('medtech01', 'pw'));
+    expect(result.current.lockoutSecondsRemaining).toBe(900);
     jest.useRealTimers();
   });
 

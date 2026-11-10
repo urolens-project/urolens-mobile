@@ -24,7 +24,7 @@ export interface LoginFormProps {
  */
 export function LoginForm({ reason }: LoginFormProps): React.JSX.Element {
   // 1. Store / service hooks
-  const { login, isSubmitting, isLocked, error } = useAuth();
+  const { login, isSubmitting, lockoutSecondsRemaining, error } = useAuth();
   const { sessionMessage } = useLocalSearchParams<{ sessionMessage?: string }>();
 
   // 3. State & derived
@@ -99,7 +99,7 @@ export function LoginForm({ reason }: LoginFormProps): React.JSX.Element {
           onForgotPassword={handleOpenForgotPassword}
           error={displayError}
           isSubmitting={isSubmitting}
-          isLocked={isLocked}
+          lockoutSecondsRemaining={lockoutSecondsRemaining}
           onSubmit={handleSubmit}
         />
         <LoginFooter />

@@ -16,8 +16,10 @@ export interface UseAuthResult {
   login: (username: string, password: string, keepLoggedIn?: boolean) => Promise<void>;
   logout: (reason?: LogoutReason) => Promise<void>;
   isSubmitting: boolean;
-  /** True while a 429 TOO_MANY_LOGIN_ATTEMPTS lockout from the last attempt is in effect. */
-  isLocked: boolean;
+  /** Seconds left in an active login lockout (423 ACCOUNT_LOCKED or 429
+   * TOO_MANY_LOGIN_ATTEMPTS with a retry-after). Ticks down live to 0 every second;
+   * does not block submitting — the next attempt simply keeps failing until it hits 0. */
+  lockoutSecondsRemaining: number;
   error: string | null;
 }
 
@@ -58,15 +60,38 @@ export function useAuth(): UseAuthResult {
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
-  const [isLocked, setIsLocked] = useState(false);
-  const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lockoutSecondsRemaining, setLockoutSecondsRemaining] = useState(0);
+  const lockoutIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lockedUntilRef = useRef<number | null>(null);
 
   useEffect(
     () => () => {
-      if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+      if (lockoutIntervalRef.current) clearInterval(lockoutIntervalRef.current);
     },
     [],
   );
+
+  /**
+   * @description Starts (or restarts) a live, ticking countdown to a login lockout's
+   * expiry, driven by wall-clock time rather than a tick count so backgrounding the
+   * app doesn't leave the countdown running fast or slow once it resumes.
+   * @param seconds - Server-reported retry-after window, in seconds.
+   */
+  const startLockoutCountdown = useCallback((seconds: number): void => {
+    lockedUntilRef.current = Date.now() + seconds * 1000;
+    if (lockoutIntervalRef.current) clearInterval(lockoutIntervalRef.current);
+
+    const tick = (): void => {
+      const remaining = Math.max(0, Math.ceil(((lockedUntilRef.current ?? 0) - Date.now()) / 1000));
+      setLockoutSecondsRemaining(remaining);
+      if (remaining <= 0 && lockoutIntervalRef.current) {
+        clearInterval(lockoutIntervalRef.current);
+        lockoutIntervalRef.current = null;
+      }
+    };
+    tick();
+    lockoutIntervalRef.current = setInterval(tick, 1000);
+  }, []);
 
   const performLogin = useCallback(
     async (
@@ -99,15 +124,16 @@ export function useAuth(): UseAuthResult {
       } catch (err) {
         const apiError = err as ApiError;
         const retryAfterSeconds = apiError.details?.retryAfterSeconds;
-        if (apiError.code === 'TOO_MANY_LOGIN_ATTEMPTS' && typeof retryAfterSeconds === 'number') {
-          setIsLocked(true);
-          if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
-          lockTimerRef.current = setTimeout(() => setIsLocked(false), retryAfterSeconds * 1000);
+        if (
+          (apiError.code === 'TOO_MANY_LOGIN_ATTEMPTS' || apiError.code === 'ACCOUNT_LOCKED') &&
+          typeof retryAfterSeconds === 'number'
+        ) {
+          startLockoutCountdown(retryAfterSeconds);
         }
         throw new Error(describeLoginError(apiError));
       }
     },
-    [setAuthenticated],
+    [setAuthenticated, startLockoutCountdown],
   );
   const { run: runLogin, isLoading: isSubmitting, error } = useAsyncAction('Auth', performLogin);
 
@@ -135,5 +161,5 @@ export function useAuth(): UseAuthResult {
     [clearAuth],
   );
 
-  return { login, logout, isSubmitting, isLocked, error: error?.message ?? null };
+  return { login, logout, isSubmitting, lockoutSecondsRemaining, error: error?.message ?? null };
 }
