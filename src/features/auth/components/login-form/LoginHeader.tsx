@@ -14,6 +14,7 @@ export function LoginHeader(): React.JSX.Element {
         source={require('../../../../../assets/images/urolens-transparent.png')}
         style={styles.logo}
         resizeMode="contain"
+        accessibilityLabel="UroLens"
       />
       <Text style={styles.appSubtitle}>{AUTH_TEXT.loginHeaderSubtitle}</Text>
     </View>

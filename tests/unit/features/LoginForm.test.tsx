@@ -31,9 +31,9 @@ beforeEach(() => {
 
 describe('LoginForm', () => {
   describe('rendering', () => {
-    it('shows the UroLens app title', () => {
+    it('shows the UroLens logo', () => {
       render(<LoginForm />);
-      expect(screen.getByText('UroLens')).toBeTruthy();
+      expect(screen.getByLabelText('UroLens')).toBeTruthy();
     });
 
     it('shows the system subtitle', () => {
