@@ -271,6 +271,17 @@ async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<
       await apiClient.post(`/fields/${item.entityId}/discard`, payload, { signal });
       break;
 
+    // entityId is the notification's server id; see queueNotificationRead.ts.
+    case PendingSyncAction.MARK_NOTIFICATION_READ:
+      await apiClient.patch(`/notifications/${item.entityId}/read`, undefined, { signal });
+      break;
+
+    // entityId carries no meaning here (there is no single notification to key on) —
+    // see queueNotificationRead.ts.
+    case PendingSyncAction.MARK_ALL_NOTIFICATIONS_READ:
+      await apiClient.patch('/notifications/read-all', undefined, { signal });
+      break;
+
     // Multi-field workflow: a field captured offline, or picked in bulk from the
     // gallery. Unlike every case above, entityId here is the *local* result_fields
     // id, not a server id — there is no server id yet. See createQueuedFieldUpload

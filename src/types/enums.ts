@@ -14,13 +14,7 @@ export enum UserRole {
 // plain-string field values — features/queue/types.ts re-exports this
 // rather than declaring its own (formerly out-of-sync) copy.
 export type SpecimenStatus =
-  | 'RECEIVED'
-  | 'LABELED'
-  | 'ASSIGNED'
-  | 'IN_QUEUE'
-  | 'PROCESSING'
-  | 'REJECTED'
-  | 'COMPLETED';
+  'RECEIVED' | 'LABELED' | 'ASSIGNED' | 'IN_QUEUE' | 'PROCESSING' | 'REJECTED' | 'COMPLETED';
 
 export enum ResultStatus {
   // Multi-field workflow (SDD Module 2 proposal): fields are being
@@ -73,6 +67,10 @@ export enum PendingSyncAction {
   UPLOAD_IMAGE = 'UPLOAD_IMAGE',
   ACCEPT_FIELD = 'ACCEPT_FIELD',
   DISCARD_FIELD = 'DISCARD_FIELD',
+  // Read receipts: queued when read offline so the server eventually finds out,
+  // instead of the request being dropped (see useOpenNotification.ts).
+  MARK_NOTIFICATION_READ = 'MARK_NOTIFICATION_READ',
+  MARK_ALL_NOTIFICATIONS_READ = 'MARK_ALL_NOTIFICATIONS_READ',
 }
 
 export enum PendingSyncStatus {

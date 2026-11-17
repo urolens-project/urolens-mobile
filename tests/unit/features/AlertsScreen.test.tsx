@@ -16,6 +16,9 @@ jest.mock('@lib/apiClient', () => ({
 jest.mock('@lib/notifications/notificationHandler', () => ({
   navigateToSpecimenByServerId: jest.fn(() => Promise.resolve()),
 }));
+// Pulled in transitively via queueNotificationRead.ts (offline mark-read queuing) —
+// this screen never touches WatermelonDB directly, so it isn't under test here.
+jest.mock('@db/database', () => ({ database: { get: jest.fn(), write: jest.fn() } }));
 
 const get = apiClient.get as jest.Mock;
 const patch = apiClient.patch as jest.Mock;

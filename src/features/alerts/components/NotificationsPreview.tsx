@@ -5,10 +5,10 @@ import { router } from 'expo-router';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
-import { alertsApi } from '../api/alertsApi';
 import { ALERTS_TEXT } from '../constants/alertsText.constant';
+import { useMarkAllRead } from '../hooks/useMarkAllRead';
 import { useOpenNotification } from '../hooks/useOpenNotification';
-import { useNotificationsActions, useNotificationsList } from '../store/notificationsStore';
+import { useNotificationsList } from '../store/notificationsStore';
 import { NotificationCard } from './NotificationCard';
 import type { NotificationItem } from '../types';
 
@@ -33,7 +33,7 @@ export function NotificationsPreview({
 }: NotificationsPreviewProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const notifications = useNotificationsList();
-  const { markAllRead } = useNotificationsActions();
+  const { markAllRead } = useMarkAllRead();
   const { openNotification } = useOpenNotification();
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -46,13 +46,6 @@ export function NotificationsPreview({
     },
     [openNotification, onClose],
   );
-
-  const handleMarkAllRead = useCallback((): void => {
-    markAllRead();
-    alertsApi
-      .markAllRead()
-      .catch((err: unknown) => console.error('[Alerts] failed to mark all read', err));
-  }, [markAllRead]);
 
   const handleSeeAll = useCallback((): void => {
     onClose();
@@ -82,7 +75,7 @@ export function NotificationsPreview({
               )}
             </View>
             {unreadCount > 0 && (
-              <Pressable onPress={handleMarkAllRead}>
+              <Pressable onPress={markAllRead}>
                 <Text style={styles.markAllText}>{ALERTS_TEXT.markAllReadLabel}</Text>
               </Pressable>
             )}

@@ -20,6 +20,7 @@ import { SessionActivityGate } from '@features/auth/components/session-activity-
 import { NotificationsPreview } from '@features/alerts/components/NotificationsPreview';
 import {
   closeNotificationsPreview,
+  hydrateNotificationsCache,
   refreshNotifications,
   useNotificationsPreviewOpen,
 } from '@features/alerts/store/notificationsStore';
@@ -65,6 +66,7 @@ export default function MedTechLayout(): React.JSX.Element {
   useEffect(() => {
     if (!isAuthenticated || role !== UserRole.MEDTECH) return;
 
+    void hydrateNotificationsCache();
     synchronize();
     refreshNotifications();
     registerForPushNotifications();
