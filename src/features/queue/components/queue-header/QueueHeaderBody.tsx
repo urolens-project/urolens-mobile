@@ -1,4 +1,4 @@
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
@@ -52,7 +52,11 @@ export function QueueHeaderBody({
       <View style={styles.titleRow}>
         <View style={styles.heading}>
           <View style={styles.brandRow}>
-            <Icon name="flask" size={spacing.md} color={colors.white} />
+            <Image
+              source={require('../../../../../assets/images/urolens-logo.png')}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
             <Text style={styles.appName}>{QUEUE_TEXT.header.appName}</Text>
             <Text style={styles.appSubtitle} numberOfLines={1}>
               {QUEUE_TEXT.header.appSubtitle}
@@ -130,6 +134,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  brandLogo: {
+    width: spacing.md,
+    height: spacing.md,
+    borderRadius: radius.xs,
   },
   appName: {
     ...typography.micro,

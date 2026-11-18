@@ -1,8 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
-
-import { Icon } from '@components/Icon';
+import { colors, spacing, typography } from '@src/theme';
 
 import { AUTH_TEXT } from '../../constants/authText.constant';
 
@@ -12,10 +10,12 @@ import { AUTH_TEXT } from '../../constants/authText.constant';
 export function LoginHeader(): React.JSX.Element {
   return (
     <View style={styles.header}>
-      <View style={styles.iconBox}>
-        <Icon name="microscope" family="material-community" size={38} color={colors.white} />
-      </View>
-      <Text style={styles.appTitle}>{AUTH_TEXT.loginHeaderTitle}</Text>
+      <Image
+        source={require('../../../../../assets/images/urolens-transparent.png')}
+        style={styles.logo}
+        resizeMode="contain"
+        accessibilityLabel="UroLens"
+      />
       <Text style={styles.appSubtitle}>{AUTH_TEXT.loginHeaderSubtitle}</Text>
     </View>
   );
@@ -26,20 +26,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xxxl,
   },
-  iconBox: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.xxl,
-    backgroundColor: colors.teal,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.mlg,
-  },
-  appTitle: {
-    ...typography.hero,
-    fontWeight: fontWeight.extrabold,
-    color: colors.teal,
-    letterSpacing: 0.5,
+  logo: {
+    width: 200,
+    height: 200,
     marginBottom: spacing.xs,
   },
   appSubtitle: {
