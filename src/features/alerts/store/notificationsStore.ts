@@ -217,6 +217,32 @@ export async function refreshNotifications(): Promise<void> {
   }
 }
 
+function isNotificationItem(value: unknown): value is NotificationItem {
+  if (typeof value !== 'object' || value === null) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.notificationId === 'string' &&
+    typeof item.message === 'string' &&
+    typeof item.notificationType === 'string' &&
+    (typeof item.entityId === 'string' || item.entityId === null) &&
+    typeof item.isRead === 'boolean' &&
+    typeof item.createdAt === 'string'
+  );
+}
+
+// Guards against a stale-shape cache entry (e.g. after a future NotificationItem
+// field change) reaching the store as-is, which would crash or silently misrender
+// rather than just falling back to an empty list.
+function isNotificationsCache(value: unknown): value is NotificationsCache {
+  if (typeof value !== 'object' || value === null) return false;
+  const cache = value as Record<string, unknown>;
+  return (
+    Array.isArray(cache.items) &&
+    cache.items.every(isNotificationItem) &&
+    typeof cache.unreadCount === 'number'
+  );
+}
+
 /**
  * @description Restores the signed-in user's last-fetched notifications and unread
  * count from disk. Call once at app bootstrap, before the first `refreshNotifications`
@@ -231,10 +257,15 @@ export async function hydrateNotificationsCache(): Promise<void> {
   try {
     const raw = await AsyncStorage.getItem(notificationsCacheKey(userId));
     if (!raw || useNotificationsStore.getState().hasLoadedOnce) return;
-    const cache = JSON.parse(raw) as NotificationsCache;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isNotificationsCache(parsed)) {
+      console.error('[Notifications] discarding cached notifications with an unexpected shape');
+      await AsyncStorage.removeItem(notificationsCacheKey(userId));
+      return;
+    }
     useNotificationsStore.setState({
-      items: cache.items,
-      unreadCount: cache.unreadCount,
+      items: parsed.items,
+      unreadCount: parsed.unreadCount,
       hasLoadedOnce: true,
     });
   } catch (err) {
