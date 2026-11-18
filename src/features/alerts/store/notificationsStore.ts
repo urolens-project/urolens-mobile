@@ -1,9 +1,21 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAuthStore } from '@lib/auth/authStore';
 
 import { alertsApi, type ListNotificationsParams } from '../api/alertsApi';
 import type { NotificationItem } from '../types';
+
+const NOTIFICATIONS_CACHE_KEY_PREFIX = 'urolens_notifications_cache_';
+
+interface NotificationsCache {
+  items: NotificationItem[];
+  unreadCount: number;
+}
+
+function notificationsCacheKey(userId: string): string {
+  return `${NOTIFICATIONS_CACHE_KEY_PREFIX}${userId}`;
+}
 
 interface NotificationsState {
   items: NotificationItem[];
@@ -80,7 +92,31 @@ useAuthStore.subscribe((state, previousState): void => {
   ) {
     notificationsSession += 1;
     useNotificationsStore.setState({ items: [], hasLoadedOnce: false, unreadCount: 0 });
+    if (previousState.userId) {
+      AsyncStorage.removeItem(notificationsCacheKey(previousState.userId)).catch((err: unknown) =>
+        console.error('[Notifications] failed to clear cached notifications', err),
+      );
+    }
   }
+});
+
+// Persists the list and unread count after every real change, so a cold app start
+// while offline (hydrateNotificationsCache) has something to show instead of an
+// empty list — the in-memory store above never survives a process restart on its
+// own. Reference-equality on `items` skips no-op updates (e.g. opening the preview
+// overlay) cheaply, and `hasLoadedOnce` skips the reset on logout/account change,
+// which must never overwrite a cache with nothing.
+useNotificationsStore.subscribe((state, previousState): void => {
+  if (state.items === previousState.items && state.unreadCount === previousState.unreadCount) {
+    return;
+  }
+  if (!state.hasLoadedOnce) return;
+  const { userId } = useAuthStore.getState();
+  if (!userId) return;
+  const cache: NotificationsCache = { items: state.items, unreadCount: state.unreadCount };
+  AsyncStorage.setItem(notificationsCacheKey(userId), JSON.stringify(cache)).catch((err: unknown) =>
+    console.error('[Notifications] failed to persist cached notifications', err),
+  );
 });
 
 /** @description Read-only: the signed-in user's notifications, newest first. */
@@ -178,5 +214,30 @@ export async function refreshNotifications(): Promise<void> {
     await loadNotifications();
   } catch (err) {
     console.error('[Notifications] failed to refresh', err);
+  }
+}
+
+/**
+ * @description Restores the signed-in user's last-fetched notifications and unread
+ * count from disk. Call once at app bootstrap, before the first `refreshNotifications`
+ * — a cold start with no connectivity would otherwise show an empty Alerts tab even
+ * though the phone has a perfectly good last-known list sitting unused. A no-op once
+ * a fetch has already landed this session, so a cached snapshot can never clobber a
+ * fresher one.
+ */
+export async function hydrateNotificationsCache(): Promise<void> {
+  const { userId } = useAuthStore.getState();
+  if (!userId || useNotificationsStore.getState().hasLoadedOnce) return;
+  try {
+    const raw = await AsyncStorage.getItem(notificationsCacheKey(userId));
+    if (!raw || useNotificationsStore.getState().hasLoadedOnce) return;
+    const cache = JSON.parse(raw) as NotificationsCache;
+    useNotificationsStore.setState({
+      items: cache.items,
+      unreadCount: cache.unreadCount,
+      hasLoadedOnce: true,
+    });
+  } catch (err) {
+    console.error('[Notifications] failed to hydrate cached notifications', err);
   }
 }

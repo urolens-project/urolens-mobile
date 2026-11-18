@@ -20,6 +20,9 @@ jest.mock('@lib/notifications/notificationHandler', () => ({
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+// Pulled in transitively via queueNotificationRead.ts (offline mark-read queuing) —
+// this screen never touches WatermelonDB directly, so it isn't under test here.
+jest.mock('@db/database', () => ({ database: { get: jest.fn(), write: jest.fn() } }));
 
 const get = apiClient.get as jest.Mock;
 const patch = apiClient.patch as jest.Mock;

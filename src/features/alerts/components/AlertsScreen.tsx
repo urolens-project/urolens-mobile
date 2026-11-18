@@ -11,19 +11,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAsyncAction } from '@hooks/useAsyncAction';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { colors, fontWeight, radius, spacing, typography } from '@src/theme';
 
 import { Icon } from '@components/Icon';
+import { OfflineBanner } from '@components/OfflineBanner';
 
-import { alertsApi } from '../api/alertsApi';
 import { DEFAULT_NOTIFICATIONS_PAGE_SIZE } from '../constants/alerts.constant';
 import { ALERTS_TEXT } from '../constants/alertsText.constant';
+import { useMarkAllRead } from '../hooks/useMarkAllRead';
 import { useOpenNotification } from '../hooks/useOpenNotification';
 import { groupNotificationsByDate } from '../lib/groupByDate';
 import {
   loadMoreNotifications,
   loadNotifications,
-  useNotificationsActions,
   useNotificationsList,
   useNotificationsLoaded,
 } from '../store/notificationsStore';
@@ -36,8 +37,9 @@ import { NotificationCard } from './NotificationCard';
  * relevant specimen on tap.
  */
 export function AlertsScreen(): React.JSX.Element {
+  const { isOnline } = useNetworkStatus();
   const notifications = useNotificationsList();
-  const { markAllRead } = useNotificationsActions();
+  const { markAllRead } = useMarkAllRead();
   const { openNotification } = useOpenNotification();
   const hasLoadedOnce = useNotificationsLoaded();
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -73,13 +75,6 @@ export function AlertsScreen(): React.JSX.Element {
     setShowUnreadOnly((prev) => !prev);
   }, []);
 
-  const handleMarkAllRead = useCallback((): void => {
-    markAllRead();
-    alertsApi
-      .markAllRead()
-      .catch((err: unknown) => console.error('[Alerts] failed to mark all read', err));
-  }, [markAllRead]);
-
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const visibleNotifications = showUnreadOnly
     ? notifications.filter((n) => !n.isRead)
@@ -106,10 +101,12 @@ export function AlertsScreen(): React.JSX.Element {
         unreadCount={unreadCount}
         showUnreadOnly={showUnreadOnly}
         onToggleUnreadOnly={handleToggleUnreadOnly}
-        onMarkAllRead={handleMarkAllRead}
+        onMarkAllRead={markAllRead}
       />
 
-      {error ? (
+      {!isOnline && <OfflineBanner />}
+
+      {error && !hasLoadedOnce ? (
         <View style={styles.centered}>
           <Icon name="cloud-offline-outline" size={40} color={colors.gray400} />
           <Text style={styles.errorText}>{error.message || ALERTS_TEXT.loadErrorFallback}</Text>

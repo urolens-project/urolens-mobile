@@ -30,6 +30,8 @@ import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { synchronize } from '@db/sync/syncManager';
 import { colors } from '@src/theme';
 
+import { OfflineBanner } from '@components/OfflineBanner';
+
 import { CameraPermissionRequest } from '@features/image-retake/components/CameraPermissionRequest';
 import { CameraUnavailableView } from '@features/image-retake/components/CameraUnavailableView';
 import { CameraLiveView } from '@features/image-retake/components/CameraLiveView';
@@ -117,18 +119,16 @@ export function FieldCaptureSessionScreen({
     (): FieldThumbnail[] =>
       dbFields
         .filter((f) => (f.status === 'ACCEPTED' || f.status === 'PENDING_UPLOAD') && f.thumbnailUri)
-        .map(
-          (f): FieldThumbnail => ({
-            localId: f.localId,
-            thumbnailUri: f.thumbnailUri as string,
-            status:
-              f.status === 'ACCEPTED'
-                ? 'accepted'
-                : f.localId === uploadingFieldId
-                  ? 'uploading'
-                  : 'waiting',
-          }),
-        ),
+        .map((f): FieldThumbnail => ({
+          localId: f.localId,
+          thumbnailUri: f.thumbnailUri as string,
+          status:
+            f.status === 'ACCEPTED'
+              ? 'accepted'
+              : f.localId === uploadingFieldId
+                ? 'uploading'
+                : 'waiting',
+        })),
     [dbFields, uploadingFieldId],
   );
   // Seeded from the last sync's server minimum (backend #105) so the counter before
@@ -475,25 +475,29 @@ export function FieldCaptureSessionScreen({
 
   // ── Idle — live camera ────────────────────────────────────────────────────
   return (
-    <CameraLiveView
-      cameraRef={cameraRef}
-      validationError={validationError}
-      onMountError={handleCameraMountError}
-      onGoBack={handleGoBack}
-      onGalleryPick={handleGalleryPick}
-      onCapture={handleCapture}
-      fieldSession={{
-        acceptedCount,
-        minFields,
-        magnification,
-        onToggleMagnification: handleToggleMagnification,
-        onViewFieldList: handleViewFieldList,
-        thumbnails,
-      }}
-    />
+    <View style={styles.container}>
+      {!isOnline && <OfflineBanner />}
+      <CameraLiveView
+        cameraRef={cameraRef}
+        validationError={validationError}
+        onMountError={handleCameraMountError}
+        onGoBack={handleGoBack}
+        onGalleryPick={handleGalleryPick}
+        onCapture={handleCapture}
+        fieldSession={{
+          acceptedCount,
+          minFields,
+          magnification,
+          onToggleMagnification: handleToggleMagnification,
+          onViewFieldList: handleViewFieldList,
+          thumbnails,
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   blank: { flex: 1, backgroundColor: colors.black },
+  container: { flex: 1 },
 });
