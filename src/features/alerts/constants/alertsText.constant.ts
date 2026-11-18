@@ -4,6 +4,7 @@ export const ALERTS_TEXT = {
   markAllReadLabel: 'Mark all as read',
 
   loadErrorFallback: 'Could not load notifications.',
+  staleDataErrorPrefix: "Showing saved alerts — couldn't refresh: ",
   retryLabel: 'Retry',
   allCaughtUpTitle: "You're all caught up",
   noAlertsTitle: 'No alerts yet',
