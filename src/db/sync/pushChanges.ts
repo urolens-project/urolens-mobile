@@ -239,41 +239,43 @@ async function resolvePermanentlyRefusedField(item: PendingSync, message: string
 async function dispatchAction(item: PendingSync, signal?: AbortSignal): Promise<void> {
   const payload = item.payload;
 
+  const entityId = encodeURIComponent(item.entityId);
+
   switch (item.action as PendingSyncAction) {
     case PendingSyncAction.REJECT_SPECIMEN:
-      await apiClient.post(`/specimens/${item.entityId}/reject`, payload, { signal });
+      await apiClient.post(`/specimens/${entityId}/reject`, payload, { signal });
       break;
 
     case PendingSyncAction.START_ANALYSIS:
-      await apiClient.post(`/specimens/${item.entityId}/start-analysis`, undefined, { signal });
+      await apiClient.post(`/specimens/${entityId}/start-analysis`, undefined, { signal });
       break;
 
     case PendingSyncAction.CONFIRM_RESULT:
-      await apiClient.post(`/results/${item.entityId}/confirm`, payload, { signal });
+      await apiClient.post(`/results/${entityId}/confirm`, payload, { signal });
       break;
 
     case PendingSyncAction.OVERRIDE_PARAMETER:
-      await apiClient.post(`/results/${item.entityId}/override`, payload, { signal });
+      await apiClient.post(`/results/${entityId}/override`, payload, { signal });
       break;
 
     case PendingSyncAction.DISCARD_IMAGE:
-      await apiClient.post(`/images/${item.entityId}/discard`, undefined, { signal });
+      await apiClient.post(`/images/${entityId}/discard`, undefined, { signal });
       break;
 
     // Multi-field workflow (SDD Module 2 proposal). entityId is the field's
     // server id for both — accept/discard only ever queue once a field has
     // already uploaded (see useFieldActions.ts), so it always has one.
     case PendingSyncAction.ACCEPT_FIELD:
-      await apiClient.post(`/fields/${item.entityId}/accept`, undefined, { signal });
+      await apiClient.post(`/fields/${entityId}/accept`, undefined, { signal });
       break;
 
     case PendingSyncAction.DISCARD_FIELD:
-      await apiClient.post(`/fields/${item.entityId}/discard`, payload, { signal });
+      await apiClient.post(`/fields/${entityId}/discard`, payload, { signal });
       break;
 
     // entityId is the notification's server id; see queueNotificationRead.ts.
     case PendingSyncAction.MARK_NOTIFICATION_READ:
-      await apiClient.patch(`/notifications/${item.entityId}/read`, undefined, { signal });
+      await apiClient.patch(`/notifications/${entityId}/read`, undefined, { signal });
       break;
 
     // entityId carries no meaning here (there is no single notification to key on) —
