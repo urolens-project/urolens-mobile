@@ -50,6 +50,12 @@ export function AlertsScreen(): React.JSX.Element {
     [showUnreadOnly],
   );
   const { run: refetch, isLoading, error } = useAsyncAction('Alerts', fetchPage);
+  // NETWORK_ERROR/TIMEOUT (apiClient.ts) mean the device can't reach the server at all —
+  // that's already communicated by the offline banner, so don't also flag it as a refresh
+  // failure. Any other code (403, 500, ...) is a real failure the medtech should know about
+  // even though stale cached alerts are still on screen.
+  const isStaleDataError = !!error && hasLoadedOnce;
+  const isSuppressedNetworkError = error?.code === 'NETWORK_ERROR' || error?.code === 'TIMEOUT';
   const { run: fetchMore, isLoading: isLoadingMore } = useAsyncAction(
     'Alerts',
     useCallback(
@@ -105,6 +111,16 @@ export function AlertsScreen(): React.JSX.Element {
       />
 
       {!isOnline && <OfflineBanner />}
+
+      {isStaleDataError && !isSuppressedNetworkError && (
+        <View style={styles.staleErrorBanner}>
+          <Icon name="alert-circle-outline" size={16} color={colors.red700} />
+          <Text style={styles.staleErrorText} numberOfLines={2}>
+            {ALERTS_TEXT.staleDataErrorPrefix}
+            {error?.message || ALERTS_TEXT.loadErrorFallback}
+          </Text>
+        </View>
+      )}
 
       {error && !hasLoadedOnce ? (
         <View style={styles.centered}>
@@ -187,6 +203,15 @@ const styles = StyleSheet.create({
   emptyTitle: { ...typography.titleLg, color: colors.gray700 },
   emptySub: { ...typography.body, color: colors.gray500, textAlign: 'center' },
   errorText: { ...typography.bodyLg, color: colors.gray500, textAlign: 'center' },
+  staleErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.red50,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  staleErrorText: { ...typography.caption, color: colors.red700, flex: 1 },
   retryBtn: {
     marginTop: spacing.xs,
     paddingHorizontal: spacing.xl,
